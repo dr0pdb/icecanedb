@@ -1,5 +1,9 @@
 package storage
 
+import (
+	log "github.com/sirupsen/logrus"
+)
+
 // Storage is a Key-value store
 type Storage interface {
 	Get(key []byte) (value []byte, err error)
@@ -14,10 +18,16 @@ type Storage interface {
 // storage is the persistent key-value storage struct
 // It contains all the necessary information for the storage
 type storage struct {
-	dirname string
+	dirname  string
+	logger   *log.Logger
+	memtable Memtable
 }
 
 func (s *storage) Get(key []byte) (value []byte, err error) {
+	s.logger.WithFields(log.Fields{
+		"key": key,
+	}).Info("storage: Get")
+
 	panic("not implemented")
 }
 
@@ -34,8 +44,10 @@ func (s *storage) Close() error {
 }
 
 // NewStorage creates a new persistent storage
-func NewStorage(dirname string) Storage {
+func NewStorage(logger *log.Logger, dirname string, memtable Memtable) Storage {
 	return &storage{
-		dirname: dirname,
+		dirname:  dirname,
+		logger:   logger,
+		memtable: memtable,
 	}
 }
