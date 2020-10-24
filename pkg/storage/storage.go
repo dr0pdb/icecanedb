@@ -6,7 +6,7 @@ import (
 
 // Storage is a Key-value store
 type Storage interface {
-	Get(key []byte) (value []byte, err error)
+	Get(key []byte) ([]byte, error)
 
 	Set(key, value []byte) error
 
@@ -18,13 +18,13 @@ type Storage interface {
 // storage is the persistent key-value storage struct
 // It contains all the necessary information for the storage
 type storage struct {
-	dirname  string
-	logger   *log.Logger
-	memtable Memtable
+	dirname    string
+	memtable   Memtable
+	comparator Comparator
 }
 
-func (s *storage) Get(key []byte) (value []byte, err error) {
-	s.logger.WithFields(log.Fields{
+func (s *storage) Get(key []byte) ([]byte, error) {
+	log.WithFields(log.Fields{
 		"key": key,
 	}).Info("storage: Get")
 
@@ -44,10 +44,10 @@ func (s *storage) Close() error {
 }
 
 // NewStorage creates a new persistent storage
-func NewStorage(logger *log.Logger, dirname string, memtable Memtable) Storage {
+func NewStorage(dirname string, memtable Memtable, comparator Comparator) Storage {
 	return &storage{
-		dirname:  dirname,
-		logger:   logger,
-		memtable: memtable,
+		dirname:    dirname,
+		memtable:   memtable,
+		comparator: comparator,
 	}
 }
