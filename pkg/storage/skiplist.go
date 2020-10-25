@@ -26,6 +26,7 @@ type skipList struct {
 	comparator Comparator
 }
 
+// Get finds an element by key.
 func (s *skipList) Get(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": key,
@@ -40,6 +41,11 @@ func (s *skipList) Set(key, value []byte) error {
 
 func (s *skipList) Delete(key []byte) error {
 	panic("not implemented")
+}
+
+// front returns the first node of the skip list.
+func (s *skipList) front() *skipListNode {
+	return s.head.next[0]
 }
 
 type skipListNode struct {

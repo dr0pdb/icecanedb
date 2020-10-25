@@ -44,10 +44,10 @@ func (s *storage) Close() error {
 }
 
 // NewStorage creates a new persistent storage
-func NewStorage(dirname string, memtable Memtable, comparator Comparator) Storage {
+func NewStorage(dirname string, memtable Memtable, userKeyComparator Comparator) Storage {
 	return &storage{
 		dirname:    dirname,
 		memtable:   memtable,
-		comparator: comparator,
+		comparator: userKeyComparator,
 	}
 }
