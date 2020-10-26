@@ -51,7 +51,7 @@ type skipList struct {
 // returns nil in case the node with key is not found.
 func (s *skipList) Get(key []byte) *skipListNode {
 	log.WithFields(log.Fields{
-		"key": key,
+		"key": string(key),
 	}).Info("skipList: Get")
 
 	var next *skipListNode
@@ -70,16 +70,16 @@ func (s *skipList) Get(key []byte) *skipListNode {
 	// next.Key() should be <= user key
 	if next != nil && s.comparator.Compare(next.Key(), key) <= 0 {
 		log.WithFields(log.Fields{
-			"key":       key,
-			"nextkey":   next.Key(),
-			"nextvalue": next.Value(),
+			"key":       string(key),
+			"nextkey":   string(next.Key()),
+			"nextvalue": string(next.Value()),
 		}).Info("skipList: Get; Found the node.")
 
 		return next
 	}
 
 	log.WithFields(log.Fields{
-		"key": key,
+		"key": string(key),
 	}).Info("skipList: Get; Node not found.")
 
 	return nil
@@ -91,18 +91,18 @@ func (s *skipList) Get(key []byte) *skipListNode {
 // returns a pointer to the inserted/modified skip list node.
 func (s *skipList) Set(key, value []byte) *skipListNode {
 	log.WithFields(log.Fields{
-		"key":   key,
-		"value": value,
+		"key":   string(key),
+		"value": string(value),
 	}).Info("skipList: Set")
 
 	var element *skipListNode
 	prevs := s.getPreviousNodesForAllLevels(key)
 
-	if element = prevs[0]; element != nil && s.comparator.Compare(element.Key(), key) <= 0 {
+	if element = prevs[0].next[0]; element != nil && s.comparator.Compare(element.Key(), key) <= 0 {
 		log.WithFields(log.Fields{
-			"key":      key,
-			"value":    value,
-			"oldvalue": element.Value(),
+			"key":      string(key),
+			"value":    string(value),
+			"oldvalue": string(element.Value()),
 		}).Info("skipList: Set; Found an existing key. Overriding the existing value.")
 
 		element.value = value
@@ -110,8 +110,8 @@ func (s *skipList) Set(key, value []byte) *skipListNode {
 	}
 
 	log.WithFields(log.Fields{
-		"key":   key,
-		"value": value,
+		"key":   string(key),
+		"value": string(value),
 	}).Info("skipList: Set; Inserting the key with the value.")
 
 	element = &skipListNode{
@@ -134,14 +134,14 @@ func (s *skipList) Set(key, value []byte) *skipListNode {
 // returns nil if the node isn't found.
 func (s *skipList) Delete(key []byte) *skipListNode {
 	log.WithFields(log.Fields{
-		"key": key,
+		"key": string(key),
 	}).Info("skipList: Delete")
 
 	prevs := s.getPreviousNodesForAllLevels(key)
 
-	if element := prevs[0]; element != nil && s.comparator.Compare(element.Key(), key) <= 0 {
+	if element := prevs[0].next[0]; element != nil && s.comparator.Compare(element.Key(), key) <= 0 {
 		log.WithFields(log.Fields{
-			"key": key,
+			"key": string(key),
 		}).Info("skipList: Delete; Found the node with the key. Removing it.")
 
 		for k, v := range element.next {
@@ -152,7 +152,7 @@ func (s *skipList) Delete(key []byte) *skipListNode {
 	}
 
 	log.WithFields(log.Fields{
-		"key": key,
+		"key": string(key),
 	}).Info("skipList: Delete; Key not found.")
 
 	return nil
