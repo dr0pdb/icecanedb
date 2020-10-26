@@ -3,12 +3,17 @@ package storage
 import (
 	"sync"
 
+	"github.com/dr0pdb/icecanedb/pkg/common"
 	log "github.com/sirupsen/logrus"
 )
 
 // Memtable is the in-memory store
 // It is thread safe and can be accessed concurrently.
 type Memtable interface {
+	// Get finds an element by key.
+	//
+	// returns a byte slice pointing to the value if the key is found.
+	// returns NotFoundError if the key is not found.
 	Get(key []byte) ([]byte, error)
 
 	Set(key, value []byte) error
@@ -18,16 +23,28 @@ type Memtable interface {
 
 type memtable struct {
 	mutex      sync.RWMutex
-	skiplist   SkipList
+	skipList   SkipList
 	comparator Comparator
 }
 
+// Get finds an element by key.
+//
+// returns a byte slice pointing to the value if the key is found.
+// returns NotFoundError if the key is not found.
 func (m *memtable) Get(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": key,
 	}).Info("memtable: Get")
 
-	panic("not implemented")
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	skipNode := m.skipList.Get(key)
+	if skipNode == nil {
+		return []byte{}, common.NewNotFoundError("Key not found.")
+	}
+
+	return skipNode.Value(), nil
 }
 
 func (m *memtable) Set(key, value []byte) error {
@@ -39,9 +56,9 @@ func (m *memtable) Delete(key []byte) error {
 }
 
 // NewMemtable returns a new instance of the Memtable
-func NewMemtable(skiplist SkipList, comparator Comparator) Memtable {
+func NewMemtable(skipList SkipList, comparator Comparator) Memtable {
 	return &memtable{
-		skiplist:   skiplist,
+		skipList:   skipList,
 		comparator: comparator,
 	}
 }

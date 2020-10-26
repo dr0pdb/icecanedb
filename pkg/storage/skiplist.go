@@ -47,7 +47,7 @@ type skipList struct {
 
 // Get finds an element by key.
 //
-// returns a pointer to the skip list node if the key is found
+// returns a pointer to the skip list node if the key is found.
 // returns nil in case the node with key is not found.
 func (s *skipList) Get(key []byte) *skipListNode {
 	log.WithFields(log.Fields{
@@ -90,7 +90,42 @@ func (s *skipList) Get(key []byte) *skipListNode {
 // Overwrites the data if the key already exists.
 // returns a pointer to the inserted/modified skip list node.
 func (s *skipList) Set(key, value []byte) *skipListNode {
-	panic("not implemented")
+	log.WithFields(log.Fields{
+		"key":   key,
+		"value": value,
+	}).Info("skipList: Set")
+
+	var element *skipListNode
+	prevs := s.getPreviousNodesForAllLevels(key)
+
+	if element = prevs[0]; element != nil && s.comparator.Compare(element.Key(), key) <= 0 {
+		log.WithFields(log.Fields{
+			"key":      key,
+			"value":    value,
+			"oldvalue": element.Value(),
+		}).Info("skipList: Set; Found an existing key. Overriding the existing value.")
+
+		element.value = value
+		return element
+	}
+
+	log.WithFields(log.Fields{
+		"key":   key,
+		"value": value,
+	}).Info("skipList: Set; Inserting the key with the value.")
+
+	element = &skipListNode{
+		key:   key,
+		value: value,
+		next:  make([]*skipListNode, s.randomLevel()),
+	}
+
+	for i := range element.next {
+		element.next[i] = prevs[i].next[i]
+		prevs[i].next[i] = element
+	}
+
+	return element
 }
 
 // Delete deletes a value in the list associated with the specified key.
@@ -98,12 +133,66 @@ func (s *skipList) Set(key, value []byte) *skipListNode {
 // returns a pointer to the inserted/modified skip list node.
 // returns nil if the node isn't found.
 func (s *skipList) Delete(key []byte) *skipListNode {
-	panic("not implemented")
+	log.WithFields(log.Fields{
+		"key": key,
+	}).Info("skipList: Delete")
+
+	prevs := s.getPreviousNodesForAllLevels(key)
+
+	if element := prevs[0]; element != nil && s.comparator.Compare(element.Key(), key) <= 0 {
+		log.WithFields(log.Fields{
+			"key": key,
+		}).Info("skipList: Delete; Found the node with the key. Removing it.")
+
+		for k, v := range element.next {
+			prevs[k].next[k] = v
+		}
+
+		return element
+	}
+
+	log.WithFields(log.Fields{
+		"key": key,
+	}).Info("skipList: Delete; Key not found.")
+
+	return nil
 }
 
 // front returns the first node of the skip list.
 func (s *skipList) front() *skipListNode {
 	return s.head.next[0]
+}
+
+// getPreviousNodesForAllLevels returns the previous nodes at each level for passed in key.
+func (s *skipList) getPreviousNodesForAllLevels(key []byte) []*skipListNode {
+	prevs := s.cloneHeadNext() // careful not to modify the original head pointer contents.
+	var next *skipListNode
+	prev := s.head
+
+	for i := s.maxLevel - 1; i >= 0; i-- {
+		next = prev.next[i]
+
+		// while the user key is bigger than next.Key()
+		for next != nil && s.comparator.Compare(key, next.Key()) == 1 {
+			prev = next
+			next = next.next[i]
+		}
+
+		prevs[i] = prev
+	}
+
+	return prevs
+}
+
+// cloneHeadNext returns a deep copy of the next pointers of the head node.
+func (s *skipList) cloneHeadNext() []*skipListNode {
+	var clone []*skipListNode = make([]*skipListNode, s.maxLevel)
+
+	for i := s.maxLevel - 1; i >= 0; i-- {
+		clone[i] = s.head.next[i]
+	}
+
+	return clone
 }
 
 func (s *skipList) randomLevel() int32 {
