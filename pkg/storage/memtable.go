@@ -3,7 +3,7 @@ package storage
 import (
 	"sync"
 
-	"github.com/dr0pdb/icecanedb/pkg/common"
+	"github.com/dr0pdb/icecanedb/internal/common"
 	log "github.com/sirupsen/logrus"
 )
 
