@@ -16,8 +16,17 @@ type Memtable interface {
 	// returns NotFoundError if the key is not found.
 	Get(key []byte) ([]byte, error)
 
+	// Set inserts a value in the memtable associated with the specified key.
+	//
+	// Overwrites the data if the key already exists.
+	// returns a error if something goes wrong
+	// error equal to nil represents success.
 	Set(key, value []byte) error
 
+	// Delete deletes a value in the memtable associated with the specified key.
+	//
+	// returns nil if the operation was successful,
+	// returns NotFoundError if the key is not found.
 	Delete(key []byte) error
 }
 
@@ -41,18 +50,74 @@ func (m *memtable) Get(key []byte) ([]byte, error) {
 
 	skipNode := m.skipList.Get(key)
 	if skipNode == nil {
+		log.WithFields(log.Fields{
+			"key": key,
+		}).Info("memtable: Get; Key not found in the memtable.")
 		return []byte{}, common.NewNotFoundError("Key not found.")
 	}
+
+	log.WithFields(log.Fields{
+		"key":   key,
+		"value": skipNode.Value(),
+	}).Info("memtable: Get; Key found in the memtable; returning value")
 
 	return skipNode.Value(), nil
 }
 
+// Set inserts a value in the memtable associated with the specified key.
+//
+// Overwrites the data if the key already exists.
+// returns a error if something goes wrong
+// error equal to nil represents success.
 func (m *memtable) Set(key, value []byte) error {
-	panic("not implemented")
+	log.WithFields(log.Fields{
+		"key": key,
+	}).Info("memtable: Set")
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	skipNode := m.skipList.Set(key, value)
+	if skipNode == nil {
+		log.WithFields(log.Fields{
+			"key": key,
+		}).Info("memtable: Set; Key not found in the memtable.")
+		return common.NewUnknownError("Key not found.")
+	}
+
+	log.WithFields(log.Fields{
+		"key":   key,
+		"value": skipNode.Value(),
+	}).Info("memtable: Set; Wrote the value in the memtable for the given key.")
+
+	return nil
 }
 
+// Delete deletes a value in the memtable associated with the specified key.
+//
+// returns nil if the operation was successful,
+// returns NotFoundError if the key is not found.
 func (m *memtable) Delete(key []byte) error {
-	panic("not implemented")
+	log.WithFields(log.Fields{
+		"key": key,
+	}).Info("memtable: Delete")
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	skipNode := m.skipList.Delete(key)
+	if skipNode == nil {
+		log.WithFields(log.Fields{
+			"key": key,
+		}).Info("memtable: Delete; Key not found in the memtable.")
+		return common.NewUnknownError("Key not found.")
+	}
+
+	log.WithFields(log.Fields{
+		"key": key,
+	}).Info("memtable: Delete; Deleted the value in the memtable for the given key.")
+
+	return nil
 }
 
 // NewMemtable returns a new instance of the Memtable

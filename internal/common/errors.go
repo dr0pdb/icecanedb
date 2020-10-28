@@ -19,3 +19,19 @@ func NewNotFoundError(message string) NotFoundError {
 		Message: message,
 	}
 }
+
+// UnknownError is returned when an unknown error happens.
+type UnknownError struct {
+	Message string
+}
+
+func (nf UnknownError) Error() string {
+	return fmt.Sprintf("%s", nf.Message)
+}
+
+// NewUnknownError creates a new instance of UnknownError with the given message.
+func NewUnknownError(message string) UnknownError {
+	return UnknownError{
+		Message: message,
+	}
+}
