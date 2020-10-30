@@ -20,14 +20,14 @@ type Comparator interface {
 }
 
 // DefaultComparator is the default comparator which uses byte wise ordering.
-var DefaultComparator Comparator = defaultComparator{}
+var DefaultComparator Comparator = &defaultComparator{}
 
 type defaultComparator struct{}
 
-func (d defaultComparator) Compare(a, b []byte) int {
+func (d *defaultComparator) Compare(a, b []byte) int {
 	return bytes.Compare(a, b)
 }
 
-func (d defaultComparator) Name() string {
+func (d *defaultComparator) Name() string {
 	return "BytewiseComparator"
 }

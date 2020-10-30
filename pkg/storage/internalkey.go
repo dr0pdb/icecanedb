@@ -51,17 +51,17 @@ type internalKeyComparator struct {
 	userKeyComparator Comparator
 }
 
-func (d internalKeyComparator) Compare(a, b []byte) int {
+func (d *internalKeyComparator) Compare(a, b []byte) int {
 	return bytes.Compare(a, b)
 }
 
-func (d internalKeyComparator) Name() string {
+func (d *internalKeyComparator) Name() string {
 	return "InternalKeyComparator"
 }
 
 // newInternalKeyComparator creates a new instance of an internalKeyComparator
-// returns a pointer to the internalKeyComparator struct.
-func newInternalKeyComparator(userKeyComparator Comparator) *internalKeyComparator {
+// returns a pointer to the Comparator interface.
+func newInternalKeyComparator(userKeyComparator Comparator) Comparator {
 	return &internalKeyComparator{
 		userKeyComparator: userKeyComparator,
 	}

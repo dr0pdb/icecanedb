@@ -18,9 +18,9 @@ type Storage interface {
 // storage is the persistent key-value storage struct
 // It contains all the necessary information for the storage
 type storage struct {
-	dirname    string
-	memtable   Memtable
-	comparator Comparator
+	dirname               string
+	memtable              Memtable
+	internalKeyComparator Comparator
 }
 
 func (s *storage) Get(key []byte) ([]byte, error) {
@@ -43,11 +43,32 @@ func (s *storage) Close() error {
 	panic("not implemented")
 }
 
-// NewStorage creates a new persistent storage
-func NewStorage(dirname string, memtable Memtable, userKeyComparator Comparator) Storage {
+// newStorage creates a new persistent storage according to the given parameters.
+func newStorage(dirname string, memtable Memtable, internalKeyComparator Comparator) Storage {
 	return &storage{
-		dirname:    dirname,
-		memtable:   memtable,
-		comparator: userKeyComparator,
+		dirname:               dirname,
+		memtable:              memtable,
+		internalKeyComparator: internalKeyComparator,
 	}
+}
+
+// NewStorageWithCustomComparator creates a new persistent storage in the given directory.
+//
+// It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
+// Keys are ordered using the given custom comparator.
+// returns a Storage interface implementation.
+func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator) Storage {
+	internalKeyComparator := newInternalKeyComparator(userKeyComparator)
+	skipList := NewSkipList(18, internalKeyComparator)
+	memtable := NewMemtable(skipList, internalKeyComparator)
+	return newStorage(dirname, memtable, internalKeyComparator)
+}
+
+// NewStorage creates a new persistent storage in the given directory.
+//
+// It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
+// returns a Storage interface implementation.
+func NewStorage(dirname string) Storage {
+	userKeyComparator := DefaultComparator
+	return NewStorageWithCustomComparator(dirname, userKeyComparator)
 }
