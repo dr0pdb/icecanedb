@@ -14,30 +14,10 @@ const (
 	defaultProbability float64 = 0.5
 )
 
-// SkipList is the probabilistic data structure used in memtable.
+// skipList is the probabilistic data structure used in memtable.
 // It supports byte key and values along with custom comparators.
 //
 // It requires external synchronization generally via a mutex.
-type SkipList interface {
-	// Get finds an element by key.
-	//
-	// returns a pointer to the skip list node if the key is found
-	// returns nil in case the node with key is not found.
-	Get(key []byte) *skipListNode
-
-	// Set inserts a value in the list associated with the specified key.
-	//
-	// Overwrites the data if the key already exists.
-	// returns a pointer to the inserted/modified skip list node.
-	Set(key, value []byte) *skipListNode
-
-	// Delete deletes a value in the list associated with the specified key.
-	//
-	// returns a pointer to the inserted/modified skip list node.
-	// returns nil if the node isn't found.
-	Delete(key []byte) *skipListNode
-}
-
 type skipList struct {
 	head        *skipListNode
 	maxLevel    int32
@@ -220,14 +200,15 @@ func (sn *skipListNode) Value() []byte {
 }
 
 type skipListIterator struct {
+	skipList *skipList
 }
 
-// NewSkipList creates a new SkipList
+// newSkipList creates a new skipList
 //
 // Passing 0 for maxLevel leads to a default max level.
-func NewSkipList(maxLevel int32, comparator Comparator) SkipList {
-	if maxLevel < 1 || maxLevel > 12 {
-		panic("maxLevel for the SkipList must be a positive integer <= 12")
+func newSkipList(maxLevel int32, comparator Comparator) *skipList {
+	if maxLevel < 1 || maxLevel > 18 {
+		panic("maxLevel for the SkipList must be a positive integer <= 18")
 	}
 
 	if maxLevel == 0 {

@@ -21,7 +21,7 @@ var (
 
 // TestBasicCRUD tests the basic CRUD operations on the skip list
 func TestBasicCRUD(t *testing.T) {
-	skipList := NewSkipList(10, DefaultComparator)
+	skipList := newSkipList(10, DefaultComparator)
 
 	skipList.Set(key1, value1)
 	skipList.Set(key2, value2)

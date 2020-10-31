@@ -32,7 +32,7 @@ type Memtable interface {
 
 type memtable struct {
 	mutex      sync.RWMutex
-	skipList   SkipList
+	skipList   *skipList
 	comparator Comparator
 }
 
@@ -121,7 +121,7 @@ func (m *memtable) Delete(key []byte) error {
 }
 
 // NewMemtable returns a new instance of the Memtable
-func NewMemtable(skipList SkipList, comparator Comparator) Memtable {
+func NewMemtable(skipList *skipList, comparator Comparator) Memtable {
 	return &memtable{
 		skipList:   skipList,
 		comparator: comparator,

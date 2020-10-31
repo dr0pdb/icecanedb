@@ -59,7 +59,7 @@ func newStorage(dirname string, memtable Memtable, internalKeyComparator Compara
 // returns a Storage interface implementation.
 func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator) Storage {
 	internalKeyComparator := newInternalKeyComparator(userKeyComparator)
-	skipList := NewSkipList(18, internalKeyComparator)
+	skipList := newSkipList(18, internalKeyComparator)
 	memtable := NewMemtable(skipList, internalKeyComparator)
 	return newStorage(dirname, memtable, internalKeyComparator)
 }
