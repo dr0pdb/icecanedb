@@ -81,3 +81,24 @@ func TestConcurrency(t *testing.T) {
 		assert.Equal(t, []byte(string(i+l)), node2.Value(), "Value mismatch in concurrency testing.")
 	}
 }
+
+func TestSkipListIterator(t *testing.T) {
+	skipList := newSkipList(10, DefaultComparator)
+
+	l := 100
+	for i := 0; i < l; i++ {
+		skipList.Set([]byte(string(i)), []byte(string(i)))
+	}
+
+	itr := skipList.newSkipListIterator()
+	assert.Equal(t, false, itr.Valid(), "New iterator was expected to be invalid.")
+	itr.SeekToFirst()
+	assert.Equal(t, true, itr.Valid(), "New iterator after seek to first should be valid.")
+	assert.Equal(t, []byte(string(0)), itr.Value(), "First value should be 0.")
+
+	itr.Seek([]byte(string(10)))
+	assert.Equal(t, []byte(string(10)), itr.Value(), "Seek to 10 should move the iterator to 10th value.")
+
+	itr.SeekToFirst()
+	assert.Equal(t, true, itr.Valid(), "Seek to first should first in backward direction as well.")
+}
