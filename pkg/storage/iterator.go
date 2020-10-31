@@ -9,10 +9,6 @@ type Iterator interface {
 	// Call Valid() to ensure that the iterator is valid after the seek.
 	SeekToFirst()
 
-	// Move to the last entry of the source.
-	// Call Valid() to ensure that the iterator is valid after the seek.
-	SeekToLast()
-
 	// Seek the iterator to the first element whose key is >= target
 	// Call Valid() to ensure that the iterator is valid after the seek.
 	Seek(target []byte)

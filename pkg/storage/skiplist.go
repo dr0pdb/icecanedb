@@ -196,10 +196,47 @@ func (s *skipList) randomLevel() int32 {
 	return level
 }
 
+// getEqualOrGreater returns the skiplist node with key >= the passed key.
+// nil key denotes -inf i.e. the smallest.
+// obtains a read lock on the skip list internally.
+// return nil if no such node exists.
+func (s *skipList) getEqualOrGreater(key []byte) *skipListNode {
+	log.WithFields(log.Fields{
+		"key": string(key),
+	}).Info("skipList: getEqualOrGreater")
+
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var next *skipListNode
+	prev := s.head
+
+	for i := s.maxLevel - 1; i >= 0; i-- {
+		next = prev.next[i]
+
+		// while the user key is bigger than next.Key()
+		for next != nil && s.comparator.Compare(key, next.Key()) == 1 {
+			prev = next
+			next = next.next[i]
+		}
+	}
+
+	if next == nil {
+		log.WithFields(log.Fields{
+			"key": string(key),
+		}).Info("skipList: getEqualOrGreater; no node found.")
+	}
+
+	return next
+}
+
 // newSkipListIterator returns a new skip list iterator on the skip list.
 // requires external synchronization.
 func (s *skipList) newSkipListIterator() *skipListIterator {
-	panic("Not implemented")
+	return &skipListIterator{
+		skipList: s,
+		node:     nil,
+	}
 }
 
 type skipListNode struct {
@@ -217,51 +254,57 @@ func (sn *skipListNode) Value() []byte {
 }
 
 // skipListIterator is the iterator over the key-value pairs of the skip list.
-// requires external synchronization.
+// It relies on the internal synchronization of the skiplist.
+// Multiple threads can access different iterators
+// but two threads accessing the same iterator requires external synchronization.
 type skipListIterator struct {
 	skipList *skipList
+	node     *skipListNode
 }
 
 // Checks if the current position of the iterator is valid.
 func (sli *skipListIterator) Valid() bool {
-	panic("Not implemented")
+	return sli.node != nil
 }
 
-// Move to the first entry of the source.
+// Move to the first entry of the skiplist.
 // Call Valid() to ensure that the iterator is valid after the seek.
 func (sli *skipListIterator) SeekToFirst() {
-	panic("Not implemented")
-}
-
-// Move to the last entry of the source.
-// Call Valid() to ensure that the iterator is valid after the seek.
-func (sli *skipListIterator) SeekToLast() {
-	panic("Not implemented")
+	sli.node = sli.skipList.getEqualOrGreater(nil)
 }
 
 // Seek the iterator to the first element whose key is >= target
 // Call Valid() to ensure that the iterator is valid after the seek.
 func (sli *skipListIterator) Seek(target []byte) {
-	panic("Not implemented")
+	sli.node = sli.skipList.getEqualOrGreater(target)
 }
 
-// Moves to the next key-value pair in the source.
+// Moves to the next key-value pair in the skiplist.
 // Call valid() to ensure that the iterator is valid.
 // REQUIRES: Current position of iterator is valid. Panic otherwise.
 func (sli *skipListIterator) Next() {
-	panic("Not implemented")
+	if !sli.Valid() {
+		panic("Next on an invalid iterator position in skiplist.")
+	}
+	sli.node = sli.node.next[0]
 }
 
 // Get the key of the current iterator position.
 // REQUIRES: Current position of iterator is valid. Panics otherwise.
 func (sli *skipListIterator) Key() []byte {
-	panic("Not implemented")
+	if !sli.Valid() {
+		panic("Key on an invalid iterator position in skiplist.")
+	}
+	return sli.node.Key()
 }
 
 // Get the value of the current iterator position.
 // REQUIRES: Current position of iterator is valid. Panics otherwise.
 func (sli *skipListIterator) Value() []byte {
-	panic("Not implemented")
+	if !sli.Valid() {
+		panic("Value on an invalid iterator position in skiplist.")
+	}
+	return sli.node.Value()
 }
 
 // newSkipList creates a new skipList
