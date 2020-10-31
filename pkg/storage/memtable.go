@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"sync"
-
 	"github.com/dr0pdb/icecanedb/internal/common"
 	log "github.com/sirupsen/logrus"
 )
@@ -31,7 +29,6 @@ type Memtable interface {
 }
 
 type memtable struct {
-	mutex      sync.RWMutex
 	skipList   *skipList
 	comparator Comparator
 }
@@ -44,9 +41,6 @@ func (m *memtable) Get(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": key,
 	}).Info("memtable: Get")
-
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
 
 	skipNode := m.skipList.Get(key)
 	if skipNode == nil {
@@ -74,9 +68,6 @@ func (m *memtable) Set(key, value []byte) error {
 		"key": key,
 	}).Info("memtable: Set")
 
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	skipNode := m.skipList.Set(key, value)
 	if skipNode == nil {
 		log.WithFields(log.Fields{
@@ -101,9 +92,6 @@ func (m *memtable) Delete(key []byte) error {
 	log.WithFields(log.Fields{
 		"key": key,
 	}).Info("memtable: Delete")
-
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
 
 	skipNode := m.skipList.Delete(key)
 	if skipNode == nil {

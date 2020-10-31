@@ -2,6 +2,7 @@ package storage
 
 import (
 	"math/rand"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -17,8 +18,9 @@ const (
 // skipList is the probabilistic data structure used in memtable.
 // It supports byte key and values along with custom comparators.
 //
-// It requires external synchronization generally via a mutex.
+// It can be accessed concurrently.
 type skipList struct {
+	mutex       sync.RWMutex
 	head        *skipListNode
 	maxLevel    int32
 	comparator  Comparator
@@ -33,6 +35,9 @@ func (s *skipList) Get(key []byte) *skipListNode {
 	log.WithFields(log.Fields{
 		"key": string(key),
 	}).Info("skipList: Get")
+
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	var next *skipListNode
 	prev := s.head
@@ -75,6 +80,9 @@ func (s *skipList) Set(key, value []byte) *skipListNode {
 		"value": string(value),
 	}).Info("skipList: Set")
 
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	var element *skipListNode
 	prevs := s.getPreviousNodesForAllLevels(key)
 
@@ -116,6 +124,9 @@ func (s *skipList) Delete(key []byte) *skipListNode {
 	log.WithFields(log.Fields{
 		"key": string(key),
 	}).Info("skipList: Delete")
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	prevs := s.getPreviousNodesForAllLevels(key)
 
@@ -185,6 +196,12 @@ func (s *skipList) randomLevel() int32 {
 	return level
 }
 
+// newSkipListIterator returns a new skip list iterator on the skip list.
+// requires external synchronization.
+func (s *skipList) newSkipListIterator() *skipListIterator {
+	panic("Not implemented")
+}
+
 type skipListNode struct {
 	key   []byte
 	value []byte
@@ -199,8 +216,52 @@ func (sn *skipListNode) Value() []byte {
 	return sn.value
 }
 
+// skipListIterator is the iterator over the key-value pairs of the skip list.
+// requires external synchronization.
 type skipListIterator struct {
 	skipList *skipList
+}
+
+// Checks if the current position of the iterator is valid.
+func (sli *skipListIterator) Valid() bool {
+	panic("Not implemented")
+}
+
+// Move to the first entry of the source.
+// Call Valid() to ensure that the iterator is valid after the seek.
+func (sli *skipListIterator) SeekToFirst() {
+	panic("Not implemented")
+}
+
+// Move to the last entry of the source.
+// Call Valid() to ensure that the iterator is valid after the seek.
+func (sli *skipListIterator) SeekToLast() {
+	panic("Not implemented")
+}
+
+// Seek the iterator to the first element whose key is >= target
+// Call Valid() to ensure that the iterator is valid after the seek.
+func (sli *skipListIterator) Seek(target []byte) {
+	panic("Not implemented")
+}
+
+// Moves to the next key-value pair in the source.
+// Call valid() to ensure that the iterator is valid.
+// REQUIRES: Current position of iterator is valid. Panic otherwise.
+func (sli *skipListIterator) Next() {
+	panic("Not implemented")
+}
+
+// Get the key of the current iterator position.
+// REQUIRES: Current position of iterator is valid. Panics otherwise.
+func (sli *skipListIterator) Key() []byte {
+	panic("Not implemented")
+}
+
+// Get the value of the current iterator position.
+// REQUIRES: Current position of iterator is valid. Panics otherwise.
+func (sli *skipListIterator) Value() []byte {
+	panic("Not implemented")
 }
 
 // newSkipList creates a new skipList
