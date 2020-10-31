@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,4 +46,38 @@ func TestBasicCRUD(t *testing.T) {
 
 	key2Node = skipList.Set(key2, value2)
 	assert.Equal(t, value2, key2Node.Value(), "Value for Key2 is different than what's set in Skiplist.")
+}
+
+// TestBasicCRUD tests the concurrency operations on the skip list
+func TestConcurrency(t *testing.T) {
+	skipList := newSkipList(10, DefaultComparator)
+	l := 100000
+
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		for i := 0; i < l; i++ {
+			skipList.Set([]byte(string(i)), []byte(string(i)))
+		}
+		wg.Done()
+	}()
+
+	go func() {
+		for i := 0; i < l; i++ {
+			skipList.Set([]byte(string(i+l)), []byte(string(i+l)))
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	for i := 0; i < l; i++ {
+		node1 := skipList.Get([]byte(string(i)))
+		node2 := skipList.Get([]byte(string(i + l)))
+		assert.NotNil(t, node1)
+		assert.NotNil(t, node2)
+		assert.Equal(t, []byte(string(i)), node1.Value(), "Value mismatch in concurrency testing.")
+		assert.Equal(t, []byte(string(i+l)), node2.Value(), "Value mismatch in concurrency testing.")
+	}
 }
