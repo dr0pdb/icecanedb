@@ -219,6 +219,9 @@ func (sn *skipListNode) Value() []byte {
 	return sn.value
 }
 
+type skipListIterator struct {
+}
+
 // NewSkipList creates a new SkipList
 //
 // Passing 0 for maxLevel leads to a default max level.
