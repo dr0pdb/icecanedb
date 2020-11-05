@@ -37,6 +37,11 @@ type fileSystem interface {
 	//
 	// returns nil if the operation was success or the dir already exists.
 	mkdirAll(dir string, perm os.FileMode) error
+
+	// lock creates a lock file in the directory.
+	//
+	// this is used to obtain exclusive access to the directory.
+	lock(name string) error
 }
 
 // DefaultFileSystem is a FileSystem implementation of the operating system.
@@ -72,4 +77,12 @@ func (dfs defaultFileSystem) rename(oldname, newname string) error {
 // returns nil if the operation was success or the dir already exists.
 func (dfs defaultFileSystem) mkdirAll(dir string, perm os.FileMode) error {
 	return os.MkdirAll(dir, perm)
+}
+
+// lock creates a lock file in the directory.
+//
+// this is used to obtain exclusive access to the directory.
+func (dfs defaultFileSystem) lock(dir string) error {
+	_, err := dfs.create(dir)
+	return err
 }

@@ -5,111 +5,90 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Memtable is the in-memory store
+// memtable is the in-memory store
 // It is thread safe and can be accessed concurrently.
-type Memtable interface {
-	// Get finds an element by key.
-	//
-	// returns a byte slice pointing to the value if the key is found.
-	// returns NotFoundError if the key is not found.
-	Get(key []byte) ([]byte, error)
-
-	// Set inserts a value in the memtable associated with the specified key.
-	//
-	// Overwrites the data if the key already exists.
-	// returns a error if something goes wrong
-	// error equal to nil represents success.
-	Set(key, value []byte) error
-
-	// Delete deletes a value in the memtable associated with the specified key.
-	//
-	// returns nil if the operation was successful,
-	// returns NotFoundError if the key is not found.
-	Delete(key []byte) error
-}
-
 type memtable struct {
 	skipList   *skipList
 	comparator Comparator
 }
 
-// Get finds an element by key.
+// get finds an element by key.
 //
 // returns a byte slice pointing to the value if the key is found.
 // returns NotFoundError if the key is not found.
-func (m *memtable) Get(key []byte) ([]byte, error) {
+func (m *memtable) get(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": key,
-	}).Info("memtable: Get")
+	}).Info("memtable: get")
 
-	skipNode := m.skipList.Get(key)
+	skipNode := m.skipList.get(key)
 	if skipNode == nil {
 		log.WithFields(log.Fields{
 			"key": key,
-		}).Info("memtable: Get; Key not found in the memtable.")
+		}).Info("memtable: get; Key not found in the memtable.")
 		return []byte{}, common.NewNotFoundError("Key not found.")
 	}
 
 	log.WithFields(log.Fields{
 		"key":   key,
-		"value": skipNode.Value(),
-	}).Info("memtable: Get; Key found in the memtable; returning value")
+		"value": skipNode.getValue(),
+	}).Info("memtable: get; Key found in the memtable; returning value")
 
-	return skipNode.Value(), nil
+	return skipNode.getValue(), nil
 }
 
-// Set inserts a value in the memtable associated with the specified key.
+// set inserts a value in the memtable associated with the specified key.
 //
 // Overwrites the data if the key already exists.
 // returns a error if something goes wrong
 // error equal to nil represents success.
-func (m *memtable) Set(key, value []byte) error {
+func (m *memtable) set(key, value []byte) error {
 	log.WithFields(log.Fields{
 		"key": key,
-	}).Info("memtable: Set")
+	}).Info("memtable: set")
 
-	skipNode := m.skipList.Set(key, value)
+	skipNode := m.skipList.set(key, value)
 	if skipNode == nil {
 		log.WithFields(log.Fields{
 			"key": key,
-		}).Info("memtable: Set; Key not found in the memtable.")
+		}).Info("memtable: set; Key not found in the memtable.")
 		return common.NewUnknownError("Key not found.")
 	}
 
 	log.WithFields(log.Fields{
 		"key":   key,
-		"value": skipNode.Value(),
-	}).Info("memtable: Set; Wrote the value in the memtable for the given key.")
+		"value": skipNode.getValue(),
+	}).Info("memtable: set; Wrote the value in the memtable for the given key.")
 
 	return nil
 }
 
-// Delete deletes a value in the memtable associated with the specified key.
+// delete deletes a value in the memtable associated with the specified key.
 //
 // returns nil if the operation was successful,
 // returns NotFoundError if the key is not found.
-func (m *memtable) Delete(key []byte) error {
+func (m *memtable) delete(key []byte) error {
 	log.WithFields(log.Fields{
 		"key": key,
-	}).Info("memtable: Delete")
+	}).Info("memtable: delete")
 
-	skipNode := m.skipList.Delete(key)
+	skipNode := m.skipList.delete(key)
 	if skipNode == nil {
 		log.WithFields(log.Fields{
 			"key": key,
-		}).Info("memtable: Delete; Key not found in the memtable.")
+		}).Info("memtable: delete; Key not found in the memtable.")
 		return common.NewUnknownError("Key not found.")
 	}
 
 	log.WithFields(log.Fields{
 		"key": key,
-	}).Info("memtable: Delete; Deleted the value in the memtable for the given key.")
+	}).Info("memtable: delete; Deleted the value in the memtable for the given key.")
 
 	return nil
 }
 
-// NewMemtable returns a new instance of the Memtable
-func NewMemtable(skipList *skipList, comparator Comparator) Memtable {
+// newMemtable returns a new instance of the memtable struct
+func newMemtable(skipList *skipList, comparator Comparator) *memtable {
 	return &memtable{
 		skipList:   skipList,
 		comparator: comparator,

@@ -18,8 +18,14 @@ type Storage interface {
 // storage is the persistent key-value storage struct
 // It contains all the necessary information for the storage
 type storage struct {
-	dirname               string
-	memtable              Memtable
+	dirname string
+
+	// memtable is the current memtable.
+	//
+	// immMemtable is the memtable that is being compacted right now.
+	// it could be nil right now.
+	memtable, immMemtable *memtable
+
 	internalKeyComparator Comparator
 }
 
@@ -44,10 +50,11 @@ func (s *storage) Close() error {
 }
 
 // newStorage creates a new persistent storage according to the given parameters.
-func newStorage(dirname string, memtable Memtable, internalKeyComparator Comparator) Storage {
+func newStorage(dirname string, memtable *memtable, internalKeyComparator Comparator) Storage {
 	return &storage{
 		dirname:               dirname,
 		memtable:              memtable,
+		immMemtable:           nil,
 		internalKeyComparator: internalKeyComparator,
 	}
 }
@@ -60,7 +67,7 @@ func newStorage(dirname string, memtable Memtable, internalKeyComparator Compara
 func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator) Storage {
 	internalKeyComparator := newInternalKeyComparator(userKeyComparator)
 	skipList := newSkipList(18, internalKeyComparator)
-	memtable := NewMemtable(skipList, internalKeyComparator)
+	memtable := newMemtable(skipList, internalKeyComparator)
 	return newStorage(dirname, memtable, internalKeyComparator)
 }
 

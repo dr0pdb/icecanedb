@@ -27,14 +27,14 @@ type skipList struct {
 	probability float64
 }
 
-// Get finds an element by key.
+// get finds an element by key.
 //
 // returns a pointer to the skip list node if the key is found.
 // returns nil in case the node with key is not found.
-func (s *skipList) Get(key []byte) *skipListNode {
+func (s *skipList) get(key []byte) *skipListNode {
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("skipList: Get")
+	}).Info("skipList: get")
 
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -46,39 +46,39 @@ func (s *skipList) Get(key []byte) *skipListNode {
 		next = prev.next[i]
 
 		// while the user key is bigger than next.Key()
-		for next != nil && s.comparator.Compare(key, next.Key()) == 1 {
+		for next != nil && s.comparator.Compare(key, next.getKey()) == 1 {
 			prev = next
 			next = next.next[i]
 		}
 	}
 
 	// next.Key() should be <= user key
-	if next != nil && s.comparator.Compare(next.Key(), key) <= 0 {
+	if next != nil && s.comparator.Compare(next.getKey(), key) <= 0 {
 		log.WithFields(log.Fields{
 			"key":       string(key),
-			"nextkey":   string(next.Key()),
-			"nextvalue": string(next.Value()),
-		}).Info("skipList: Get; Found the node.")
+			"nextkey":   string(next.getKey()),
+			"nextvalue": string(next.getValue()),
+		}).Info("skipList: get; Found the node.")
 
 		return next
 	}
 
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("skipList: Get; Node not found.")
+	}).Info("skipList: get; Node not found.")
 
 	return nil
 }
 
-// Set inserts a value in the list associated with the specified key.
+// set inserts a value in the list associated with the specified key.
 //
 // Overwrites the data if the key already exists.
 // returns a pointer to the inserted/modified skip list node.
-func (s *skipList) Set(key, value []byte) *skipListNode {
+func (s *skipList) set(key, value []byte) *skipListNode {
 	log.WithFields(log.Fields{
 		"key":   string(key),
 		"value": string(value),
-	}).Info("skipList: Set")
+	}).Info("skipList: set")
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -86,12 +86,12 @@ func (s *skipList) Set(key, value []byte) *skipListNode {
 	var element *skipListNode
 	prevs := s.getPreviousNodesForAllLevels(key)
 
-	if element = prevs[0].next[0]; element != nil && s.comparator.Compare(element.Key(), key) <= 0 {
+	if element = prevs[0].next[0]; element != nil && s.comparator.Compare(element.getKey(), key) <= 0 {
 		log.WithFields(log.Fields{
 			"key":      string(key),
 			"value":    string(value),
-			"oldvalue": string(element.Value()),
-		}).Info("skipList: Set; Found an existing key. Overriding the existing value.")
+			"oldvalue": string(element.getValue()),
+		}).Info("skipList: set; Found an existing key. Overriding the existing value.")
 
 		element.value = value
 		return element
@@ -100,7 +100,7 @@ func (s *skipList) Set(key, value []byte) *skipListNode {
 	log.WithFields(log.Fields{
 		"key":   string(key),
 		"value": string(value),
-	}).Info("skipList: Set; Inserting the key with the value.")
+	}).Info("skipList: set; Inserting the key with the value.")
 
 	element = &skipListNode{
 		key:   key,
@@ -116,24 +116,24 @@ func (s *skipList) Set(key, value []byte) *skipListNode {
 	return element
 }
 
-// Delete deletes a value in the list associated with the specified key.
+// delete deletes a value in the list associated with the specified key.
 //
 // returns a pointer to the inserted/modified skip list node.
 // returns nil if the node isn't found.
-func (s *skipList) Delete(key []byte) *skipListNode {
+func (s *skipList) delete(key []byte) *skipListNode {
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("skipList: Delete")
+	}).Info("skipList: delete")
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	prevs := s.getPreviousNodesForAllLevels(key)
 
-	if element := prevs[0].next[0]; element != nil && s.comparator.Compare(element.Key(), key) <= 0 {
+	if element := prevs[0].next[0]; element != nil && s.comparator.Compare(element.getKey(), key) <= 0 {
 		log.WithFields(log.Fields{
 			"key": string(key),
-		}).Info("skipList: Delete; Found the node with the key. Removing it.")
+		}).Info("skipList: delete; Found the node with the key. Removing it.")
 
 		for k, v := range element.next {
 			prevs[k].next[k] = v
@@ -144,7 +144,7 @@ func (s *skipList) Delete(key []byte) *skipListNode {
 
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("skipList: Delete; Key not found.")
+	}).Info("skipList: delete; Key not found.")
 
 	return nil
 }
@@ -164,7 +164,7 @@ func (s *skipList) getPreviousNodesForAllLevels(key []byte) []*skipListNode {
 		next = prev.next[i]
 
 		// while the user key is bigger than next.Key()
-		for next != nil && s.comparator.Compare(key, next.Key()) == 1 {
+		for next != nil && s.comparator.Compare(key, next.getKey()) == 1 {
 			prev = next
 			next = next.next[i]
 		}
@@ -215,7 +215,7 @@ func (s *skipList) getEqualOrGreater(key []byte) *skipListNode {
 		next = prev.next[i]
 
 		// while the user key is bigger than next.Key()
-		for next != nil && s.comparator.Compare(key, next.Key()) == 1 {
+		for next != nil && s.comparator.Compare(key, next.getKey()) == 1 {
 			prev = next
 			next = next.next[i]
 		}
@@ -245,11 +245,11 @@ type skipListNode struct {
 	next  []*skipListNode
 }
 
-func (sn *skipListNode) Key() []byte {
+func (sn *skipListNode) getKey() []byte {
 	return sn.key
 }
 
-func (sn *skipListNode) Value() []byte {
+func (sn *skipListNode) getValue() []byte {
 	return sn.value
 }
 
@@ -295,7 +295,7 @@ func (sli *skipListIterator) Key() []byte {
 	if !sli.Valid() {
 		panic("Key on an invalid iterator position in skiplist.")
 	}
-	return sli.node.Key()
+	return sli.node.getKey()
 }
 
 // Get the value of the current iterator position.
@@ -304,7 +304,7 @@ func (sli *skipListIterator) Value() []byte {
 	if !sli.Valid() {
 		panic("Value on an invalid iterator position in skiplist.")
 	}
-	return sli.node.Value()
+	return sli.node.getValue()
 }
 
 // newSkipList creates a new skipList
