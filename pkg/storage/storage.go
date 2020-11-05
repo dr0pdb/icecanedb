@@ -1,7 +1,13 @@
 package storage
 
 import (
+	"sync"
+
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	defaultSkipListHeight = 18
 )
 
 // Storage is a Key-value store
@@ -19,12 +25,20 @@ type Storage interface {
 // It contains all the necessary information for the storage
 type storage struct {
 	dirname string
+	options *Options
+
+	tableCache *tableCache
+
+	mu sync.Mutex
 
 	// memtable is the current memtable.
 	//
 	// immMemtable is the memtable that is being compacted right now.
 	// it could be nil right now.
 	memtable, immMemtable *memtable
+
+	logNumber uint64
+	logFile   file
 
 	internalKeyComparator Comparator
 }
@@ -50,13 +64,32 @@ func (s *storage) Close() error {
 }
 
 // newStorage creates a new persistent storage according to the given parameters.
-func newStorage(dirname string, memtable *memtable, internalKeyComparator Comparator) Storage {
-	return &storage{
+func newStorage(dirname string, internalKeyComparator Comparator, options *Options) (Storage, error) {
+	var logNumber uint64 = 1
+
+	if options.fs == nil {
+		options.fs = &DefaultFileSystem
+	}
+	if options.cachesz == 0 {
+		options.cachesz = defaultTableCacheSize
+	}
+	tc := newTableCache(dirname, *options.fs, options.cachesz)
+
+	strg := &storage{
 		dirname:               dirname,
-		memtable:              memtable,
+		options:               options,
 		immMemtable:           nil,
 		internalKeyComparator: internalKeyComparator,
+		logNumber:             logNumber,
 	}
+
+	skipList := newSkipList(defaultSkipListHeight, internalKeyComparator)
+	memtable := newMemtable(skipList, internalKeyComparator)
+
+	strg.tableCache = tc
+	strg.memtable = memtable
+
+	return strg, nil
 }
 
 // NewStorageWithCustomComparator creates a new persistent storage in the given directory.
@@ -64,18 +97,17 @@ func newStorage(dirname string, memtable *memtable, internalKeyComparator Compar
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // Keys are ordered using the given custom comparator.
 // returns a Storage interface implementation.
-func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator) Storage {
+func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options *Options) (Storage, error) {
 	internalKeyComparator := newInternalKeyComparator(userKeyComparator)
-	skipList := newSkipList(18, internalKeyComparator)
-	memtable := newMemtable(skipList, internalKeyComparator)
-	return newStorage(dirname, memtable, internalKeyComparator)
+
+	return newStorage(dirname, internalKeyComparator, options)
 }
 
 // NewStorage creates a new persistent storage in the given directory.
 //
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // returns a Storage interface implementation.
-func NewStorage(dirname string) Storage {
+func NewStorage(dirname string, options *Options) (Storage, error) {
 	userKeyComparator := DefaultComparator
-	return NewStorageWithCustomComparator(dirname, userKeyComparator)
+	return NewStorageWithCustomComparator(dirname, userKeyComparator, options)
 }
