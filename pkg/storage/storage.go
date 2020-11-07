@@ -21,6 +21,8 @@ type Storage interface {
 	Close() error
 }
 
+var _ Storage = (*storage)(nil)
+
 // storage is the persistent key-value storage struct
 // It contains all the necessary information for the storage
 type storage struct {

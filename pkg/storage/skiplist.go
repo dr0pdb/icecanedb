@@ -262,6 +262,8 @@ type skipListIterator struct {
 	node     *skipListNode
 }
 
+var _ Iterator = (*skipListIterator)(nil)
+
 // Checks if the current position of the iterator is valid.
 func (sli *skipListIterator) Valid() bool {
 	return sli.node != nil
