@@ -28,8 +28,6 @@ type tableCache struct {
 	// If the size of the linked list exceeds cacheSize, then an entry
 	// is removed before adding a new one.
 	dummy table
-
-	reader *tableReader
 }
 
 // newTableCache creates a new table cache instance.

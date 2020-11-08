@@ -29,8 +29,6 @@ type storage struct {
 	dirname string
 	options *Options
 
-	tableCache *tableCache
-
 	mu sync.Mutex
 
 	// memtable is the current memtable.
@@ -41,6 +39,8 @@ type storage struct {
 
 	logNumber uint64
 	logFile   file
+
+	vs *versionSet
 
 	internalKeyComparator Comparator
 }
@@ -75,7 +75,8 @@ func newStorage(dirname string, internalKeyComparator Comparator, options *Optio
 	if options.cachesz == 0 {
 		options.cachesz = defaultTableCacheSize
 	}
-	tc := newTableCache(dirname, *options.fs, options.cachesz)
+
+	versions := newVersionSet(dirname, internalKeyComparator, options)
 
 	strg := &storage{
 		dirname:               dirname,
@@ -83,12 +84,12 @@ func newStorage(dirname string, internalKeyComparator Comparator, options *Optio
 		immMemtable:           nil,
 		internalKeyComparator: internalKeyComparator,
 		logNumber:             logNumber,
+		vs:                    versions,
 	}
 
 	skipList := newSkipList(defaultSkipListHeight, internalKeyComparator)
 	memtable := newMemtable(skipList, internalKeyComparator)
 
-	strg.tableCache = tc
 	strg.memtable = memtable
 
 	return strg, nil
