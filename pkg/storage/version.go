@@ -1,3 +1,5 @@
 package storage
 
-type version struct{}
+type version struct {
+	prev, next *version
+}

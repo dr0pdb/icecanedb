@@ -9,15 +9,16 @@ import (
 //
 // It can be *os.File or an in-memory file.
 type file interface {
+	io.Closer
 	io.Reader
 	io.Writer
 }
 
-// fileSystem is the file system abstraction.
+// FileSystem is the file system abstraction.
 //
 // Contains functions which can be used to interact with the file system.
 // Mainly a 1:1 mapping over the File interface: https://golang.org/pkg/os/#File
-type fileSystem interface {
+type FileSystem interface {
 	// create creates or truncates the file.
 	create(name string) (file, error)
 
@@ -45,7 +46,7 @@ type fileSystem interface {
 }
 
 // DefaultFileSystem is a FileSystem implementation of the operating system.
-var DefaultFileSystem fileSystem = defaultFileSystem{}
+var DefaultFileSystem FileSystem = defaultFileSystem{}
 
 type defaultFileSystem struct{}
 

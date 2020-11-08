@@ -27,7 +27,7 @@ var _ Storage = (*storage)(nil)
 // It contains all the necessary information for the storage
 type storage struct {
 	dirname string
-	options *Options
+	options Options
 
 	mu sync.Mutex
 
@@ -42,7 +42,7 @@ type storage struct {
 
 	vs *versionSet
 
-	internalKeyComparator Comparator
+	ukComparator, ikComparator Comparator
 }
 
 func (s *storage) Get(key []byte) ([]byte, error) {
@@ -66,31 +66,36 @@ func (s *storage) Close() error {
 }
 
 // newStorage creates a new persistent storage according to the given parameters.
-func newStorage(dirname string, internalKeyComparator Comparator, options *Options) (Storage, error) {
+func newStorage(dirname string, ukComparator, ikComparator Comparator, options Options) (Storage, error) {
 	var logNumber uint64 = 1
 
-	if options.fs == nil {
-		options.fs = &DefaultFileSystem
+	if options.Fs == nil {
+		options.Fs = DefaultFileSystem
 	}
-	if options.cachesz == 0 {
-		options.cachesz = defaultTableCacheSize
+	if options.Cachesz == 0 {
+		options.Cachesz = defaultTableCacheSize
 	}
-
-	versions := newVersionSet(dirname, internalKeyComparator, options)
 
 	strg := &storage{
-		dirname:               dirname,
-		options:               options,
-		immMemtable:           nil,
-		internalKeyComparator: internalKeyComparator,
-		logNumber:             logNumber,
-		vs:                    versions,
+		dirname:      dirname,
+		options:      options,
+		immMemtable:  nil,
+		ukComparator: ukComparator,
+		ikComparator: ikComparator,
+		logNumber:    logNumber,
 	}
 
-	skipList := newSkipList(defaultSkipListHeight, internalKeyComparator)
-	memtable := newMemtable(skipList, internalKeyComparator)
+	skipList := newSkipList(defaultSkipListHeight, ikComparator)
+	memtable := newMemtable(skipList, ikComparator)
 
 	strg.memtable = memtable
+	strg.options = options
+
+	versions := newVersionSet(dirname, ukComparator, ikComparator, &strg.options)
+
+	// assign and load the version set.
+	strg.vs = versions
+	strg.vs.load()
 
 	return strg, nil
 }
@@ -100,17 +105,32 @@ func newStorage(dirname string, internalKeyComparator Comparator, options *Optio
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // Keys are ordered using the given custom comparator.
 // returns a Storage interface implementation.
-func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options *Options) (Storage, error) {
+func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options Options) (Storage, error) {
 	internalKeyComparator := newInternalKeyComparator(userKeyComparator)
 
-	return newStorage(dirname, internalKeyComparator, options)
+	return newStorage(dirname, userKeyComparator, internalKeyComparator, options)
 }
 
 // NewStorage creates a new persistent storage in the given directory.
 //
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // returns a Storage interface implementation.
-func NewStorage(dirname string, options *Options) (Storage, error) {
+func NewStorage(dirname string, options Options) (Storage, error) {
 	userKeyComparator := DefaultComparator
 	return NewStorageWithCustomComparator(dirname, userKeyComparator, options)
+}
+
+// OpenStorageWithCustomComparator opens an existing persistent storage in the given directory.
+//
+// Keys are ordered using the given custom comparator.
+// Returns an error if the storage doesn't exist.
+func OpenStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options Options) (Storage, error) {
+	panic("Not Implemented")
+}
+
+// OpenStorage opens an existing persistent storage in the given directory.
+//
+// Returns an error if the storage doesn't exist.
+func OpenStorage(dirname string, options Options) (Storage, error) {
+	panic("Not Implemented")
 }

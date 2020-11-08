@@ -1,21 +1,12 @@
 package storage
 
-import (
-	"path/filepath"
-)
-
-const (
-	lockFileName    = "LOCK"
-	currentFileName = "CURRENT"
-)
-
-// tableCache is reponsible for handling everything related to tables.
+// tableCache is reponsible for caching the contents of a table.
 //
 // It has a small cache that stores some of the tables in memory.
 // If some table is not present, it gets it from underlying file system.
 type tableCache struct {
 	dirname string
-	fs      fileSystem
+	fs      FileSystem
 
 	// the allocated capacity for the cache.
 	cacheSize uint32
@@ -31,9 +22,7 @@ type tableCache struct {
 }
 
 // newTableCache creates a new table cache instance.
-//
-// it locks the given directory for exclusive access.
-func newTableCache(dirname string, fs fileSystem, cacheSize uint32) *tableCache {
+func newTableCache(dirname string, fs FileSystem, cacheSize uint32) *tableCache {
 	tc := tableCache{
 		dirname:   dirname,
 		fs:        fs,
@@ -42,12 +31,5 @@ func newTableCache(dirname string, fs fileSystem, cacheSize uint32) *tableCache 
 	}
 	tc.dummy.next = &tc.dummy
 	tc.dummy.prev = &tc.dummy
-
-	// create lock file to lock the directory.
-	// TODO: implement the logic for ensuring that we wrote this file.
-	fs.lock(filepath.Join(dirname, lockFileName))
-
-	// getOrCreateCurrent()
-
 	return &tc
 }
