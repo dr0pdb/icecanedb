@@ -10,22 +10,9 @@ const (
 	defaultSkipListHeight = 18
 )
 
-// Storage is a Key-value store
-type Storage interface {
-	Get(key []byte) ([]byte, error)
-
-	Set(key, value []byte) error
-
-	Delete(key []byte) error
-
-	Close() error
-}
-
-var _ Storage = (*storage)(nil)
-
-// storage is the persistent key-value storage struct
+// Storage is the persistent key-value storage struct
 // It contains all the necessary information for the storage
-type storage struct {
+type Storage struct {
 	dirname string
 	options Options
 
@@ -45,7 +32,8 @@ type storage struct {
 	ukComparator, ikComparator Comparator
 }
 
-func (s *storage) Get(key []byte) ([]byte, error) {
+// Get TODO
+func (s *Storage) Get(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": key,
 	}).Info("storage: Get")
@@ -53,20 +41,23 @@ func (s *storage) Get(key []byte) ([]byte, error) {
 	panic("not implemented")
 }
 
-func (s *storage) Set(key, value []byte) error {
+// Set TODO
+func (s *Storage) Set(key, value []byte) error {
 	panic("not implemented")
 }
 
-func (s *storage) Delete(key []byte) error {
+// Delete TODO
+func (s *Storage) Delete(key []byte) error {
 	panic("not implemented")
 }
 
-func (s *storage) Close() error {
+// Close todo
+func (s *Storage) Close() error {
 	panic("not implemented")
 }
 
 // newStorage creates a new persistent storage according to the given parameters.
-func newStorage(dirname string, ukComparator, ikComparator Comparator, options Options) (Storage, error) {
+func newStorage(dirname string, ukComparator, ikComparator Comparator, options Options) (*Storage, error) {
 	var logNumber uint64 = 1
 
 	if options.Fs == nil {
@@ -76,7 +67,7 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options O
 		options.Cachesz = defaultTableCacheSize
 	}
 
-	strg := &storage{
+	strg := &Storage{
 		dirname:      dirname,
 		options:      options,
 		immMemtable:  nil,
@@ -105,7 +96,7 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options O
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // Keys are ordered using the given custom comparator.
 // returns a Storage interface implementation.
-func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options Options) (Storage, error) {
+func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options Options) (*Storage, error) {
 	internalKeyComparator := newInternalKeyComparator(userKeyComparator)
 
 	return newStorage(dirname, userKeyComparator, internalKeyComparator, options)
@@ -115,22 +106,22 @@ func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator
 //
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // returns a Storage interface implementation.
-func NewStorage(dirname string, options Options) (Storage, error) {
+func NewStorage(dirname string, options Options) (*Storage, error) {
 	userKeyComparator := DefaultComparator
 	return NewStorageWithCustomComparator(dirname, userKeyComparator, options)
 }
 
 // OpenStorageWithCustomComparator opens an existing persistent storage in the given directory.
 //
-// Keys are ordered using the given custom comparator.
+// Keys are ordered using the given custom comparator. Note that this should be the same comparator which was used to create the db.
 // Returns an error if the storage doesn't exist.
-func OpenStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options Options) (Storage, error) {
+func OpenStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options Options) (*Storage, error) {
 	panic("Not Implemented")
 }
 
 // OpenStorage opens an existing persistent storage in the given directory.
 //
 // Returns an error if the storage doesn't exist.
-func OpenStorage(dirname string, options Options) (Storage, error) {
+func OpenStorage(dirname string, options Options) (*Storage, error) {
 	panic("Not Implemented")
 }
