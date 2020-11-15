@@ -18,7 +18,7 @@ type Storage struct {
 	dirname string
 	options Options
 
-	mu sync.Mutex
+	mu *sync.Mutex
 
 	// memtable is the current memtable.
 	//
@@ -92,7 +92,13 @@ func (s *Storage) createNewDB() (ret error) {
 	}()
 	defer mf.Close()
 
-	// TODO: Write the contents of the newly created manifest file.
+	log.Info("storage::storage: createNewDB; adding contents in the manifest file..")
+	ve := versionEdit{
+		comparatorName: s.ukComparator.Name(),
+		nextFileNumber: mno + 1, // original leveldb does it for some reason :/
+	}
+	ve.encode() // TODO:// setup encoder and writer.
+	log.Info("storage::storage: createNewDB; done adding contents in the manifest file.")
 
 	log.Info("storage::storage: createNewDB; setting current file..")
 	err = setCurrentFile(s.dirname, s.options.Fs, mno)
