@@ -95,7 +95,7 @@ func (s *Storage) createNewDB() (ret error) {
 	log.Info("storage::storage: createNewDB; adding contents in the manifest file..")
 	ve := versionEdit{
 		comparatorName: s.ukComparator.Name(),
-		nextFileNumber: mno + 1, // original leveldb does it for some reason :/
+		nextFileNumber: mno + 1,
 	}
 	ve.encode() // TODO:// setup encoder and writer.
 	log.Info("storage::storage: createNewDB; done adding contents in the manifest file.")
