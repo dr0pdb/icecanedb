@@ -105,12 +105,12 @@ func (s *Storage) createNewDB() (ret error) {
 	}
 	err = ve.encode(lrww)
 	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in calling next on log record writer.")
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in encoding the vedit to log file.")
 		return err
 	}
 	err = lrw.close()
 	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in calling next on log record writer.")
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in closing the log record writer.")
 		return err
 	}
 	log.Info("storage::storage: createNewDB; done adding contents in the manifest file.")
