@@ -97,7 +97,22 @@ func (s *Storage) createNewDB() (ret error) {
 		comparatorName: s.ukComparator.Name(),
 		nextFileNumber: mno + 1,
 	}
-	ve.encode() // TODO:// setup encoder and writer.
+	lrw := newLogRecordWriter(mf)
+	lrww, err := lrw.next()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in calling next on log record writer.")
+		return err
+	}
+	err = ve.encode(lrww)
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in calling next on log record writer.")
+		return err
+	}
+	err = lrw.close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in calling next on log record writer.")
+		return err
+	}
 	log.Info("storage::storage: createNewDB; done adding contents in the manifest file.")
 
 	log.Info("storage::storage: createNewDB; setting current file..")

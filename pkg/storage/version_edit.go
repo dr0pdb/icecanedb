@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 )
 
 const (
@@ -42,7 +43,7 @@ type versionEdit struct {
 }
 
 // encode encodes the contents of a version edit to be written to a io.Writer.
-func (ve *versionEdit) encode() {
+func (ve *versionEdit) encode(lgw io.Writer) error {
 	venc := versionEditEncoder{new(bytes.Buffer)}
 
 	if ve.comparatorName != "" {
@@ -69,6 +70,9 @@ func (ve *versionEdit) encode() {
 		venc.writeBytes(x.meta.smallest)
 		venc.writeBytes(x.meta.largest)
 	}
+
+	lgw.Write(venc.Bytes())
+	return nil
 }
 
 // versionEditEncoder is a struct containing the encoded data.
