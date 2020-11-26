@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"encoding/binary"
 	"io"
 
+	"github.com/dr0pdb/icecanedb/internal/common"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -10,10 +12,16 @@ import (
 // https://github.com/google/leveldb/blob/master/doc/log_format.md
 //
 //
-
 const (
 	blockSize  = 32 * 1024
 	headerSize = 7
+)
+
+const (
+	fullChunkType = iota
+	firstChunkType
+	middleChunkType
+	lastChunkType
 )
 
 type logRecordWriter struct {
@@ -50,7 +58,56 @@ type logRecordWriter struct {
 	err error
 }
 
+// fillHeaders fill the header entry in the buffer for the current chunk.
+func (lrw *logRecordWriter) fillHeaders(lastChunk bool) {
+	log.WithFields(log.Fields{"lastChunk": lastChunk, "writer": lrw}).Info("storage::logrecord: fillHeaders; fillHeaders called.")
+
+	if lrw.err != nil {
+		log.WithFields(log.Fields{"error": lrw.err.Error()}).Error("storage::logrecord: fillHeaders; existing background error found in the log record writer.")
+		return
+	}
+
+	if lrw.lo+headerSize > lrw.hi || lrw.hi > blockSize {
+		log.WithFields(log.Fields{"lo": lrw.lo, "hi": lrw.hi}).Error("storage::logrecord: fillHeaders; Inconsistent state found.")
+		panic("storage::logrecord::logrecordwriter; inconsistent state found")
+	}
+
+	if lastChunk {
+		if lrw.first {
+			lrw.buf[lrw.lo+6] = fullChunkType
+		} else {
+			lrw.buf[lrw.lo+6] = lastChunkType
+		}
+	} else {
+		if lrw.first {
+			lrw.buf[lrw.lo+6] = firstChunkType
+		} else {
+			lrw.buf[lrw.lo+6] = middleChunkType
+		}
+	}
+
+	binary.LittleEndian.PutUint32(lrw.buf[lrw.lo:lrw.lo+4], 0)                                  // checksum
+	binary.LittleEndian.PutUint16(lrw.buf[lrw.lo+4:lrw.lo+6], uint16(lrw.hi-lrw.lo-headerSize)) // length of payload
+
+	log.Info("storage::logrecord: fillHeaders; fillHeaders done.")
+}
+
+func (lrw *logRecordWriter) writePending() {
+	panic("Not Implemented")
+}
+
 func (lrw *logRecordWriter) writeBlock() {
+	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writeBlock; writeBlock called.")
+
+	_, lrw.err = lrw.w.Write(lrw.buf[lrw.sofar:])
+	lrw.lo = 0
+	lrw.hi = headerSize
+	lrw.sofar = 0
+	lrw.blockNumber++
+	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writeBlock; writeBlock done.")
+}
+
+func (lrw *logRecordWriter) flush() error {
 	panic("Not Implemented")
 }
 
@@ -82,8 +139,8 @@ func (lrw *logRecordWriter) next() (io.Writer, error) {
 	log.WithFields(log.Fields{"logRecordWriter": lrw}).Info("storage::logrecord: next; next called on the log record writer.")
 
 	if lrw.pending {
-		log.Info("storage::logrecord: next; found pending chunk.")
-		// todo: fill the header of this pending chunk.
+		log.Info("storage::logrecord: next; found pending chunk. It's corresponding writer will be invalidated.")
+		lrw.fillHeaders(true)
 	}
 
 	// move pointers for the next chunk headers
@@ -123,6 +180,36 @@ type singleLogRecordWriter struct {
 	seq int
 }
 
+// Write writes a slice of byte to the writer by splitting it into blocks of blocksize.
 func (slrw singleLogRecordWriter) Write(p []byte) (int, error) {
-	panic("Not implemented")
+	w := slrw.w
+
+	if w.seq != slrw.seq {
+		return 0, common.NewStaleLogRecordWriterError("Stale Log Record Writer state")
+	}
+
+	if w.err != nil {
+		return 0, w.err
+	}
+
+	tot := len(p)
+	for len(p) > 0 {
+		// write if full
+		if w.hi == blockSize {
+			w.fillHeaders(false)
+			w.writeBlock()
+
+			if w.err != nil {
+				return 0, w.err
+			}
+
+			w.first = false
+		}
+
+		n := copy(w.buf[w.hi:], p)
+		w.hi += n
+		p = p[n:]
+	}
+
+	return tot, nil
 }

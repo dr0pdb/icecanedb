@@ -35,3 +35,19 @@ func NewUnknownError(message string) UnknownError {
 		Message: message,
 	}
 }
+
+// StaleLogRecordWriterError is returned when the log record writer is in stale state.
+type StaleLogRecordWriterError struct {
+	Message string
+}
+
+func (slrw StaleLogRecordWriterError) Error() string {
+	return fmt.Sprintf("%s", slrw.Message)
+}
+
+// NewStaleLogRecordWriterError creates a new instance of StaleLogRecordWriterError with the given message.
+func NewStaleLogRecordWriterError(message string) StaleLogRecordWriterError {
+	return StaleLogRecordWriterError{
+		Message: message,
+	}
+}
