@@ -24,12 +24,19 @@ const (
 	lastChunkType
 )
 
+type flusher interface {
+	Flush() error
+}
+
 type logRecordWriter struct {
 	// w is the writer that logRecordWriter writes to
 	w io.Writer
 
 	// seq is the sequence number of the current record.
 	seq int
+
+	// f is the writer as the flusher.
+	f flusher
 
 	// buffer
 	buf [blockSize]byte
@@ -86,29 +93,58 @@ func (lrw *logRecordWriter) fillHeaders(lastChunk bool) {
 		}
 	}
 
-	binary.LittleEndian.PutUint32(lrw.buf[lrw.lo:lrw.lo+4], 0)                                  // checksum
+	binary.LittleEndian.PutUint32(lrw.buf[lrw.lo:lrw.lo+4], 0)                                  // checksum 0 for now.
 	binary.LittleEndian.PutUint16(lrw.buf[lrw.lo+4:lrw.lo+6], uint16(lrw.hi-lrw.lo-headerSize)) // length of payload
 
 	log.Info("storage::logrecord: fillHeaders; fillHeaders done.")
 }
 
 func (lrw *logRecordWriter) writePending() {
-	panic("Not Implemented")
+	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writePending; writePending called.")
+
+	if lrw.err != nil {
+		log.Info("storage::logrecord: writePending; found existing error.")
+		return
+	}
+	if lrw.pending {
+		lrw.fillHeaders(true)
+		lrw.pending = false
+	}
+
+	_, lrw.err = lrw.w.Write(lrw.buf[lrw.sofar:lrw.hi])
+	lrw.sofar = lrw.hi
+
+	log.Info("storage::logrecord: writePending; done.")
 }
 
 func (lrw *logRecordWriter) writeBlock() {
-	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writeBlock; writeBlock called.")
+	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writeBlock; start.")
 
 	_, lrw.err = lrw.w.Write(lrw.buf[lrw.sofar:])
 	lrw.lo = 0
 	lrw.hi = headerSize
 	lrw.sofar = 0
 	lrw.blockNumber++
-	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writeBlock; writeBlock done.")
+	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writeBlock; done.")
 }
 
 func (lrw *logRecordWriter) flush() error {
-	panic("Not Implemented")
+	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: flush; start.")
+	lrw.seq++
+	lrw.writePending()
+
+	if lrw.err != nil {
+		log.Info("storage::logrecord: flush; error in writing pending. returning without flushing")
+		return lrw.err
+	}
+
+	if lrw.f != nil {
+		log.Info("storage::logrecord: flush; flushing.")
+		lrw.err = lrw.f.Flush()
+	}
+
+	log.Info("storage::logrecord: flush; done.")
+	return lrw.err
 }
 
 // newLogRecordWriter creates a new log record writer.
@@ -121,10 +157,13 @@ func newLogRecordWriter(w io.Writer) *logRecordWriter {
 		}
 	}
 
+	f, _ := w.(flusher)
+
 	return &logRecordWriter{
 		w:                w,
 		baseOffset:       offset,
 		lastRecordOffset: -1,
+		f:                f,
 	}
 }
 
@@ -172,6 +211,17 @@ func (lrw *logRecordWriter) next() (io.Writer, error) {
 }
 
 func (lrw *logRecordWriter) close() error {
+	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: close; start.")
+
+	lrw.seq++
+	lrw.writePending()
+	if lrw.err != nil {
+		log.Info("storage::logrecord: close; error in writing pending chunk.")
+		return lrw.err
+	}
+	lrw.err = common.NewStaleLogRecordWriterError("close writer")
+
+	log.Info("storage::logrecord: close; done.")
 	return nil
 }
 
