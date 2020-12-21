@@ -15,3 +15,6 @@
 # vendor/
 
 .vscode/
+
+profile.cov
+_output/

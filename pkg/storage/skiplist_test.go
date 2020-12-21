@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -58,14 +59,14 @@ func TestConcurrency(t *testing.T) {
 
 	go func() {
 		for i := 0; i < l; i++ {
-			skipList.set([]byte(string(i)), []byte(string(i)))
+			skipList.set([]byte(fmt.Sprint(i)), []byte(fmt.Sprint(i)))
 		}
 		wg.Done()
 	}()
 
 	go func() {
 		for i := 0; i < l; i++ {
-			skipList.set([]byte(string(i+l)), []byte(string(i+l)))
+			skipList.set([]byte(fmt.Sprint(i+l)), []byte(fmt.Sprint(i+l)))
 		}
 		wg.Done()
 	}()
@@ -73,12 +74,12 @@ func TestConcurrency(t *testing.T) {
 	wg.Wait()
 
 	for i := 0; i < l; i++ {
-		node1 := skipList.get([]byte(string(i)))
-		node2 := skipList.get([]byte(string(i + l)))
+		node1 := skipList.get([]byte(fmt.Sprint(i)))
+		node2 := skipList.get([]byte(fmt.Sprint(i + l)))
 		assert.NotNil(t, node1)
 		assert.NotNil(t, node2)
-		assert.Equal(t, []byte(string(i)), node1.getValue(), "Value mismatch in concurrency testing.")
-		assert.Equal(t, []byte(string(i+l)), node2.getValue(), "Value mismatch in concurrency testing.")
+		assert.Equal(t, []byte(fmt.Sprint(i)), node1.getValue(), "Value mismatch in concurrency testing.")
+		assert.Equal(t, []byte(fmt.Sprint(i+l)), node2.getValue(), "Value mismatch in concurrency testing.")
 	}
 }
 
@@ -87,17 +88,17 @@ func TestSkipListIterator(t *testing.T) {
 
 	l := 100
 	for i := 0; i < l; i++ {
-		skipList.set([]byte(string(i)), []byte(string(i)))
+		skipList.set([]byte(fmt.Sprint(i)), []byte(fmt.Sprint(i)))
 	}
 
 	itr := skipList.newSkipListIterator()
 	assert.Equal(t, false, itr.Valid(), "New iterator was expected to be invalid.")
 	itr.SeekToFirst()
 	assert.Equal(t, true, itr.Valid(), "New iterator after seek to first should be valid.")
-	assert.Equal(t, []byte(string(0)), itr.Value(), "First value should be 0.")
+	assert.Equal(t, []byte(fmt.Sprint(0)), itr.Value(), "First value should be 0.")
 
-	itr.Seek([]byte(string(10)))
-	assert.Equal(t, []byte(string(10)), itr.Value(), "Seek to 10 should move the iterator to 10th value.")
+	itr.Seek([]byte(fmt.Sprint(10)))
+	assert.Equal(t, []byte(fmt.Sprint(10)), itr.Value(), "Seek to 10 should move the iterator to 10th value.")
 
 	itr.SeekToFirst()
 	assert.Equal(t, true, itr.Valid(), "Seek to first should first in backward direction as well.")
