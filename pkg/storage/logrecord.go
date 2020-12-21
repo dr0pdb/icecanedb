@@ -67,7 +67,7 @@ type logRecordWriter struct {
 
 // fillHeaders fill the header entry in the buffer for the current chunk.
 func (lrw *logRecordWriter) fillHeaders(lastChunk bool) {
-	log.WithFields(log.Fields{"lastChunk": lastChunk, "writer": lrw}).Info("storage::logrecord: fillHeaders; fillHeaders called.")
+	log.WithFields(log.Fields{"lastChunk": lastChunk, "seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: fillHeaders; fillHeaders called.")
 
 	if lrw.err != nil {
 		log.WithFields(log.Fields{"error": lrw.err.Error()}).Error("storage::logrecord: fillHeaders; existing background error found in the log record writer.")
@@ -100,7 +100,7 @@ func (lrw *logRecordWriter) fillHeaders(lastChunk bool) {
 }
 
 func (lrw *logRecordWriter) writePending() {
-	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writePending; writePending called.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: writePending; writePending called.")
 
 	if lrw.err != nil {
 		log.Info("storage::logrecord: writePending; found existing error.")
@@ -118,18 +118,18 @@ func (lrw *logRecordWriter) writePending() {
 }
 
 func (lrw *logRecordWriter) writeBlock() {
-	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writeBlock; start.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: writeBlock; start.")
 
 	_, lrw.err = lrw.w.Write(lrw.buf[lrw.sofar:])
 	lrw.lo = 0
 	lrw.hi = headerSize
 	lrw.sofar = 0
 	lrw.blockNumber++
-	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: writeBlock; done.")
+	log.Info("storage::logrecord: writeBlock; done.")
 }
 
 func (lrw *logRecordWriter) flush() error {
-	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: flush; start.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: flush; start.")
 	lrw.seq++
 	lrw.writePending()
 
@@ -175,7 +175,7 @@ func (lrw *logRecordWriter) next() (io.Writer, error) {
 		return nil, lrw.err
 	}
 
-	log.WithFields(log.Fields{"logRecordWriter": lrw}).Info("storage::logrecord: next; next called on the log record writer.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: next; next called on the log record writer.")
 
 	if lrw.pending {
 		log.Info("storage::logrecord: next; found pending chunk. It's corresponding writer will be invalidated.")
@@ -211,7 +211,7 @@ func (lrw *logRecordWriter) next() (io.Writer, error) {
 }
 
 func (lrw *logRecordWriter) close() error {
-	log.WithFields(log.Fields{"writer": lrw}).Info("storage::logrecord: close; start.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: close; start.")
 
 	lrw.seq++
 	lrw.writePending()

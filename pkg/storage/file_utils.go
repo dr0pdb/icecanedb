@@ -17,6 +17,12 @@ const (
 
 // getDbFileName returns the name of the file stored on the disk for a particular type and number.
 func getDbFileName(dirname string, fileType fileType, fileNum uint64) string {
+	log.WithFields(log.Fields{
+		"dirname":  dirname,
+		"fileType": fileType,
+		"fileNum":  fileNum,
+	}).Info("storage::file_utils: getDbFileName")
+
 	// reset trailing slashes
 	for len(dirname) > 0 && dirname[len(dirname)-1] == os.PathSeparator {
 		dirname = dirname[:len(dirname)-1]

@@ -16,7 +16,7 @@ const (
 // It contains all the necessary information for the storage
 type Storage struct {
 	dirname string
-	options Options
+	options *Options
 
 	mu *sync.Mutex
 
@@ -35,7 +35,7 @@ type Storage struct {
 }
 
 // newStorage creates a new persistent storage according to the given parameters.
-func newStorage(dirname string, ukComparator, ikComparator Comparator, options Options) (*Storage, error) {
+func newStorage(dirname string, ukComparator, ikComparator Comparator, options *Options) (*Storage, error) {
 	log.WithFields(log.Fields{
 		"dirname": dirname,
 	}).Info("storage: newStorage")
@@ -64,7 +64,7 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options O
 	strg.memtable = memtable
 	strg.options = options
 
-	versions := newVersionSet(dirname, ukComparator, ikComparator, &strg.options)
+	versions := newVersionSet(dirname, ukComparator, ikComparator, strg.options)
 	strg.vs = versions
 
 	return strg, nil
@@ -175,10 +175,11 @@ func (s *Storage) Close() error {
 
 // NewStorageWithCustomComparator creates a new persistent storage in the given directory.
 //
+// The directory should already exist. The library won't create the directory.
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // Keys are ordered using the given custom comparator.
 // returns a Storage interface implementation.
-func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options Options) (*Storage, error) {
+func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options *Options) (*Storage, error) {
 	internalKeyComparator := newInternalKeyComparator(userKeyComparator)
 
 	return newStorage(dirname, userKeyComparator, internalKeyComparator, options)
@@ -186,9 +187,10 @@ func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator
 
 // NewStorage creates a new persistent storage in the given directory.
 //
+// The directory should already exist. The library won't create the directory.
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // returns a Storage interface implementation.
-func NewStorage(dirname string, options Options) (*Storage, error) {
+func NewStorage(dirname string, options *Options) (*Storage, error) {
 	userKeyComparator := DefaultComparator
 	return NewStorageWithCustomComparator(dirname, userKeyComparator, options)
 }

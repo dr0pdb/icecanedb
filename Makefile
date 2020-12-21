@@ -10,4 +10,13 @@ compile-windows:
 
 .PHONY: unit-test
 unit-test:
-	go test -covermode=count -coverprofile=profile.cov -v ./... 
+	go test -covermode=count -coverprofile=profile.cov -v ./...
+
+.PHONY: build-example-storage
+build-example-storage:
+	go build -o _output/example_storage -v ./examples/storage/
+
+#### Dev Commands ####
+.PHONY: clean-example-directory
+clean-example-directory:
+	rm -rf example-directory/*

@@ -3,6 +3,8 @@ package storage
 import (
 	"fmt"
 	"sync"
+
+	"github.com/dr0pdb/icecanedb/internal/common"
 )
 
 const (
@@ -31,7 +33,7 @@ func (vs *versionSet) load() error {
 
 	current, err := vs.options.Fs.open(getDbFileName(vs.dirname, currentFileType, unused))
 	if err != nil {
-		return fmt.Errorf("icecanedb: could not open CURRENT file for DB %q: %v", vs.dirname, err)
+		return common.NewNotFoundError(fmt.Sprintf("icecanedb: could not open CURRENT file for DB %q: %v", vs.dirname, err))
 	}
 	defer current.Close()
 
