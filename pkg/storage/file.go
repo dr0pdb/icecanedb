@@ -12,6 +12,7 @@ type file interface {
 	io.Closer
 	io.Reader
 	io.Writer
+	Stat() (os.FileInfo, error) // https://golang.org/pkg/os/#File.Stat
 }
 
 // FileSystem is the file system abstraction.
@@ -43,6 +44,9 @@ type FileSystem interface {
 	//
 	// this is used to obtain exclusive access to the directory.
 	lock(name string) error
+
+	// stat returns the FileInfo structure describing file. If there is an error, it will be of type *PathError
+	stat(name string) (os.FileInfo, error)
 }
 
 // DefaultFileSystem is a FileSystem implementation of the operating system.
@@ -86,4 +90,9 @@ func (dfs defaultFileSystem) mkdirAll(dir string, perm os.FileMode) error {
 func (dfs defaultFileSystem) lock(dir string) error {
 	_, err := dfs.create(dir)
 	return err
+}
+
+// stat returns the FileInfo structure describing file. If there is an error, it will be of type *PathError
+func (dfs defaultFileSystem) stat(name string) (os.FileInfo, error) {
+	return os.Stat(name)
 }

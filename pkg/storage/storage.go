@@ -140,12 +140,24 @@ func (s *Storage) Open() error {
 		// create db since CURRENT doesn't exist.
 		if _, ok := err.(common.NotFoundError); ok && s.options.CreateIfNotExist {
 			log.Info("storage: Open; db not found. creating it.")
-			return s.createNewDB()
+			err = s.createNewDB()
+			if err != nil {
+				log.WithFields(log.Fields{"storage": s, "err": err.Error()}).Error("storage: Open; error while creating the db")
+				return err
+			}
+			log.Info("storage: Open; db created. loading version set")
+			err = s.vs.load()
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
 		}
-
-		return err
 	}
 
+	log.Info("storage: Open; version set loaded.")
+
+	// recovery and cleanup
 	return nil
 }
 

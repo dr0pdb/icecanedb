@@ -34,7 +34,7 @@ func getDbFileName(dirname string, fileType fileType, fileNum uint64) string {
 	case currentFileType:
 		return fmt.Sprintf("%s%cCURRENT", dirname, os.PathSeparator)
 	case manifestFileType:
-		return fmt.Sprintf("%s%cMANIFEST", dirname, os.PathSeparator)
+		return fmt.Sprintf("%s%cMANIFEST-%06d", dirname, os.PathSeparator, fileNum)
 	}
 
 	panic("invalid file type")
