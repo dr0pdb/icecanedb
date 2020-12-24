@@ -28,6 +28,62 @@ type flusher interface {
 	Flush() error
 }
 
+type logRecordReader struct {
+	// r is the reader that logRecordReader reads from
+	r io.Reader
+
+	// seq is the sequence number of the current record
+	seq int
+
+	// buf[lo:hi] is the part of buf that is going to be read next.
+	lo, hi int
+
+	// sz is the number of valid bytes. Mostly it'll be blockSize but not for all
+	sz int
+
+	// err is any error encountered during any log record reader operation.
+	err error
+
+	// buf is the buffer which contains the buffered chunks.
+	buf [blockSize]byte
+}
+
+// newLogRecordReader creates a new log record reader.
+func newLogRecordReader(r io.Reader) *logRecordReader {
+	return &logRecordReader{
+		r: r,
+	}
+}
+
+// nextChunk sets the payload in buf[lo:hi].
+// In case it is the last chunk of the current block, it loads the next block in the buffer.
+func (r *logRecordReader) nextChunk(first bool) error {
+	return nil
+}
+
+func (lrr *logRecordReader) next() (io.Reader, error) {
+	lrr.seq++
+	if lrr.err != nil {
+		return nil, lrr.err
+	}
+
+	lrr.lo = lrr.hi
+	lrr.err = lrr.nextChunk(true)
+	if lrr.err != nil {
+		return nil, lrr.err
+	}
+	return singleLogRecordReader{lrr, lrr.seq}, nil
+}
+
+type singleLogRecordReader struct {
+	r   *logRecordReader
+	seq int
+}
+
+func (slrr singleLogRecordReader) Read(p []byte) (int, error) {
+	panic("not implemented")
+}
+
 type logRecordWriter struct {
 	// w is the writer that logRecordWriter writes to
 	w io.Writer
