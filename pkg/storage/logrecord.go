@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 
 	"github.com/dr0pdb/icecanedb/internal/common"
@@ -10,7 +11,6 @@ import (
 
 // The log record format details can be found at the below link.
 // https://github.com/google/leveldb/blob/master/doc/log_format.md
-//
 //
 const (
 	blockSize  = 32 * 1024
@@ -46,6 +46,12 @@ type logRecordReader struct {
 
 	// buf is the buffer which contains the buffered chunks.
 	buf [blockSize]byte
+
+	// nextCalled indicates if next has been called at least once or not. Required in nextChunk to return EOF errors.
+	nextCalled bool
+
+	// isLast indicates if the current chunk is the last chunk of the record.
+	isLast bool
 }
 
 // newLogRecordReader creates a new log record reader.
@@ -57,8 +63,52 @@ func newLogRecordReader(r io.Reader) *logRecordReader {
 
 // nextChunk sets the payload in buf[lo:hi].
 // In case it is the last chunk of the current block, it loads the next block in the buffer.
-func (r *logRecordReader) nextChunk(first bool) error {
-	return nil
+func (lrr *logRecordReader) nextChunk(first bool) error {
+	for {
+		if lrr.hi+headerSize <= lrr.sz {
+			checksum := binary.LittleEndian.Uint32(lrr.buf[lrr.hi : lrr.hi+4]) // need to change this after checksum implementation.
+			length := binary.LittleEndian.Uint16(lrr.buf[lrr.hi+4 : lrr.hi+6])
+			chunkType := lrr.buf[lrr.hi+6]
+
+			if checksum == 0 && length == 0 && chunkType == 0 {
+				if first {
+					continue
+				}
+				return errors.New("")
+			}
+
+			lrr.lo = lrr.hi + headerSize
+			lrr.hi = lrr.hi + headerSize + int(length)
+			if lrr.hi > lrr.sz {
+				return errors.New("")
+			}
+
+			if first {
+				if chunkType != fullChunkType && chunkType != firstChunkType {
+					// we wanted first this chunk is not the first. so keep looping
+					continue
+				}
+			}
+
+			lrr.isLast = chunkType == fullChunkType || chunkType == lastChunkType
+			return nil
+		}
+
+		if lrr.sz < blockSize && lrr.nextCalled {
+			if lrr.hi != lrr.sz {
+				// we were expecting the contents to be till hi but the content is only till sz
+				return io.ErrUnexpectedEOF
+			}
+			return io.EOF
+		}
+
+		// we have reached the end of the current block, so read the next block to buf and reset lo, hi and sz.
+		sz, err := io.ReadFull(lrr.r, lrr.buf[:])
+		if err != nil && err != io.ErrUnexpectedEOF {
+			return err
+		}
+		lrr.lo, lrr.hi, lrr.sz = 0, 0, sz
+	}
 }
 
 func (lrr *logRecordReader) next() (io.Reader, error) {
@@ -81,7 +131,30 @@ type singleLogRecordReader struct {
 }
 
 func (slrr singleLogRecordReader) Read(p []byte) (int, error) {
-	panic("not implemented")
+	r := slrr.r
+
+	if r.seq != slrr.seq {
+		return 0, common.NewStaleLogRecordWriterError("Stale Log Record reader state")
+	}
+
+	if r.err != nil {
+		return 0, r.err
+	}
+
+	// skip empty chunks
+	for r.lo == r.hi {
+		if r.isLast {
+			return 0, io.EOF
+		}
+
+		if r.err = r.nextChunk(false); r.err != nil {
+			return 0, r.err
+		}
+	}
+
+	n := copy(p, r.buf[r.lo:r.hi])
+	r.lo = n
+	return n, nil
 }
 
 type logRecordWriter struct {
