@@ -64,8 +64,10 @@ func newLogRecordReader(r io.Reader) *logRecordReader {
 // nextChunk sets the payload in buf[lo:hi].
 // In case it is the last chunk of the current block, it loads the next block in the buffer.
 func (lrr *logRecordReader) nextChunk(first bool) error {
+	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Info("storage::logrecord: nextChunk; started.")
 	for {
 		if lrr.hi+headerSize <= lrr.sz {
+			log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Info("storage::logrecord: nextChunk; reading chunk from buffer")
 			checksum := binary.LittleEndian.Uint32(lrr.buf[lrr.hi : lrr.hi+4]) // need to change this after checksum implementation.
 			length := binary.LittleEndian.Uint16(lrr.buf[lrr.hi+4 : lrr.hi+6])
 			chunkType := lrr.buf[lrr.hi+6]
@@ -74,18 +76,19 @@ func (lrr *logRecordReader) nextChunk(first bool) error {
 				if first {
 					continue
 				}
-				return errors.New("")
+				return errors.New("buffer zeroed out..")
 			}
 
 			lrr.lo = lrr.hi + headerSize
 			lrr.hi = lrr.hi + headerSize + int(length)
 			if lrr.hi > lrr.sz {
-				return errors.New("")
+				return errors.New("hi greater than sz. invalid position of hi.")
 			}
 
 			if first {
 				if chunkType != fullChunkType && chunkType != firstChunkType {
 					// we wanted first this chunk is not the first. so keep looping
+					log.Info("storage::logrecord: nextChunk; expected first chunk of a record but this is not. skipping..")
 					continue
 				}
 			}
@@ -96,15 +99,16 @@ func (lrr *logRecordReader) nextChunk(first bool) error {
 
 		if lrr.sz < blockSize && lrr.nextCalled {
 			if lrr.hi != lrr.sz {
-				// we were expecting the contents to be till hi but the content is only till sz
+				log.Info("storage::logrecord: nextChunk; expecting the contents to be till hi but the content is only till sz")
 				return io.ErrUnexpectedEOF
 			}
 			return io.EOF
 		}
 
-		// we have reached the end of the current block, so read the next block to buf and reset lo, hi and sz.
+		log.Info("storage::logrecord: nextChunk; we have reached the end of the current block, so read the next block to buf and reset lo, hi and sz.")
 		sz, err := io.ReadFull(lrr.r, lrr.buf[:])
 		if err != nil && err != io.ErrUnexpectedEOF {
+			log.Error("storage::logrecord: nextChunk; Unexpected error while reading from log file")
 			return err
 		}
 		lrr.lo, lrr.hi, lrr.sz = 0, 0, sz
@@ -112,6 +116,7 @@ func (lrr *logRecordReader) nextChunk(first bool) error {
 }
 
 func (lrr *logRecordReader) next() (io.Reader, error) {
+	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Info("storage::logrecord: next; started.")
 	lrr.seq++
 	if lrr.err != nil {
 		return nil, lrr.err
@@ -122,6 +127,7 @@ func (lrr *logRecordReader) next() (io.Reader, error) {
 	if lrr.err != nil {
 		return nil, lrr.err
 	}
+	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Info("storage::logrecord: next; done.")
 	return singleLogRecordReader{lrr, lrr.seq}, nil
 }
 
@@ -131,18 +137,22 @@ type singleLogRecordReader struct {
 }
 
 func (slrr singleLogRecordReader) Read(p []byte) (int, error) {
+	log.WithFields(log.Fields{"seq": slrr.seq}).Info("storage::logrecord: Read; started.")
 	r := slrr.r
 
 	if r.seq != slrr.seq {
+		log.WithFields(log.Fields{"seq": slrr.seq, "rseq": r.seq}).Error("storage::logrecord: Read; stale log record reader")
 		return 0, common.NewStaleLogRecordWriterError("Stale Log Record reader state")
 	}
 
 	if r.err != nil {
+		log.Error("storage::logrecord: Read; existing error. returning it.")
 		return 0, r.err
 	}
 
 	// skip empty chunks
 	for r.lo == r.hi {
+		log.Info("storage::logrecord: Read; skipping empty chunk.")
 		if r.isLast {
 			return 0, io.EOF
 		}
@@ -151,7 +161,7 @@ func (slrr singleLogRecordReader) Read(p []byte) (int, error) {
 			return 0, r.err
 		}
 	}
-
+	log.WithFields(log.Fields{"r.lo": r.lo, "r.hi": r.hi}).Info("storage::logrecord: Read; copy from r.buf to p")
 	n := copy(p, r.buf[r.lo:r.hi])
 	r.lo = n
 	return n, nil
