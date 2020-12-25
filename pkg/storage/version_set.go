@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/dr0pdb/icecanedb/internal/common"
@@ -25,6 +26,9 @@ type versionSet struct {
 	versionDummy version
 
 	logNumber, prevLogNumber uint64
+
+	// lastSequenceNumber is the last sequence number that was used.
+	lastSequenceNumber uint64
 }
 
 // load loads a versionSet from the underlying file system.
@@ -41,9 +45,14 @@ func (vs *versionSet) load() error {
 	log.Info("storage::version_set: reading current file")
 	cbuf, err := vs.readCurrentFile(current)
 	manifestName := string(cbuf)
-	log.Info(fmt.Sprintf("storage::version_set: done reading current file. The manifest file is %v", manifestName))
+	log.Info(fmt.Sprintf("storage::version_set: done reading current file. The manifest file name is %v", manifestName))
 
-	// read the manifest file and load the version edit metadata.
+	log.Info("storage::version_set: open manifest file")
+	manifest, err := vs.options.Fs.open(vs.dirname + string(os.PathSeparator) + manifestName)
+	if err != nil {
+		return common.NewNotFoundError(fmt.Sprintf("icecanedb: could not open MANIFEST file for DB %q: %v", vs.dirname, err))
+	}
+	defer manifest.Close()
 
 	return nil
 }

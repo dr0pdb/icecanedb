@@ -7,10 +7,13 @@ import (
 )
 
 const (
-	tagComparatorName = 1
-	tagNextFileNumber = 2
-	tagDeletedFile    = 3
-	tagNewFile        = 4
+	tagComparatorName     = 1
+	tagLogNumber          = 2
+	tagPrevLogNumber      = 3
+	tagLastSequenceNumber = 4
+	tagNextFileNumber     = 5
+	tagDeletedFile        = 6
+	tagNewFile            = 7
 )
 
 type deletedFileEntry struct {
@@ -36,10 +39,15 @@ type versionEdit struct {
 	nextFileNumber uint64
 
 	// files deleted during this edit. Usually during compaction.
-	deletedFiles []deletedFileEntry
+	deletedFiles map[deletedFileEntry]bool
 
 	// newly added files during this edit. Usually during compaction or when one file is full.
 	newFiles []newFileEntry
+
+	// lastSequenceNumber is the last sequence number that was used.
+	lastSequenceNumber uint64
+
+	logNumber, prevLogNumber uint64
 }
 
 // encode encodes the contents of a version edit to be written to a io.Writer.
@@ -51,12 +59,27 @@ func (ve *versionEdit) encode(lgw io.Writer) error {
 		venc.writeString(ve.comparatorName)
 	}
 
+	if ve.logNumber != 0 {
+		venc.writeUvarint(tagLogNumber)
+		venc.writeUvarint(ve.logNumber)
+	}
+
+	if ve.prevLogNumber != 0 {
+		venc.writeUvarint(tagPrevLogNumber)
+		venc.writeUvarint(ve.prevLogNumber)
+	}
+
+	if ve.lastSequenceNumber != 0 {
+		venc.writeUvarint(tagLastSequenceNumber)
+		venc.writeUvarint(ve.lastSequenceNumber)
+	}
+
 	if ve.nextFileNumber != 0 {
 		venc.writeUvarint(tagNextFileNumber)
 		venc.writeUvarint(ve.nextFileNumber)
 	}
 
-	for _, x := range ve.deletedFiles {
+	for x := range ve.deletedFiles {
 		venc.writeUvarint(tagDeletedFile)
 		venc.writeUvarint(uint64(x.level))
 		venc.writeUvarint(x.fileNum)
@@ -95,4 +118,18 @@ func (vee versionEditEncoder) writeUvarint(u uint64) {
 func (vee versionEditEncoder) writeString(s string) {
 	vee.writeUvarint(uint64(len(s)))
 	vee.WriteString(s)
+}
+
+// encode encodes the contents of a version edit to be written to a io.Writer.
+func (ve *versionEdit) decode(lgr io.Reader) error {
+	panic("not implemented")
+}
+
+// versionEditBuilder accumulates a number of version edits into one.
+type versionEditBuilder struct {
+	// files deleted
+	deletedFiles []deletedFileEntry
+
+	// newly added files
+	newFiles []newFileEntry
 }
