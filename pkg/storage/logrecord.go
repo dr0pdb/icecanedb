@@ -123,6 +123,7 @@ func (lrr *logRecordReader) next() (io.Reader, error) {
 	}
 
 	lrr.lo = lrr.hi
+	lrr.nextCalled = true
 	lrr.err = lrr.nextChunk(true)
 	if lrr.err != nil {
 		return nil, lrr.err

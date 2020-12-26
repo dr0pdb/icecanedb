@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -29,6 +30,8 @@ type versionSet struct {
 
 	// lastSequenceNumber is the last sequence number that was used.
 	lastSequenceNumber uint64
+
+	nextFileNumber uint64
 }
 
 // load loads a versionSet from the underlying file system.
@@ -53,6 +56,49 @@ func (vs *versionSet) load() error {
 		return common.NewNotFoundError(fmt.Sprintf("icecanedb: could not open MANIFEST file for DB %q: %v", vs.dirname, err))
 	}
 	defer manifest.Close()
+
+	lgr := newLogRecordReader(manifest)
+	for {
+		slgr, err := lgr.next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		var ve versionEdit
+		err = ve.decode(slgr)
+		if err != nil {
+			return err
+		}
+
+		if ve.comparatorName != "" {
+			if ve.comparatorName != vs.ukComparator.Name() {
+				return fmt.Errorf("leveldb: manifest file %q for DB %q: "+
+					"comparer name from file %q != comparer name from db.Options %q",
+					manifestName, vs.dirname, ve.comparatorName, vs.ukComparator.Name())
+			}
+		}
+
+		// todo: use version set builder.
+
+		if ve.logNumber != 0 {
+			vs.logNumber = ve.logNumber
+		}
+
+		if ve.prevLogNumber != 0 {
+			vs.prevLogNumber = ve.prevLogNumber
+		}
+
+		if ve.nextFileNumber != 0 {
+			vs.nextFileNumber = ve.nextFileNumber
+		}
+
+		if ve.lastSequenceNumber != 0 {
+			vs.lastSequenceNumber = ve.lastSequenceNumber
+		}
+	}
 
 	return nil
 }
