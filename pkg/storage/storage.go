@@ -10,6 +10,7 @@ import (
 
 const (
 	defaultSkipListHeight = 18
+	defaultNumberLevels   = 12
 )
 
 // Storage is the persistent key-value storage struct

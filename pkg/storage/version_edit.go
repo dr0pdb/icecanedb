@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 )
 
@@ -15,6 +17,17 @@ const (
 	tagDeletedFile        = 6
 	tagNewFile            = 7
 )
+
+var (
+	corruptManifestError = errors.New("icecanedb: Manifest entry is corrupted. Fatal!")
+)
+
+// This is required for converting a io.Reader to io.ByteReader.
+// Example taken from https://tip.golang.org/src/image/gif/reader.go?#L224
+type byteReader interface {
+	io.Reader
+	io.ByteReader
+}
 
 type deletedFileEntry struct {
 	level   int
@@ -120,9 +133,152 @@ func (vee versionEditEncoder) writeString(s string) {
 	vee.WriteString(s)
 }
 
-// encode encodes the contents of a version edit to be written to a io.Writer.
+// decode decodes the contents of a io.Reader into the version edit.
 func (ve *versionEdit) decode(lgr io.Reader) error {
-	panic("not implemented")
+	br, ok := lgr.(byteReader)
+	if !ok {
+		br = bufio.NewReader(lgr)
+	}
+	d := versionEditDecoder{br}
+	for {
+		tag, err := binary.ReadUvarint(br)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		switch tag {
+		case tagComparatorName:
+			name, err := d.readBytes()
+			if err != nil {
+				return err
+			}
+			ve.comparatorName = string(name)
+
+		case tagLogNumber:
+			ln, err := d.readUvarint()
+			if err != nil {
+				return err
+			}
+			ve.logNumber = ln
+
+		case tagPrevLogNumber:
+			pln, err := d.readUvarint()
+			if err != nil {
+				return err
+			}
+			ve.prevLogNumber = pln
+
+		case tagLastSequenceNumber:
+			lsn, err := d.readUvarint()
+			if err != nil {
+				return err
+			}
+			ve.lastSequenceNumber = lsn
+
+		case tagNextFileNumber:
+			nfn, err := d.readUvarint()
+			if err != nil {
+				return err
+			}
+			ve.nextFileNumber = nfn
+
+		case tagDeletedFile:
+			level, err := d.readLevel()
+			if err != nil {
+				return err
+			}
+			fn, err := d.readUvarint()
+			if err != nil {
+				return err
+			}
+			if ve.deletedFiles == nil {
+				ve.deletedFiles = make(map[deletedFileEntry]bool)
+			}
+			ve.deletedFiles[deletedFileEntry{level, fn}] = true
+
+		case tagNewFile:
+			level, err := d.readLevel()
+			if err != nil {
+				return err
+			}
+			fn, err := d.readUvarint()
+			if err != nil {
+				return err
+			}
+			sz, err := d.readUvarint()
+			if err != nil {
+				return err
+			}
+			smallest, err := d.readBytes()
+			if err != nil {
+				return err
+			}
+			largest, err := d.readBytes()
+			if err != nil {
+				return err
+			}
+			ve.newFiles = append(ve.newFiles, newFileEntry{
+				level: level,
+				meta: fileMetaData{
+					fileNum:  fn,
+					size:     sz,
+					smallest: smallest,
+					largest:  largest,
+				},
+			})
+
+		default:
+			return corruptManifestError
+		}
+	}
+
+	return nil
+}
+
+// versionEditDecoder
+type versionEditDecoder struct {
+	byteReader
+}
+
+func (d versionEditDecoder) readBytes() ([]byte, error) {
+	n, err := d.readUvarint()
+	if err != nil {
+		return nil, err
+	}
+	s := make([]byte, n)
+	_, err = io.ReadFull(d, s)
+	if err != nil {
+		if err == io.ErrUnexpectedEOF {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return s, nil
+}
+
+func (d versionEditDecoder) readLevel() (int, error) {
+	u, err := d.readUvarint()
+	if err != nil {
+		return 0, err
+	}
+	if u >= defaultNumberLevels {
+		return 0, corruptManifestError
+	}
+	return int(u), nil
+}
+
+func (d versionEditDecoder) readUvarint() (uint64, error) {
+	u, err := binary.ReadUvarint(d)
+	if err != nil {
+		if err == io.EOF {
+			return 0, corruptManifestError
+		}
+		return 0, err
+	}
+	return u, nil
 }
 
 // versionEditBuilder accumulates a number of version edits into one.
