@@ -10,5 +10,8 @@ type fileMetaData struct {
 }
 
 type version struct {
+	// files contains the levelwise file information
+	files [defaultNumberLevels][]fileMetaData
+
 	prev, next *version
 }

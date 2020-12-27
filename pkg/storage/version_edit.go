@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -65,6 +67,7 @@ type versionEdit struct {
 
 // encode encodes the contents of a version edit to be written to a io.Writer.
 func (ve *versionEdit) encode(lgw io.Writer) error {
+	log.Info("storage::version_edit: encode; started")
 	venc := versionEditEncoder{new(bytes.Buffer)}
 
 	if ve.comparatorName != "" {
@@ -108,6 +111,7 @@ func (ve *versionEdit) encode(lgw io.Writer) error {
 	}
 
 	lgw.Write(venc.Bytes())
+	log.Info("storage::version_edit: encode; done")
 	return nil
 }
 
@@ -135,6 +139,7 @@ func (vee versionEditEncoder) writeString(s string) {
 
 // decode decodes the contents of a io.Reader into the version edit.
 func (ve *versionEdit) decode(lgr io.Reader) error {
+	log.Info("storage::version_edit: decode; started")
 	br, ok := lgr.(byteReader)
 	if !ok {
 		br = bufio.NewReader(lgr)
@@ -231,10 +236,12 @@ func (ve *versionEdit) decode(lgr io.Reader) error {
 			})
 
 		default:
+			log.Error("storage::version_edit: decode; corrupt manifest!!")
 			return corruptManifestError
 		}
 	}
 
+	log.Info("storage::version_edit: decode; done")
 	return nil
 }
 
@@ -244,6 +251,7 @@ type versionEditDecoder struct {
 }
 
 func (d versionEditDecoder) readBytes() ([]byte, error) {
+	log.Info("storage::version_edit: readBytes; started")
 	n, err := d.readUvarint()
 	if err != nil {
 		return nil, err
@@ -252,14 +260,16 @@ func (d versionEditDecoder) readBytes() ([]byte, error) {
 	_, err = io.ReadFull(d, s)
 	if err != nil {
 		if err == io.ErrUnexpectedEOF {
-			return nil, nil
+			return nil, corruptManifestError
 		}
 		return nil, err
 	}
+	log.Info("storage::version_edit: readBytes; done")
 	return s, nil
 }
 
 func (d versionEditDecoder) readLevel() (int, error) {
+	log.Info("storage::version_edit: readLevel; started")
 	u, err := d.readUvarint()
 	if err != nil {
 		return 0, err
@@ -267,10 +277,12 @@ func (d versionEditDecoder) readLevel() (int, error) {
 	if u >= defaultNumberLevels {
 		return 0, corruptManifestError
 	}
+	log.Info("storage::version_edit: readLevel; started")
 	return int(u), nil
 }
 
 func (d versionEditDecoder) readUvarint() (uint64, error) {
+	log.Info("storage::version_edit: readUvarint; started")
 	u, err := binary.ReadUvarint(d)
 	if err != nil {
 		if err == io.EOF {
@@ -278,6 +290,7 @@ func (d versionEditDecoder) readUvarint() (uint64, error) {
 		}
 		return 0, err
 	}
+	log.Info("storage::version_edit: readUvarint; done")
 	return u, nil
 }
 
@@ -291,12 +304,15 @@ type versionEditBuilder struct {
 }
 
 func (veb *versionEditBuilder) append(ve *versionEdit) {
+	log.Info("storage::version_edit: append; started")
 	for dfe := range ve.deletedFiles {
 		if veb.deletedFiles[dfe.level] == nil {
 			veb.deletedFiles[dfe.level] = make(map[uint64]bool)
 		}
 		veb.deletedFiles[dfe.level][dfe.fileNum] = true
 	}
+
+	log.Info("storage::version_edit: append; deleted file entries added to builder")
 
 	for _, nfe := range ve.newFiles {
 		// if this file is also in deleted set, remove it from that.
@@ -306,6 +322,7 @@ func (veb *versionEditBuilder) append(ve *versionEdit) {
 
 		veb.newFiles[nfe.level] = append(veb.newFiles[nfe.level], nfe.meta)
 	}
+	log.Info("storage::version_edit: append; done")
 }
 
 // apply applies the versionEditBuilder data to a base version to produce a new version.
