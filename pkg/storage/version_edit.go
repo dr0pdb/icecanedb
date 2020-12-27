@@ -283,9 +283,33 @@ func (d versionEditDecoder) readUvarint() (uint64, error) {
 
 // versionEditBuilder accumulates a number of version edits into one.
 type versionEditBuilder struct {
-	// files deleted
-	deletedFiles []deletedFileEntry
+	// files (file number) deleted per level
+	deletedFiles [defaultNumberLevels]map[uint64]bool
 
-	// newly added files
-	newFiles []newFileEntry
+	// newly added files (fileMetaData) per level
+	newFiles [defaultNumberLevels][]fileMetaData
+}
+
+func (veb *versionEditBuilder) append(ve *versionEdit) {
+	for dfe := range ve.deletedFiles {
+		if veb.deletedFiles[dfe.level] == nil {
+			veb.deletedFiles[dfe.level] = make(map[uint64]bool)
+		}
+		veb.deletedFiles[dfe.level][dfe.fileNum] = true
+	}
+
+	for _, nfe := range ve.newFiles {
+		// if this file is also in deleted set, remove it from that.
+		if veb.deletedFiles[nfe.level] != nil {
+			delete(veb.deletedFiles[nfe.level], nfe.meta.fileNum)
+		}
+
+		veb.newFiles[nfe.level] = append(veb.newFiles[nfe.level], nfe.meta)
+	}
+}
+
+// apply applies the versionEditBuilder data to a base version to produce a new version.
+// in our incomplete implementation bv would always be nil, but keeping the level db signature to allow future enhancements if needed.
+func (veb *versionEditBuilder) apply(bv *version, ikComparator Comparator) {
+	panic("Not implemented")
 }
