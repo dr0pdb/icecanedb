@@ -1,5 +1,11 @@
 package storage
 
+import (
+	"fmt"
+
+	log "github.com/sirupsen/logrus"
+)
+
 // fileMetaData stores the meta data about a file.
 type fileMetaData struct {
 	fileNum uint64
@@ -39,5 +45,33 @@ type version struct {
 // for level 0, files should be sorted by file number
 // for level 1 and above, files should be sorted internal key and should be non-overlapping.
 func (v *version) checkFiles(ikComparator Comparator) error {
-	panic("not implemented")
+	log.Info("storage::version: checkFiles; started")
+	for level, files := range v.files {
+		if level == 0 {
+			prevFileNumber := uint64(0)
+
+			for i, f := range files {
+				if i > 0 && prevFileNumber >= f.fileNum {
+					log.Error("storage::version: checkFiles; level 0 files in the version are not sorted by file numbers")
+					return fmt.Errorf("icecanedb: level 0 files in the version are not sorted by file numbers")
+				}
+				prevFileNumber = f.fileNum
+			}
+		} else {
+			prevLargest := internalKey(nil)
+			for i, f := range files {
+				if i > 0 && ikComparator.Compare(prevLargest, f.smallest) >= 0 {
+					log.Error("storage::version: checkFiles; level 1 or above files in the version are not disjoint by internal key")
+					return fmt.Errorf("icecanedb: level 1 or above files in the version are not disjoint by internal key")
+				}
+				if ikComparator.Compare(f.smallest, f.largest) > 0 {
+					log.Error("storage::version: checkFiles; level 1 or above files in the version are not sorted by internal key")
+					return fmt.Errorf("icecanedb: level 1 or above files in the version are not sorted by internal key")
+				}
+				prevLargest = f.largest
+			}
+		}
+	}
+	log.Info("storage::version: checkFiles; ended")
+	return nil
 }
