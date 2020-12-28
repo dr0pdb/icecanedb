@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
+	"sort"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -327,6 +329,48 @@ func (veb *versionEditBuilder) append(ve *versionEdit) {
 
 // apply applies the versionEditBuilder data to a base version to produce a new version.
 // in our incomplete implementation bv would always be nil, but keeping the level db signature to allow future enhancements if needed.
-func (veb *versionEditBuilder) apply(bv *version, ikComparator Comparator) {
-	panic("Not implemented")
+func (veb *versionEditBuilder) apply(bv *version, ikComparator Comparator) (*version, error) {
+	log.WithFields(log.Fields{"base-null": bv != nil}).Info("storage::version_edit: apply; started")
+	v := new(version)
+	for level := range v.files { // store level wise file additions and deletions.
+		combined := [2][]fileMetaData{
+			nil,
+			veb.newFiles[level],
+		}
+
+		if bv != nil {
+			combined[0] = bv.files[level]
+		}
+
+		n := len(combined[0]) + len(combined[1])
+		if n == 0 {
+			continue
+		}
+
+		md := veb.deletedFiles[level]
+		for _, addedFiles := range combined {
+			for _, f := range addedFiles {
+				if md != nil && md[f.fileNum] {
+					continue
+				}
+
+				v.files[level] = append(v.files[level], f)
+			}
+		}
+
+		// sort files at each level
+		if level == 0 {
+			sort.Sort(byFileNum(v.files[level]))
+		} else {
+			sort.Sort(bySmallest{v.files[level], ikComparator})
+		}
+	}
+
+	// check final ordering in the version.
+	if err := v.checkFiles(ikComparator); err != nil {
+		log.Error(fmt.Sprintf("storage::version_edit: apply; error when checking files for sorting order: %v", err))
+		return nil, fmt.Errorf("icecanedb: error in version. fatal!: %v", err)
+	}
+	log.Info("storage::version_edit: apply; done")
+	return v, nil
 }
