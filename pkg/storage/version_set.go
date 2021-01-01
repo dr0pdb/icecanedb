@@ -46,18 +46,19 @@ func (vs *versionSet) load() error {
 		return common.NewNotFoundError(fmt.Sprintf("icecanedb: could not open CURRENT file for DB %q: %v", vs.dirname, err))
 	}
 	defer current.Close()
-	log.Info("storage::version_set: reading current file")
+	log.Info("storage::version_set: load; reading current file")
 	cbuf, err := vs.readCurrentFile(current)
 	manifestName := string(cbuf)
 	log.Info(fmt.Sprintf("storage::version_set: done reading current file. The manifest file name is %v", manifestName))
 
-	log.Info("storage::version_set: open manifest file")
+	log.Info("storage::version_set: load; open manifest file")
 	manifest, err := vs.options.Fs.open(vs.dirname + string(os.PathSeparator) + manifestName)
 	if err != nil {
 		return common.NewNotFoundError(fmt.Sprintf("icecanedb: could not open MANIFEST file for DB %q: %v", vs.dirname, err))
 	}
 	defer manifest.Close()
 
+	log.Info("storage::version_set: load; reading manifest file")
 	lgr := newLogRecordReader(manifest)
 	veb := versionEditBuilder{}
 	for {
@@ -102,6 +103,8 @@ func (vs *versionSet) load() error {
 		}
 	}
 
+	log.Info("storage::version_set: load; done reading manifest file")
+
 	// update next file number and mark file numbers as used.
 	vs.markFileNumberUsed(vs.logNumber)
 	vs.markFileNumberUsed(vs.prevLogNumber)
@@ -113,7 +116,7 @@ func (vs *versionSet) load() error {
 	}
 
 	vs.append(newVersion)
-
+	log.Info("storage::version_set: load; done")
 	return nil
 }
 
@@ -177,10 +180,12 @@ func (vs *versionSet) currentVersion() *version {
 
 // append appends a version to the version set.
 func (vs *versionSet) append(v *version) {
+	log.Info("storage::version_set: append; start")
 	v.prev = vs.versionDummy.prev
 	v.prev.next = v
 	v.next = &vs.versionDummy
 	v.next.prev = v
+	log.Info("storage::version_set: append; done")
 }
 
 // newVersionSet creates a new instance of the version set.

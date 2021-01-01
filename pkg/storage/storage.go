@@ -166,14 +166,19 @@ func (s *Storage) Open() error {
 func (s *Storage) Get(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": key,
-	}).Info("storage: Get")
+	}).Info("storage::storage: Get")
 
 	panic("not implemented")
 }
 
 // Set TODO
 func (s *Storage) Set(key, value []byte) error {
-	panic("not implemented")
+	log.WithFields(log.Fields{
+		"key":   key,
+		"value": value,
+	}).Info("storage::storage: Set")
+
+	return nil
 }
 
 // Delete TODO
