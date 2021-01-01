@@ -31,7 +31,8 @@ type versionSet struct {
 	// lastSequenceNumber is the last sequence number that was used.
 	lastSequenceNumber uint64
 
-	nextFileNumber uint64
+	nextFileNumber     uint64
+	manifestFileNumber uint64
 }
 
 // load loads a versionSet from the underlying file system.
@@ -58,6 +59,7 @@ func (vs *versionSet) load() error {
 	defer manifest.Close()
 
 	lgr := newLogRecordReader(manifest)
+	veb := versionEditBuilder{}
 	for {
 		slgr, err := lgr.next()
 		if err == io.EOF {
@@ -67,7 +69,7 @@ func (vs *versionSet) load() error {
 			return err
 		}
 
-		var ve versionEdit
+		var ve *versionEdit
 		err = ve.decode(slgr)
 		if err != nil {
 			return err
@@ -81,7 +83,7 @@ func (vs *versionSet) load() error {
 			}
 		}
 
-		// todo: use version set builder.
+		veb.append(ve)
 
 		if ve.logNumber != 0 {
 			vs.logNumber = ve.logNumber
@@ -99,6 +101,18 @@ func (vs *versionSet) load() error {
 			vs.lastSequenceNumber = ve.lastSequenceNumber
 		}
 	}
+
+	// update next file number and mark file numbers as used.
+	vs.markFileNumberUsed(vs.logNumber)
+	vs.markFileNumberUsed(vs.prevLogNumber)
+	vs.manifestFileNumber = vs.nextFileNum()
+
+	newVersion, err := veb.apply(nil, vs.ikComparator)
+	if err != nil {
+		return err
+	}
+
+	vs.append(newVersion)
 
 	return nil
 }
@@ -142,9 +156,31 @@ func (vs *versionSet) logAndApply(ve *versionEdit, mu *sync.Mutex) error {
 	panic("Not implemented")
 }
 
+// markFileNumberUsed marks a file number as being in use.
+func (vs *versionSet) markFileNumberUsed(fn uint64) {
+	if vs.nextFileNumber <= fn {
+		vs.nextFileNumber = fn + 1
+	}
+}
+
+// nextFileNum returns the next file number and increments it.
+func (vs *versionSet) nextFileNum() uint64 {
+	res := vs.nextFileNumber
+	vs.nextFileNumber++
+	return res
+}
+
 // currentVersion returns the current version of the version set.
 func (vs *versionSet) currentVersion() *version {
 	return vs.versionDummy.prev
+}
+
+// append appends a version to the version set.
+func (vs *versionSet) append(v *version) {
+	v.prev = vs.versionDummy.prev
+	v.prev.next = v
+	v.next = &vs.versionDummy
+	v.next.prev = v
 }
 
 // newVersionSet creates a new instance of the version set.
