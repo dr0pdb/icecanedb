@@ -100,3 +100,62 @@ func (wb *writeBatch) getSeqNum() uint64 {
 func (wb *writeBatch) getCount() uint32 {
 	return binary.LittleEndian.Uint32(wb.getCountData())
 }
+
+func (wb *writeBatch) getIterator() batchIterator {
+	return wb.data[batchHeaderSize:]
+}
+
+type batchIterator []byte
+
+func (bi *batchIterator) next() (kind internalKeyKind, ukey []byte, value []byte, ok bool) {
+	log.Info("storage::write_batch: next; started")
+	tmp := *bi
+	if len(tmp) == 0 {
+		log.Error("storage::write_batch: next; next called on an empty batch iterator")
+		return 0, nil, nil, false
+	}
+
+	kind, *bi = internalKeyKind(tmp[0]), tmp[1:]
+	// todo: validate if kind is valid
+
+	ukey, ok = tmp.nextString()
+	if !ok {
+		log.Error("storage::write_batch: next; ukey for internal key set not found.")
+		return 0, nil, nil, ok
+	}
+
+	if kind != internalKeyKindDelete {
+		value, ok = tmp.nextString()
+		if !ok {
+			log.Error("storage::write_batch: next; value for internal key set not found.")
+			return 0, nil, nil, ok
+		}
+	}
+
+	log.Info("storage::write_batch: next; done")
+	return kind, ukey, value, true
+}
+
+// nextString gets the next string from the batch.
+// it reads the length of the string stored as varint and then reads the actual string
+func (bi *batchIterator) nextString() (s []byte, ok bool) {
+	log.Info("storage::write_batch: nextString; started")
+	tmp := *bi
+
+	// u is the length of the string.
+	u, numBytes := binary.Uvarint(tmp)
+	if numBytes <= 0 {
+		log.Error("storage::write_batch: nextString; corrupt value of length of the string.")
+		return nil, false
+	}
+
+	tmp = tmp[numBytes:]
+	if u > uint64(len(tmp)) {
+		log.Error("storage::write_batch: nextString; corrupt value of length of string. u is greater than the length of the buffer.")
+		return nil, false
+	}
+
+	s, *bi = tmp[:u], tmp[u:]
+	log.Info("storage::write_batch: nextString; done")
+	return s, true
+}
