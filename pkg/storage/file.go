@@ -13,6 +13,7 @@ type file interface {
 	io.Reader
 	io.Writer
 	Stat() (os.FileInfo, error) // https://golang.org/pkg/os/#File.Stat
+	Sync() error
 }
 
 // FileSystem is the file system abstraction.

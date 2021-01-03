@@ -254,10 +254,28 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 		return err
 	}
 	if opts.Sync {
-		// flush and sync to disk
+		if err = s.logWriter.flush(); err != nil {
+			return fmt.Errorf("storage: could not flush log entry: %v", err)
+		}
+		if err = s.logFile.Sync(); err != nil {
+			return fmt.Errorf("storage: could not sync log entry: %v", err)
+		}
 	}
 
-	// write to memtable
+	// write/update in memtable
+	for itr := wb.getIterator(); ; seqNum++ {
+		kind, ukey, value, ok := itr.next()
+		if !ok {
+			break
+		}
+
+		ikey := newInternalKey(ukey, kind, seqNum)
+		s.memtable.set(ikey, value)
+	}
+
+	if seqNum != s.vs.lastSequenceNumber+1 {
+		panic("storage: inconsistent batch count in write batch")
+	}
 
 	log.Info("storage::storage: apply; done")
 	return nil
