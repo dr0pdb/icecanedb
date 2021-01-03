@@ -17,7 +17,10 @@ type Options struct {
 	// The table cache size.
 	// set to zero for defaultTableCacheSize.
 	Cachesz uint32
+}
 
+// WriteOptions defines the options available for a single Put/Delete operation.
+type WriteOptions struct {
 	// Sync indicates whether updates should be synced to the disk. If not set, it could lead to data loss due to sudden errors.
 	// set it to true periodically.
 	Sync bool

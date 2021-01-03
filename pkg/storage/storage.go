@@ -29,6 +29,7 @@ type Storage struct {
 
 	logNumber uint64
 	logFile   file
+	logWriter *logRecordWriter
 
 	vs *versionSet
 
@@ -158,7 +159,27 @@ func (s *Storage) Open() error {
 
 	log.Info("storage: Open; version set loaded.")
 
-	// recovery and cleanup
+	// TODO: replay any log files that aren't in the manifest.
+	var ve versionEdit
+	ve.logNumber = s.vs.nextFileNum()
+
+	logFile, err := s.options.Fs.create(getDbFileName(s.dirname, logFileType, ve.logNumber))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if logFile != nil {
+			logFile.Close()
+		}
+	}()
+
+	s.logWriter = newLogRecordWriter(logFile)
+	s.logFile, logFile = logFile, nil
+
+	// TODO: apply version edit and write new manifest.
+
+	// TODO: recovery and cleanup
+
 	return nil
 }
 
@@ -172,23 +193,78 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 }
 
 // Set TODO
-func (s *Storage) Set(key, value []byte) error {
+func (s *Storage) Set(key, value []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
 		"key":   key,
 		"value": value,
+		"opts":  opts,
 	}).Info("storage::storage: Set")
 
-	return nil
+	var batch writeBatch
+	batch.set(key, value)
+	return s.apply(batch, opts)
 }
 
 // Delete TODO
-func (s *Storage) Delete(key []byte) error {
-	panic("not implemented")
+func (s *Storage) Delete(key []byte, opts *WriteOptions) error {
+	log.WithFields(log.Fields{
+		"key":  key,
+		"opts": opts,
+	}).Info("storage::storage: Delete")
+
+	var batch writeBatch
+	batch.delete(key)
+	return s.apply(batch, opts)
 }
 
 // Close todo
 func (s *Storage) Close() error {
 	panic("not implemented")
+}
+
+// apply applies a writeBatch atomically according to write options.
+func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
+	log.Info("storage::storage: apply; started")
+
+	if len(wb.data) == 0 {
+		log.Info("storage::storage: apply; empty write batch.")
+		return nil
+	}
+
+	cnt := wb.getCount()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.makeRoomForWrite(false); err != nil {
+		log.Error(fmt.Errorf("storage::storage: apply; error in making room for write. err: %V", err))
+		return err
+	}
+
+	seqNum := s.vs.lastSequenceNumber + 1
+	wb.setSeqNum(seqNum)
+	s.vs.lastSequenceNumber += uint64(cnt)
+
+	// write batch to log file
+	w, err := s.logWriter.next()
+	if err != nil {
+		return err
+	}
+	if _, err = w.Write(wb.data); err != nil {
+		return err
+	}
+	if opts.Sync {
+		// flush and sync to disk
+	}
+
+	// write to memtable
+
+	log.Info("storage::storage: apply; done")
+	return nil
+}
+
+func (s *Storage) makeRoomForWrite(force bool) error {
+	return nil
 }
 
 // NewStorageWithCustomComparator creates a new persistent storage in the given directory.

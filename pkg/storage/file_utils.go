@@ -13,6 +13,7 @@ const (
 	lockFileType fileType = iota
 	currentFileType
 	manifestFileType
+	logFileType
 )
 
 // getDbFileName returns the name of the file stored on the disk for a particular type and number.
@@ -29,12 +30,14 @@ func getDbFileName(dirname string, fileType fileType, fileNum uint64) string {
 	}
 
 	switch fileType {
-	case lockFileType:
+	case logFileType:
 		return fmt.Sprintf("%s%c%06d.log", dirname, os.PathSeparator, fileNum)
 	case currentFileType:
 		return fmt.Sprintf("%s%cCURRENT", dirname, os.PathSeparator)
 	case manifestFileType:
 		return fmt.Sprintf("%s%cMANIFEST-%06d", dirname, os.PathSeparator, fileNum)
+	case lockFileType:
+		return fmt.Sprintf("%s%cLOCK", dirname, os.PathSeparator)
 	}
 
 	panic("invalid file type")
