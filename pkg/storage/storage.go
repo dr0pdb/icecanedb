@@ -36,42 +36,6 @@ type Storage struct {
 	ukComparator, ikComparator Comparator
 }
 
-// newStorage creates a new persistent storage according to the given parameters.
-func newStorage(dirname string, ukComparator, ikComparator Comparator, options *Options) (*Storage, error) {
-	log.WithFields(log.Fields{
-		"dirname": dirname,
-	}).Info("storage: newStorage")
-
-	var logNumber uint64 = 1
-
-	if options.Fs == nil {
-		options.Fs = DefaultFileSystem
-	}
-	if options.Cachesz == 0 {
-		options.Cachesz = defaultTableCacheSize
-	}
-
-	strg := &Storage{
-		dirname:      dirname,
-		options:      options,
-		immMemtable:  nil,
-		ukComparator: ukComparator,
-		ikComparator: ikComparator,
-		logNumber:    logNumber,
-	}
-
-	skipList := newSkipList(defaultSkipListHeight, ikComparator)
-	memtable := newMemtable(skipList, ikComparator)
-
-	strg.memtable = memtable
-	strg.options = options
-
-	versions := newVersionSet(dirname, ukComparator, ikComparator, strg.options)
-	strg.vs = versions
-
-	return strg, nil
-}
-
 // createNewDB creates all the files necessary for creating a db in the given directory.
 //
 // It also populates the version set in the struct.
@@ -189,7 +153,18 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 		"key": key,
 	}).Info("storage::storage: Get")
 
-	panic("not implemented")
+	log.Info("storage::storage: Get; looking in memtable")
+
+	value, err := s.memtable.get(key)
+	if err == nil {
+		log.WithFields(log.Fields{"value": value}).Info("storage::storage: Get; found key in memtable")
+		return value, nil
+	}
+
+	// TODO: read from sst files.
+	// This works for now. Don't read from sst if the internal key kind was delete in the memtable.
+
+	return nil, err
 }
 
 // Set TODO
@@ -236,6 +211,7 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	log.Info("storage::storage: apply; making room for write")
 	if err := s.makeRoomForWrite(false); err != nil {
 		log.Error(fmt.Errorf("storage::storage: apply; error in making room for write. err: %V", err))
 		return err
@@ -244,6 +220,8 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 	seqNum := s.vs.lastSequenceNumber + 1
 	wb.setSeqNum(seqNum)
 	s.vs.lastSequenceNumber += uint64(cnt)
+
+	log.Info("storage::storage: apply; writing batch to log file")
 
 	// write batch to log file
 	w, err := s.logWriter.next()
@@ -261,6 +239,8 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 			return fmt.Errorf("storage: could not sync log entry: %v", err)
 		}
 	}
+
+	log.Info("storage::storage: apply; writing batch to memtable")
 
 	// write/update in memtable
 	for itr := wb.getIterator(); ; seqNum++ {
@@ -281,8 +261,48 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 	return nil
 }
 
+// makeRoomForWrite ensures that there is enough room in the current log file for the batch.
+// If not, it converts the log file to sst and creates a new log file as the current.
 func (s *Storage) makeRoomForWrite(force bool) error {
 	return nil
+}
+
+// newStorage creates a new persistent storage according to the given parameters.
+func newStorage(dirname string, ukComparator, ikComparator Comparator, options *Options) (*Storage, error) {
+	log.WithFields(log.Fields{
+		"dirname": dirname,
+	}).Info("storage: newStorage")
+
+	var logNumber uint64 = 1
+
+	if options.Fs == nil {
+		options.Fs = DefaultFileSystem
+	}
+	if options.Cachesz == 0 {
+		options.Cachesz = defaultTableCacheSize
+	}
+
+	strg := &Storage{
+		dirname:      dirname,
+		options:      options,
+		immMemtable:  nil,
+		ukComparator: ukComparator,
+		ikComparator: ikComparator,
+		logNumber:    logNumber,
+	}
+
+	strg.mu = new(sync.Mutex)
+
+	skipList := newSkipList(defaultSkipListHeight, ikComparator)
+	memtable := newMemtable(skipList, ikComparator)
+
+	strg.memtable = memtable
+	strg.options = options
+
+	versions := newVersionSet(dirname, ukComparator, ikComparator, strg.options)
+	strg.vs = versions
+
+	return strg, nil
 }
 
 // NewStorageWithCustomComparator creates a new persistent storage in the given directory.

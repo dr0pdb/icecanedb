@@ -16,21 +16,24 @@ type memtable struct {
 //
 // returns a byte slice pointing to the value if the key is found.
 // returns NotFoundError if the key is not found.
-func (m *memtable) get(key []byte) ([]byte, error) {
+func (m *memtable) get(ikey []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
-		"key": key,
+		"ikey": ikey,
 	}).Info("memtable: get")
 
-	skipNode := m.skipList.get(key)
-	if skipNode == nil {
+	skipNode := m.skipList.get(ikey)
+	if skipNode == nil ||
+		m.comparator.Compare(internalKey(skipNode.getKey()).userKey(), internalKey(ikey).userKey()) != 0 ||
+		internalKey(skipNode.getKey()).kind() == internalKeyKindDelete {
+
 		log.WithFields(log.Fields{
-			"key": key,
+			"ikey": ikey,
 		}).Info("memtable: get; Key not found in the memtable.")
 		return []byte{}, common.NewNotFoundError("Key not found.")
 	}
 
 	log.WithFields(log.Fields{
-		"key":   key,
+		"ikey":  ikey,
 		"value": skipNode.getValue(),
 	}).Info("memtable: get; Key found in the memtable; returning value")
 
