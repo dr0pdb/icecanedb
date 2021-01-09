@@ -372,6 +372,7 @@ type singleLogRecordWriter struct {
 
 // Write writes a slice of byte to the writer by splitting it into blocks of blocksize.
 func (slrw singleLogRecordWriter) Write(p []byte) (int, error) {
+	log.WithFields(log.Fields{"p": string(p)}).Info("storage::logrecord: Write; start.")
 	w := slrw.w
 
 	if w.seq != slrw.seq {
@@ -401,5 +402,6 @@ func (slrw singleLogRecordWriter) Write(p []byte) (int, error) {
 		p = p[n:]
 	}
 
+	log.Info("storage::logrecord: Write; done.")
 	return tot, nil
 }

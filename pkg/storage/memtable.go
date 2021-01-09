@@ -18,7 +18,7 @@ type memtable struct {
 // returns NotFoundError if the key is not found.
 func (m *memtable) get(ikey []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
-		"ikey": ikey,
+		"ikey": string(ikey),
 	}).Info("memtable: get")
 
 	skipNode := m.skipList.get(ikey)
@@ -27,14 +27,14 @@ func (m *memtable) get(ikey []byte) ([]byte, error) {
 		internalKey(skipNode.getKey()).kind() == internalKeyKindDelete {
 
 		log.WithFields(log.Fields{
-			"ikey": ikey,
+			"ikey": string(ikey),
 		}).Info("memtable: get; Key not found in the memtable.")
 		return []byte{}, common.NewNotFoundError("Key not found.")
 	}
 
 	log.WithFields(log.Fields{
-		"ikey":  ikey,
-		"value": skipNode.getValue(),
+		"ikey":  string(ikey),
+		"value": string(skipNode.getValue()),
 	}).Info("memtable: get; Key found in the memtable; returning value")
 
 	return skipNode.getValue(), nil
@@ -47,7 +47,7 @@ func (m *memtable) get(ikey []byte) ([]byte, error) {
 // error equal to nil represents success.
 func (m *memtable) set(key, value []byte) error {
 	log.WithFields(log.Fields{
-		"key": key,
+		"key": string(key),
 	}).Info("memtable: set")
 
 	skipNode := m.skipList.set(key, value)
@@ -59,8 +59,8 @@ func (m *memtable) set(key, value []byte) error {
 	}
 
 	log.WithFields(log.Fields{
-		"key":   key,
-		"value": skipNode.getValue(),
+		"key":   string(key),
+		"value": string(skipNode.getValue()),
 	}).Info("memtable: set; Wrote the value in the memtable for the given key.")
 
 	return nil
@@ -72,19 +72,19 @@ func (m *memtable) set(key, value []byte) error {
 // returns NotFoundError if the key is not found.
 func (m *memtable) delete(key []byte) error {
 	log.WithFields(log.Fields{
-		"key": key,
+		"key": string(key),
 	}).Info("memtable: delete")
 
 	skipNode := m.skipList.delete(key)
 	if skipNode == nil {
 		log.WithFields(log.Fields{
-			"key": key,
+			"key": string(key),
 		}).Info("memtable: delete; Key not found in the memtable.")
 		return common.NewUnknownError("Key not found.")
 	}
 
 	log.WithFields(log.Fields{
-		"key": key,
+		"key": string(key),
 	}).Info("memtable: delete; Deleted the value in the memtable for the given key.")
 
 	return nil

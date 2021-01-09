@@ -84,7 +84,7 @@ func TestFunctionality(t *testing.T) {
 
 	for i := range testKeys {
 		err = s.Set(testKeys[i], testValues[i], nil)
-		assert.Nil(t, err, fmt.Sprintf("Unexpected in setting value for key%d", i))
+		assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", i))
 	}
 
 	for i := range testKeys {

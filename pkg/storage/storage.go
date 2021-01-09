@@ -150,7 +150,7 @@ func (s *Storage) Open() error {
 // Get TODO
 func (s *Storage) Get(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{
-		"key": key,
+		"key": string(key),
 	}).Info("storage::storage: Get")
 
 	log.Info("storage::storage: Get; looking in memtable")
@@ -170,8 +170,8 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 // Set TODO
 func (s *Storage) Set(key, value []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
-		"key":   key,
-		"value": value,
+		"key":   string(key),
+		"value": string(value),
 		"opts":  opts,
 	}).Info("storage::storage: Set")
 
@@ -183,7 +183,7 @@ func (s *Storage) Set(key, value []byte, opts *WriteOptions) error {
 // Delete TODO
 func (s *Storage) Delete(key []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
-		"key":  key,
+		"key":  string(key),
 		"opts": opts,
 	}).Info("storage::storage: Delete")
 
@@ -207,6 +207,7 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 	}
 
 	cnt := wb.getCount()
+	log.Info(fmt.Sprintf("storage::storage: apply; write batch of count %d.", cnt))
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

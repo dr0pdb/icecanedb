@@ -25,7 +25,7 @@ func (wb *writeBatch) init(cap int) {
 }
 
 func (wb *writeBatch) set(key, value []byte) {
-	log.WithFields(log.Fields{"key": key, "value": value}).Info("storage::write_batch: set; start")
+	log.WithFields(log.Fields{"key": string(key), "value": string(value)}).Info("storage::write_batch: set; start")
 	if len(wb.data) == 0 {
 		wb.init(len(key) + len(value) + 2*binary.MaxVarintLen64 + batchHeaderSize)
 	}
@@ -42,7 +42,7 @@ func (wb *writeBatch) set(key, value []byte) {
 }
 
 func (wb *writeBatch) delete(key []byte) {
-	log.WithFields(log.Fields{"key": key}).Info("storage::write_batch: delete; start")
+	log.WithFields(log.Fields{"key": string(key)}).Info("storage::write_batch: delete; start")
 
 	if len(wb.data) == 0 {
 		wb.init(len(key) + binary.MaxVarintLen64 + batchHeaderSize)
