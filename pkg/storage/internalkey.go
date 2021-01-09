@@ -89,7 +89,7 @@ func (d *internalKeyComparator) Compare(a, b []byte) int {
 		return 1
 	}
 
-	if ukc := d.Compare(akey.userKey(), bkey.userKey()); ukc != 0 {
+	if ukc := d.userKeyComparator.Compare(akey.userKey(), bkey.userKey()); ukc != 0 {
 		return ukc
 	}
 
