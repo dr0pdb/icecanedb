@@ -144,6 +144,7 @@ func (s *Storage) Open() error {
 
 	// TODO: recovery and cleanup
 
+	log.Info("storage: Open; done")
 	return nil
 }
 
@@ -232,7 +233,7 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 	if _, err = w.Write(wb.data); err != nil {
 		return err
 	}
-	if opts.Sync {
+	if opts != nil && opts.Sync {
 		if err = s.logWriter.flush(); err != nil {
 			return fmt.Errorf("storage: could not flush log entry: %v", err)
 		}

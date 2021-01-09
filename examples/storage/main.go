@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"path"
 
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 )
@@ -20,14 +23,25 @@ var (
 )
 
 func main() {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(dir)
+
 	opts := &storage.Options{
 		CreateIfNotExist: true,
 	}
-	s, err := storage.NewStorage("./example-directory", opts)
+	s, err := storage.NewStorage(path.Join(dir, "../../example-directory/"), opts)
 	if err != nil {
-		fmt.Errorf(err.Error())
+		fmt.Print(err.Error())
+		return
 	}
-	s.Open()
+	err = s.Open()
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
 
 	wopts := &storage.WriteOptions{
 		Sync: false,

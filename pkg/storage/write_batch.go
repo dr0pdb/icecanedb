@@ -118,14 +118,14 @@ func (bi *batchIterator) next() (kind internalKeyKind, ukey []byte, value []byte
 	kind, *bi = internalKeyKind(tmp[0]), tmp[1:]
 	// todo: validate if kind is valid
 
-	ukey, ok = tmp.nextString()
+	ukey, ok = bi.nextString()
 	if !ok {
 		log.Error("storage::write_batch: next; ukey for internal key set not found.")
 		return 0, nil, nil, ok
 	}
 
 	if kind != internalKeyKindDelete {
-		value, ok = tmp.nextString()
+		value, ok = bi.nextString()
 		if !ok {
 			log.Error("storage::write_batch: next; value for internal key set not found.")
 			return 0, nil, nil, ok

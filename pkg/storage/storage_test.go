@@ -68,7 +68,29 @@ func TestOpenDBWithCustomComparator(t *testing.T) {
 	assert.Equal(t, customComparator, s.ukComparator, "Custom comparator is not set properly in the storage")
 }
 
-func TestFunctionality(t *testing.T) {
+func TestBasicGetSet(t *testing.T) {
+	test.CreateTestDirectory(testDirectory)
+	defer test.CleanupTestDirectory(testDirectory)
+
+	options := &Options{
+		CreateIfNotExist: true,
+	}
+
+	s, err := NewStorage(testDirectory, options)
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	err = s.Open()
+	assert.Nil(t, err, "Unexpected error in opening database")
+
+	err = s.Set(testKeys[0], testValues[0], nil)
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
+
+	val, err := s.Get(testKeys[0])
+	assert.Nil(t, err)
+	assert.Equal(t, testValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, testValues[0], val))
+}
+
+func TestOverallFunctionality(t *testing.T) {
 	test.CreateTestDirectory(testDirectory)
 	defer test.CleanupTestDirectory(testDirectory)
 
