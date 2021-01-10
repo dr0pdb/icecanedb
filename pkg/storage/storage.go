@@ -156,7 +156,7 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 
 	log.Info("storage::storage: Get; looking in memtable")
 
-	ikey := newInternalKey(key, internalKeyKindSet, s.vs.lastSequenceNumber)
+	ikey := newInternalKey(key, internalKeyKindSet, s.vs.lastSequenceNumber+1)
 
 	value, err := s.memtable.get(ikey)
 	if err == nil {

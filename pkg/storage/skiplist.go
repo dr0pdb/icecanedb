@@ -52,22 +52,12 @@ func (s *skipList) get(key []byte) *skipListNode {
 		}
 	}
 
-	// next.Key() should be <= user key
-	if next != nil && s.comparator.Compare(next.getKey(), key) <= 0 {
-		log.WithFields(log.Fields{
-			"key":       string(key),
-			"nextkey":   string(next.getKey()),
-			"nextvalue": string(next.getValue()),
-		}).Info("skipList: get; Found the node.")
-
-		return next
-	}
-
 	log.WithFields(log.Fields{
-		"key": string(key),
-	}).Info("skipList: get; Node not found.")
+		"key":  string(key),
+		"next": next,
+	}).Info("skipList: get; done. returning next node")
 
-	return nil
+	return next
 }
 
 // set inserts a value in the list associated with the specified key.

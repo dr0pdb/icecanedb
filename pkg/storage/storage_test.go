@@ -68,7 +68,7 @@ func TestOpenDBWithCustomComparator(t *testing.T) {
 	assert.Equal(t, customComparator, s.ukComparator, "Custom comparator is not set properly in the storage")
 }
 
-func TestBasicGetSet(t *testing.T) {
+func TestBasicSingleGetSet(t *testing.T) {
 	test.CreateTestDirectory(testDirectory)
 	defer test.CleanupTestDirectory(testDirectory)
 
@@ -90,7 +90,41 @@ func TestBasicGetSet(t *testing.T) {
 	assert.Equal(t, testValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, testValues[0], val))
 }
 
-func TestOverallFunctionality(t *testing.T) {
+func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
+	test.CreateTestDirectory(testDirectory)
+	defer test.CleanupTestDirectory(testDirectory)
+
+	options := &Options{
+		CreateIfNotExist: true,
+	}
+
+	s, err := NewStorage(testDirectory, options)
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	err = s.Open()
+	assert.Nil(t, err, "Unexpected error in opening database")
+
+	oldValue := testValues[0]
+	latestValue := testValues[1]
+
+	err = s.Set(testKeys[0], oldValue, nil)
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
+
+	val, err := s.Get(testKeys[0])
+	assert.Nil(t, err)
+	assert.Equal(t, oldValue, val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, oldValue, val))
+
+	// update value for key
+	err = s.Set(testKeys[0], latestValue, nil)
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
+
+	// get should return latest value
+	val, err = s.Get(testKeys[0])
+	assert.Nil(t, err)
+	assert.Equal(t, latestValue, val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, latestValue, val))
+}
+
+func TestBasicMultipleGetSetDelete(t *testing.T) {
 	test.CreateTestDirectory(testDirectory)
 	defer test.CleanupTestDirectory(testDirectory)
 
@@ -132,7 +166,7 @@ func TestOverallFunctionality(t *testing.T) {
 	assert.Equal(t, testValues[3], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 3, testValues[3], val))
 }
 
-// todo
+// Spawn go routines to do put, get and delete concurrently.
 func TestConcurrentFunctionality(t *testing.T) {
 	test.CreateTestDirectory(testDirectory)
 	defer test.CleanupTestDirectory(testDirectory)
@@ -146,4 +180,25 @@ func TestConcurrentFunctionality(t *testing.T) {
 
 	err = s.Open()
 	assert.Nil(t, err)
+
+	num := 100000
+
+	for i := 1; i < num; i++ {
+		go func(idx int) {
+			tidx := idx % len(testKeys)
+
+			err = s.Set(testKeys[tidx], testValues[tidx], nil)
+			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", idx))
+
+			val, err := s.Get(testKeys[tidx])
+			assert.Nil(t, err)
+			assert.Equal(t, testValues[tidx], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", tidx, testValues[tidx], val))
+
+			err = s.Delete(testKeys[tidx], nil)
+			assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", tidx))
+
+			_, err = s.Get(testKeys[tidx])
+			assert.NotNil(t, err, fmt.Sprintf("Found entry for key%d when it was deleted", tidx))
+		}(i)
+	}
 }
