@@ -43,13 +43,13 @@ func TestBasicCRUD(t *testing.T) {
 
 	key2Node = skipList.delete(key2)
 	assert.NotNil(t, key2Node)
-	assert.Nil(t, skipList.get(key2))
+	assert.NotEqual(t, skipList.get(key2).key, key2, "Deletion from skiplist not successful")
 
 	key2Node = skipList.set(key2, value2)
 	assert.Equal(t, value2, key2Node.getValue(), "Value for Key2 is different than what's set in Skiplist.")
 }
 
-// TestBasicCRUD tests the concurrency operations on the skip list
+// TestConcurrency tests the concurrency operations on the skip list
 func TestConcurrency(t *testing.T) {
 	skipList := newSkipList(10, DefaultComparator)
 	l := 100000

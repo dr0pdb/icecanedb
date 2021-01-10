@@ -86,7 +86,7 @@ func TestBasicSingleGetSet(t *testing.T) {
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
 	val, err := s.Get(testKeys[0])
-	assert.Nil(t, err)
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in getting value for key%d", 0))
 	assert.Equal(t, testValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, testValues[0], val))
 }
 
