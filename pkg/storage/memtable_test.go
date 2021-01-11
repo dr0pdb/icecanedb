@@ -25,16 +25,16 @@ func TestMemtableGetSetWithSeq(t *testing.T) {
 
 	// seq number 2 or above should give latest value which is testValues[1]
 	ikey3 := newInternalKey(testKeys[0], internalKeyKindSet, seqNumber+100)
-	val, err := m.get(ikey3)
+	val, _, err := m.get(ikey3)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in getting value for key%d", 3))
 	assert.Equal(t, testValues[1], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 3, testValues[1], val))
 
-	val, err = m.get(ikey2)
+	val, _, err = m.get(ikey2)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in getting value for key%d", 2))
 	assert.Equal(t, testValues[1], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 1, testValues[1], val))
 
 	// seq number 1 should give testValues[0]
-	val, err = m.get(ikey1)
+	val, _, err = m.get(ikey1)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in getting value for key%d", 1))
 	assert.Equal(t, testValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, testValues[0], val))
 }

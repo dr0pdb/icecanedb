@@ -16,7 +16,7 @@ type memtable struct {
 //
 // returns a byte slice pointing to the value if the key is found.
 // returns NotFoundError if the key is not found.
-func (m *memtable) get(ikey []byte) ([]byte, error) {
+func (m *memtable) get(ikey []byte) ([]byte, bool, error) {
 	log.WithFields(log.Fields{
 		"ikey": string(ikey),
 	}).Info("memtable: get")
@@ -26,10 +26,18 @@ func (m *memtable) get(ikey []byte) ([]byte, error) {
 		m.comparator.Compare(internalKey(skipNode.getKey()).userKey(), internalKey(ikey).userKey()) != 0 ||
 		internalKey(skipNode.getKey()).kind() == internalKeyKindDelete {
 
+		if skipNode != nil && m.comparator.Compare(internalKey(skipNode.getKey()).userKey(), internalKey(ikey).userKey()) == 0 {
+			log.WithFields(log.Fields{
+				"ikey": string(ikey),
+			}).Info("memtable: get; Key not found in the memtable. Found delete entry in the memtable.")
+
+			return []byte{}, true, common.NewNotFoundError("Key not found.")
+		}
+
 		log.WithFields(log.Fields{
 			"ikey": string(ikey),
 		}).Info("memtable: get; Key not found in the memtable.")
-		return []byte{}, common.NewNotFoundError("Key not found.")
+		return []byte{}, false, common.NewNotFoundError("Key not found.")
 	}
 
 	log.WithFields(log.Fields{
@@ -37,7 +45,7 @@ func (m *memtable) get(ikey []byte) ([]byte, error) {
 		"value": string(skipNode.getValue()),
 	}).Info("memtable: get; Key found in the memtable; returning value")
 
-	return skipNode.getValue(), nil
+	return skipNode.getValue(), true, nil
 }
 
 // set inserts a value in the memtable associated with the specified key.

@@ -36,6 +36,8 @@ type Storage struct {
 	ukComparator, ikComparator Comparator
 
 	// snapshotDummy denotes the head of the list of snapshots stored in the db.
+	// note that as of the current state of the project, storing this is redundant.
+	// If and when we write to disk, this would be required to ensure that we don't delete sst files that are being referenced by a snapshot.
 	snapshotDummy Snapshot
 }
 
@@ -103,21 +105,25 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	log.Info("storage::storage: Get; looking in memtable")
 
-	// TODO
-	if opts != nil {
+	seqNumber := s.vs.lastSequenceNumber + 1
 
+	if opts != nil {
+		if opts.snapshot != nil {
+			seqNumber = opts.snapshot.seqNum
+		}
 	}
 
-	ikey := newInternalKey(key, internalKeyKindSet, s.vs.lastSequenceNumber+1)
+	ikey := newInternalKey(key, internalKeyKindSet, seqNumber)
 
-	value, err := s.memtable.get(ikey)
+	value, searchSst, err := s.memtable.get(ikey)
 	if err == nil {
 		log.WithFields(log.Fields{"value": value}).Info("storage::storage: Get; found key in memtable")
 		return value, nil
 	}
 
-	// TODO: read from sst files.
-	// This works for now. Don't read from sst if the internal key kind was delete in the memtable.
+	if searchSst {
+		// TODO: read from sst files.
+	}
 
 	return nil, err
 }
