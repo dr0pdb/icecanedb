@@ -85,7 +85,7 @@ func TestBasicSingleGetSet(t *testing.T) {
 	err = s.Set(testKeys[0], testValues[0], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
-	val, err := s.Get(testKeys[0])
+	val, err := s.Get(testKeys[0], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in getting value for key%d", 0))
 	assert.Equal(t, testValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, testValues[0], val))
 }
@@ -110,7 +110,7 @@ func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
 	err = s.Set(testKeys[0], oldValue, nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
-	val, err := s.Get(testKeys[0])
+	val, err := s.Get(testKeys[0], nil)
 	assert.Nil(t, err)
 	assert.Equal(t, oldValue, val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, oldValue, val))
 
@@ -119,7 +119,7 @@ func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
 	// get should return latest value
-	val, err = s.Get(testKeys[0])
+	val, err = s.Get(testKeys[0], nil)
 	assert.Nil(t, err)
 	assert.Equal(t, latestValue, val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, latestValue, val))
 }
@@ -144,7 +144,7 @@ func TestBasicMultipleGetSetDelete(t *testing.T) {
 	}
 
 	for i := range testKeys {
-		val, err := s.Get(testKeys[i])
+		val, err := s.Get(testKeys[i], nil)
 		assert.Nil(t, err)
 		assert.Equal(t, testValues[i], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", i, testValues[i], val))
 	}
@@ -155,13 +155,13 @@ func TestBasicMultipleGetSetDelete(t *testing.T) {
 	err = s.Delete(testKeys[1], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 1))
 
-	_, err = s.Get(testKeys[0])
+	_, err = s.Get(testKeys[0], nil)
 	assert.NotNil(t, err, fmt.Sprintf("Found entry for key%d when it was deleted", 0))
 
 	err = s.Delete(testKeys[1], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 1))
 
-	val, err := s.Get(testKeys[3])
+	val, err := s.Get(testKeys[3], nil)
 	assert.Nil(t, err)
 	assert.Equal(t, testValues[3], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 3, testValues[3], val))
 }
@@ -190,14 +190,14 @@ func TestConcurrentFunctionality(t *testing.T) {
 			err = s.Set(testKeys[tidx], testValues[tidx], nil)
 			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", idx))
 
-			val, err := s.Get(testKeys[tidx])
+			val, err := s.Get(testKeys[tidx], nil)
 			assert.Nil(t, err)
 			assert.Equal(t, testValues[tidx], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", tidx, testValues[tidx], val))
 
 			err = s.Delete(testKeys[tidx], nil)
 			assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", tidx))
 
-			_, err = s.Get(testKeys[tidx])
+			_, err = s.Get(testKeys[tidx], nil)
 			assert.NotNil(t, err, fmt.Sprintf("Found entry for key%d when it was deleted", tidx))
 		}(i)
 	}
