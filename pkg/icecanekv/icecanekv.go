@@ -12,9 +12,11 @@ import (
 type KVServer struct {
 	// stores raft logs
 	raftStorage *storage.Storage
+	raftPath    string
 
 	// stores actual key-value data
 	kvStorage *storage.Storage
+	kvPath    string
 }
 
 // NewKVServer creates a new instance of KV Server
@@ -38,7 +40,9 @@ func NewKVServer(kvConfig *KVConfig) (*KVServer, error) {
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{
 		raftStorage: raftStorage,
+		raftPath:    raftPath,
 		kvStorage:   kvStorage,
+		kvPath:      kvPath,
 	}, nil
 }
 
