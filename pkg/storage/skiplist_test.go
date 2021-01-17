@@ -23,35 +23,35 @@ var (
 
 // TestBasicCRUD tests the basic CRUD operations on the skip list
 func TestBasicCRUD(t *testing.T) {
-	skipList := newSkipList(10, DefaultComparator)
+	skipList := NewSkipList(10, DefaultComparator)
 
-	skipList.set(key1, value1)
-	skipList.set(key2, value2)
-	skipList.set(key3, value3)
+	skipList.Set(key1, value1)
+	skipList.Set(key2, value2)
+	skipList.Set(key3, value3)
 
-	key1Node := skipList.get(key1)
-	assert.Equal(t, value1, key1Node.getValue(), "Value for Key1 is different than what's set in Skiplist.")
+	key1Node := skipList.Get(key1)
+	assert.Equal(t, value1, key1Node.getValue(), "Value for Key1 is different than what's Set in Skiplist.")
 
-	skipList.set(key4, value4)
-	skipList.set(key5, value5)
+	skipList.Set(key4, value4)
+	skipList.Set(key5, value5)
 
-	key2Node := skipList.get(key2)
-	assert.Equal(t, value2, key2Node.getValue(), "Value for Key2 is different than what's set in Skiplist.")
+	key2Node := skipList.Get(key2)
+	assert.Equal(t, value2, key2Node.getValue(), "Value for Key2 is different than what's Set in Skiplist.")
 
-	key5Node := skipList.get(key5)
-	assert.Equal(t, value5, key5Node.getValue(), "Value for Key5 is different than what's set in Skiplist.")
+	key5Node := skipList.Get(key5)
+	assert.Equal(t, value5, key5Node.getValue(), "Value for Key5 is different than what's Set in Skiplist.")
 
-	key2Node = skipList.delete(key2)
+	key2Node = skipList.Delete(key2)
 	assert.NotNil(t, key2Node)
-	assert.NotEqual(t, skipList.get(key2).key, key2, "Deletion from skiplist not successful")
+	assert.NotEqual(t, skipList.Get(key2).key, key2, "Deletion from skiplist not successful")
 
-	key2Node = skipList.set(key2, value2)
-	assert.Equal(t, value2, key2Node.getValue(), "Value for Key2 is different than what's set in Skiplist.")
+	key2Node = skipList.Set(key2, value2)
+	assert.Equal(t, value2, key2Node.getValue(), "Value for Key2 is different than what's Set in Skiplist.")
 }
 
 // TestConcurrency tests the concurrency operations on the skip list
 func TestConcurrency(t *testing.T) {
-	skipList := newSkipList(10, DefaultComparator)
+	skipList := NewSkipList(10, DefaultComparator)
 	l := 100000
 
 	wg := &sync.WaitGroup{}
@@ -59,14 +59,14 @@ func TestConcurrency(t *testing.T) {
 
 	go func() {
 		for i := 0; i < l; i++ {
-			skipList.set([]byte(fmt.Sprint(i)), []byte(fmt.Sprint(i)))
+			skipList.Set([]byte(fmt.Sprint(i)), []byte(fmt.Sprint(i)))
 		}
 		wg.Done()
 	}()
 
 	go func() {
 		for i := 0; i < l; i++ {
-			skipList.set([]byte(fmt.Sprint(i+l)), []byte(fmt.Sprint(i+l)))
+			skipList.Set([]byte(fmt.Sprint(i+l)), []byte(fmt.Sprint(i+l)))
 		}
 		wg.Done()
 	}()
@@ -74,8 +74,8 @@ func TestConcurrency(t *testing.T) {
 	wg.Wait()
 
 	for i := 0; i < l; i++ {
-		node1 := skipList.get([]byte(fmt.Sprint(i)))
-		node2 := skipList.get([]byte(fmt.Sprint(i + l)))
+		node1 := skipList.Get([]byte(fmt.Sprint(i)))
+		node2 := skipList.Get([]byte(fmt.Sprint(i + l)))
 		assert.NotNil(t, node1)
 		assert.NotNil(t, node2)
 		assert.Equal(t, []byte(fmt.Sprint(i)), node1.getValue(), "Value mismatch in concurrency testing.")
@@ -84,14 +84,14 @@ func TestConcurrency(t *testing.T) {
 }
 
 func TestSkipListIterator(t *testing.T) {
-	skipList := newSkipList(10, DefaultComparator)
+	skipList := NewSkipList(10, DefaultComparator)
 
 	l := 100
 	for i := 0; i < l; i++ {
-		skipList.set([]byte(fmt.Sprint(i)), []byte(fmt.Sprint(i)))
+		skipList.Set([]byte(fmt.Sprint(i)), []byte(fmt.Sprint(i)))
 	}
 
-	itr := skipList.newSkipListIterator()
+	itr := skipList.NewSkipListIterator()
 	assert.Equal(t, false, itr.Valid(), "New iterator was expected to be invalid.")
 	itr.SeekToFirst()
 	assert.Equal(t, true, itr.Valid(), "New iterator after seek to first should be valid.")

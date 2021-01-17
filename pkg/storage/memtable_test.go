@@ -9,7 +9,7 @@ import (
 
 func TestMemtableGetSetWithSeq(t *testing.T) {
 	internalKeyComparator := newInternalKeyComparator(DefaultComparator)
-	m := newMemtable(newSkipList(10, internalKeyComparator), internalKeyComparator)
+	m := newMemtable(NewSkipList(10, internalKeyComparator), internalKeyComparator)
 
 	seqNumber := uint64(1)
 

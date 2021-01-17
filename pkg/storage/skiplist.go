@@ -15,31 +15,31 @@ const (
 	defaultProbability float64 = 0.5
 )
 
-// skipList is the probabilistic data structure used in memtable.
+// SkipList is the probabilistic data structure used in memtable.
 // It supports byte key and values along with custom comparators.
 //
 // It can be accessed concurrently.
-type skipList struct {
+type SkipList struct {
 	mutex       sync.RWMutex
-	head        *skipListNode
+	head        *SkipListNode
 	maxLevel    int32
 	comparator  Comparator
 	probability float64
 }
 
-// get finds an element by key.
+// Get finds an element by key.
 //
 // returns a pointer to the skip list node if the key is found.
 // returns nil in case the node with key is not found.
-func (s *skipList) get(key []byte) *skipListNode {
+func (s *SkipList) Get(key []byte) *SkipListNode {
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("skipList: get")
+	}).Info("SkipList: get")
 
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	var next *skipListNode
+	var next *SkipListNode
 	prev := s.head
 
 	for i := s.maxLevel - 1; i >= 0; i-- {
@@ -55,25 +55,25 @@ func (s *skipList) get(key []byte) *skipListNode {
 	log.WithFields(log.Fields{
 		"key":  string(key),
 		"next": next,
-	}).Info("skipList: get; done. returning next node")
+	}).Info("SkipList: get; done. returning next node")
 
 	return next
 }
 
-// set inserts a value in the list associated with the specified key.
+// Set inserts a value in the list associated with the specified key.
 //
 // Overwrites the data if the key already exists.
 // returns a pointer to the inserted/modified skip list node.
-func (s *skipList) set(key, value []byte) *skipListNode {
+func (s *SkipList) Set(key, value []byte) *SkipListNode {
 	log.WithFields(log.Fields{
 		"key":   string(key),
 		"value": string(value),
-	}).Info("skipList: set")
+	}).Info("SkipList: Set")
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	var element *skipListNode
+	var element *SkipListNode
 	prevs := s.getPreviousNodesForAllLevels(key)
 
 	if element = prevs[0].next[0]; element != nil && s.comparator.Compare(element.getKey(), key) <= 0 {
@@ -81,7 +81,7 @@ func (s *skipList) set(key, value []byte) *skipListNode {
 			"key":      string(key),
 			"value":    string(value),
 			"oldvalue": string(element.getValue()),
-		}).Info("skipList: set; Found an existing key. Overriding the existing value.")
+		}).Info("SkipList: Set; Found an existing key. Overriding the existing value.")
 
 		element.value = value
 		return element
@@ -90,12 +90,12 @@ func (s *skipList) set(key, value []byte) *skipListNode {
 	log.WithFields(log.Fields{
 		"key":   string(key),
 		"value": string(value),
-	}).Info("skipList: set; Inserting the key with the value.")
+	}).Info("SkipList: Set; Inserting the key with the value.")
 
-	element = &skipListNode{
+	element = &SkipListNode{
 		key:   key,
 		value: value,
-		next:  make([]*skipListNode, s.randomLevel()),
+		next:  make([]*SkipListNode, s.randomLevel()),
 	}
 
 	for i := range element.next {
@@ -106,14 +106,14 @@ func (s *skipList) set(key, value []byte) *skipListNode {
 	return element
 }
 
-// delete deletes a value in the list associated with the specified key.
+// Delete deletes a value in the list associated with the specified key.
 //
 // returns a pointer to the inserted/modified skip list node.
 // returns nil if the node isn't found.
-func (s *skipList) delete(key []byte) *skipListNode {
+func (s *SkipList) Delete(key []byte) *SkipListNode {
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("skipList: delete")
+	}).Info("SkipList: Delete")
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -123,7 +123,7 @@ func (s *skipList) delete(key []byte) *skipListNode {
 	if element := prevs[0].next[0]; element != nil && s.comparator.Compare(element.getKey(), key) <= 0 {
 		log.WithFields(log.Fields{
 			"key": string(key),
-		}).Info("skipList: delete; Found the node with the key. Removing it.")
+		}).Info("SkipList: Delete; Found the node with the key. Removing it.")
 
 		for k, v := range element.next {
 			prevs[k].next[k] = v
@@ -134,20 +134,20 @@ func (s *skipList) delete(key []byte) *skipListNode {
 
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("skipList: delete; Key not found.")
+	}).Info("SkipList: Delete; Key not found.")
 
 	return nil
 }
 
-// front returns the first node of the skip list.
-func (s *skipList) front() *skipListNode {
+// Front returns the first node of the skip list.
+func (s *SkipList) Front() *SkipListNode {
 	return s.head.next[0]
 }
 
 // getPreviousNodesForAllLevels returns the previous nodes at each level for passed in key.
-func (s *skipList) getPreviousNodesForAllLevels(key []byte) []*skipListNode {
+func (s *SkipList) getPreviousNodesForAllLevels(key []byte) []*SkipListNode {
 	prevs := s.cloneHeadNext() // careful not to modify the original head pointer contents.
-	var next *skipListNode
+	var next *SkipListNode
 	prev := s.head
 
 	for i := s.maxLevel - 1; i >= 0; i-- {
@@ -166,8 +166,8 @@ func (s *skipList) getPreviousNodesForAllLevels(key []byte) []*skipListNode {
 }
 
 // cloneHeadNext returns a deep copy of the next pointers of the head node.
-func (s *skipList) cloneHeadNext() []*skipListNode {
-	var clone []*skipListNode = make([]*skipListNode, s.maxLevel)
+func (s *SkipList) cloneHeadNext() []*SkipListNode {
+	var clone []*SkipListNode = make([]*SkipListNode, s.maxLevel)
 
 	for i := s.maxLevel - 1; i >= 0; i-- {
 		clone[i] = s.head.next[i]
@@ -176,7 +176,7 @@ func (s *skipList) cloneHeadNext() []*skipListNode {
 	return clone
 }
 
-func (s *skipList) randomLevel() int32 {
+func (s *SkipList) randomLevel() int32 {
 	var level int32 = 1
 
 	for level < s.maxLevel && rand.Float64() > s.probability {
@@ -186,19 +186,19 @@ func (s *skipList) randomLevel() int32 {
 	return level
 }
 
-// getEqualOrGreater returns the skiplist node with key >= the passed key.
+// getEqualOrGreater returns the SkipList node with key >= the passed key.
 // nil key denotes -inf i.e. the smallest.
 // obtains a read lock on the skip list internally.
 // return nil if no such node exists.
-func (s *skipList) getEqualOrGreater(key []byte) *skipListNode {
+func (s *SkipList) getEqualOrGreater(key []byte) *SkipListNode {
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("skipList: getEqualOrGreater")
+	}).Info("SkipList: getEqualOrGreater")
 
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	var next *skipListNode
+	var next *SkipListNode
 	prev := s.head
 
 	for i := s.maxLevel - 1; i >= 0; i-- {
@@ -214,95 +214,96 @@ func (s *skipList) getEqualOrGreater(key []byte) *skipListNode {
 	if next == nil {
 		log.WithFields(log.Fields{
 			"key": string(key),
-		}).Info("skipList: getEqualOrGreater; no node found.")
+		}).Info("SkipList: getEqualOrGreater; no node found.")
 	}
 
 	return next
 }
 
-// newSkipListIterator returns a new skip list iterator on the skip list.
+// NewSkipListIterator returns a new skip list iterator on the skip list.
 // requires external synchronization.
-func (s *skipList) newSkipListIterator() *skipListIterator {
-	return &skipListIterator{
-		skipList: s,
+func (s *SkipList) NewSkipListIterator() *SkipListIterator {
+	return &SkipListIterator{
+		SkipList: s,
 		node:     nil,
 	}
 }
 
-type skipListNode struct {
+// SkipListNode is a single node of the Skiplist
+type SkipListNode struct {
 	key   []byte
 	value []byte
-	next  []*skipListNode
+	next  []*SkipListNode
 }
 
-func (sn *skipListNode) getKey() []byte {
+func (sn *SkipListNode) getKey() []byte {
 	return sn.key
 }
 
-func (sn *skipListNode) getValue() []byte {
+func (sn *SkipListNode) getValue() []byte {
 	return sn.value
 }
 
-// skipListIterator is the iterator over the key-value pairs of the skip list.
-// It relies on the internal synchronization of the skiplist.
+// SkipListIterator is the iterator over the key-value pairs of the skip list.
+// It relies on the internal synchronization of the SkipList.
 // Multiple threads can access different iterators
 // but two threads accessing the same iterator requires external synchronization.
-type skipListIterator struct {
-	skipList *skipList
-	node     *skipListNode
+type SkipListIterator struct {
+	SkipList *SkipList
+	node     *SkipListNode
 }
 
-var _ Iterator = (*skipListIterator)(nil)
+var _ Iterator = (*SkipListIterator)(nil)
 
-// Checks if the current position of the iterator is valid.
-func (sli *skipListIterator) Valid() bool {
+// Valid checks if the current position of the iterator is valid.
+func (sli *SkipListIterator) Valid() bool {
 	return sli.node != nil
 }
 
-// Move to the first entry of the skiplist.
+// SeekToFirst moves to the first entry of the SkipList.
 // Call Valid() to ensure that the iterator is valid after the seek.
-func (sli *skipListIterator) SeekToFirst() {
-	sli.node = sli.skipList.getEqualOrGreater(nil)
+func (sli *SkipListIterator) SeekToFirst() {
+	sli.node = sli.SkipList.getEqualOrGreater(nil)
 }
 
 // Seek the iterator to the first element whose key is >= target
 // Call Valid() to ensure that the iterator is valid after the seek.
-func (sli *skipListIterator) Seek(target []byte) {
-	sli.node = sli.skipList.getEqualOrGreater(target)
+func (sli *SkipListIterator) Seek(target []byte) {
+	sli.node = sli.SkipList.getEqualOrGreater(target)
 }
 
-// Moves to the next key-value pair in the skiplist.
+// Next moves to the next key-value pair in the SkipList.
 // Call valid() to ensure that the iterator is valid.
 // REQUIRES: Current position of iterator is valid. Panic otherwise.
-func (sli *skipListIterator) Next() {
+func (sli *SkipListIterator) Next() {
 	if !sli.Valid() {
-		panic("Next on an invalid iterator position in skiplist.")
+		panic("Next on an invalid iterator position in SkipList.")
 	}
 	sli.node = sli.node.next[0]
 }
 
-// Get the key of the current iterator position.
+// Key returns the key of the current iterator position.
 // REQUIRES: Current position of iterator is valid. Panics otherwise.
-func (sli *skipListIterator) Key() []byte {
+func (sli *SkipListIterator) Key() []byte {
 	if !sli.Valid() {
-		panic("Key on an invalid iterator position in skiplist.")
+		panic("Key on an invalid iterator position in SkipList.")
 	}
 	return sli.node.getKey()
 }
 
-// Get the value of the current iterator position.
+// Value returns the value of the current iterator position.
 // REQUIRES: Current position of iterator is valid. Panics otherwise.
-func (sli *skipListIterator) Value() []byte {
+func (sli *SkipListIterator) Value() []byte {
 	if !sli.Valid() {
-		panic("Value on an invalid iterator position in skiplist.")
+		panic("Value on an invalid iterator position in SkipList.")
 	}
 	return sli.node.getValue()
 }
 
-// newSkipList creates a new skipList
+// NewSkipList creates a new SkipList
 //
 // Passing 0 for maxLevel leads to a default max level.
-func newSkipList(maxLevel int32, comparator Comparator) *skipList {
+func NewSkipList(maxLevel int32, comparator Comparator) *SkipList {
 	if maxLevel < 1 || maxLevel > 18 {
 		panic("maxLevel for the SkipList must be a positive integer <= 18")
 	}
@@ -313,8 +314,8 @@ func newSkipList(maxLevel int32, comparator Comparator) *skipList {
 
 	rand.Seed(time.Now().Unix())
 
-	return &skipList{
-		head:        &skipListNode{next: make([]*skipListNode, maxLevel)},
+	return &SkipList{
+		head:        &SkipListNode{next: make([]*SkipListNode, maxLevel)},
 		maxLevel:    maxLevel,
 		comparator:  comparator,
 		probability: defaultProbability,

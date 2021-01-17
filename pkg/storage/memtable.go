@@ -8,7 +8,7 @@ import (
 // memtable is the in-memory store
 // It is thread safe and can be accessed concurrently.
 type memtable struct {
-	skipList   *skipList
+	skipList   *SkipList
 	comparator Comparator
 }
 
@@ -21,7 +21,7 @@ func (m *memtable) get(ikey []byte) ([]byte, bool, error) {
 		"ikey": string(ikey),
 	}).Info("memtable: get")
 
-	skipNode := m.skipList.get(ikey)
+	skipNode := m.skipList.Get(ikey)
 	if skipNode == nil ||
 		m.comparator.Compare(internalKey(skipNode.getKey()).userKey(), internalKey(ikey).userKey()) != 0 ||
 		internalKey(skipNode.getKey()).kind() == internalKeyKindDelete {
@@ -58,7 +58,7 @@ func (m *memtable) set(key, value []byte) error {
 		"key": string(key),
 	}).Info("memtable: set")
 
-	skipNode := m.skipList.set(key, value)
+	skipNode := m.skipList.Set(key, value)
 	if skipNode == nil {
 		log.WithFields(log.Fields{
 			"key": key,
@@ -83,7 +83,7 @@ func (m *memtable) delete(key []byte) error {
 		"key": string(key),
 	}).Info("memtable: delete")
 
-	skipNode := m.skipList.delete(key)
+	skipNode := m.skipList.Delete(key)
 	if skipNode == nil {
 		log.WithFields(log.Fields{
 			"key": string(key),
@@ -99,7 +99,7 @@ func (m *memtable) delete(key []byte) error {
 }
 
 // newMemtable returns a new instance of the memtable struct
-func newMemtable(skipList *skipList, comparator Comparator) *memtable {
+func newMemtable(skipList *SkipList, comparator Comparator) *memtable {
 	return &memtable{
 		skipList:   skipList,
 		comparator: comparator,

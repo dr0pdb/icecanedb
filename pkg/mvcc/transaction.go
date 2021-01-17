@@ -13,7 +13,7 @@ type Transaction struct {
 	// snapshot on which the transaction operates
 	snapshot *storage.Snapshot
 
-	// concurrent txns. This txn should be invisible to these transactions.
+	// concurrent txns at the start. This txn should be invisible to these transactions.
 	// The validation phase verifies that before commiting.
 	concTxns []*Transaction
 }

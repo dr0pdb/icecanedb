@@ -339,7 +339,7 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options *
 
 	strg.mu = new(sync.Mutex)
 
-	skipList := newSkipList(defaultSkipListHeight, ikComparator)
+	skipList := NewSkipList(defaultSkipListHeight, ikComparator)
 	memtable := newMemtable(skipList, ikComparator)
 
 	strg.memtable = memtable
