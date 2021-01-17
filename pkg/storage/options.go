@@ -29,5 +29,5 @@ type WriteOptions struct {
 // ReadOptions defines the options available for a single Get operation.
 type ReadOptions struct {
 	// snapshot denotes the snapshot to use to read the data from. In case it's null, the current state of the db is used.
-	snapshot *Snapshot
+	Snapshot *Snapshot
 }

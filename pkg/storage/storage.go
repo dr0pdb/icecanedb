@@ -108,8 +108,8 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 	seqNumber := s.vs.lastSequenceNumber + 1
 
 	if opts != nil {
-		if opts.snapshot != nil {
-			seqNumber = opts.snapshot.seqNum
+		if opts.Snapshot != nil {
+			seqNumber = opts.Snapshot.seqNum
 		}
 	}
 
