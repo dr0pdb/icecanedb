@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -17,6 +18,9 @@ type KVServer struct {
 	// stores actual key-value data
 	kvStorage *storage.Storage
 	kvPath    string
+
+	// the mvcc layer for the key-value data
+	kvMvcc *mvcc.MVCC
 }
 
 // NewKVServer creates a new instance of KV Server
@@ -37,12 +41,15 @@ func NewKVServer(kvConfig *KVConfig) (*KVServer, error) {
 		return nil, err
 	}
 
+	kvMvcc := mvcc.NewMVCC(kvStorage)
+
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{
 		raftStorage: raftStorage,
 		raftPath:    raftPath,
 		kvStorage:   kvStorage,
 		kvPath:      kvPath,
+		kvMvcc:      kvMvcc,
 	}, nil
 }
 

@@ -12,9 +12,28 @@ type Transaction struct {
 
 	// snapshot on which the transaction operates
 	snapshot *storage.Snapshot
+
+	// concurrent txns. This txn should be invisible to these transactions.
+	// The validation phase verifies that before commiting.
+	concTxns []*Transaction
 }
 
 // newTransaction creates a new transaction.
-func newTransaction() *Transaction {
-	return &Transaction{}
+func newTransaction(id uint64, storage *storage.Storage, snapshot *storage.Snapshot, concTxns []*Transaction) *Transaction {
+	return &Transaction{
+		id:       id,
+		storage:  storage,
+		snapshot: snapshot,
+		concTxns: concTxns,
+	}
+}
+
+// Commit commits the transaction.
+func (t *Transaction) Commit() {
+	panic("not implemented")
+}
+
+// Rollback rolls back the transaction
+func (t *Transaction) Rollback() {
+	panic("not implemented")
 }

@@ -115,13 +115,13 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	ikey := newInternalKey(key, internalKeyKindSet, seqNumber)
 
-	value, searchSst, err := s.memtable.get(ikey)
+	value, conclusive, err := s.memtable.get(ikey)
 	if err == nil {
 		log.WithFields(log.Fields{"value": value}).Info("storage::storage: Get; found key in memtable")
 		return value, nil
 	}
 
-	if searchSst {
+	if !conclusive {
 		// TODO: read from sst files.
 	}
 
@@ -153,13 +153,20 @@ func (s *Storage) Delete(key []byte, opts *WriteOptions) error {
 	return s.apply(batch, opts)
 }
 
-// GetSnapshot TODO
+// GetSnapshot creates a snapshot and returns it.
+// It is thread safe and can be called concurrently.
 func (s *Storage) GetSnapshot() *Snapshot {
 	snap := &Snapshot{
 		seqNum: s.vs.lastSequenceNumber,
 	}
 	s.appendSnapshot(snap)
 	return snap
+}
+
+// GetLatestSeqForKey returns the latest seq number of the key
+// This can be used to implement transaction support over the storage layer.
+func (s *Storage) GetLatestSeqForKey() uint64 {
+	panic("not implemented")
 }
 
 // Close todo
@@ -170,6 +177,8 @@ func (s *Storage) Close() error {
 // append appends a snapshot to the storage.
 func (s *Storage) appendSnapshot(snap *Snapshot) {
 	log.Info("storage::storage: appendSnapshot; start")
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	snap.prev = s.snapshotDummy.prev
 	snap.prev.next = snap
 	snap.next = &s.snapshotDummy
