@@ -46,21 +46,21 @@ type Storage struct {
 // It loads the version set from disk.
 // If CreateIfNotExist option is true: It creates the db inside the set directory if it doesn't exist already.
 func (s *Storage) Open() error {
-	log.WithFields(log.Fields{"storage": s}).Info("storage: Open")
+	log.WithFields(log.Fields{"storage": s}).Info("storage::storage::Open; started")
 
 	err := s.vs.load()
 	if err != nil {
-		log.WithFields(log.Fields{"storage": s, "err": err.Error()}).Error("storage: Open")
+		log.WithFields(log.Fields{"storage": s, "err": err.Error()}).Error("storage::storage::Open")
 
 		// create db since CURRENT doesn't exist.
 		if _, ok := err.(common.NotFoundError); ok && s.options.CreateIfNotExist {
-			log.Info("storage: Open; db not found. creating it.")
+			log.Info("storage::storage::Open; db not found. creating it.")
 			err = s.createNewDB()
 			if err != nil {
 				log.WithFields(log.Fields{"storage": s, "err": err.Error()}).Error("storage: Open; error while creating the db")
 				return err
 			}
-			log.Info("storage: Open; db created. loading version set")
+			log.Info("storage::storage::Open; db created. loading version set")
 			err = s.vs.load()
 			if err != nil {
 				return err
@@ -70,7 +70,7 @@ func (s *Storage) Open() error {
 		}
 	}
 
-	log.Info("storage: Open; version set loaded.")
+	log.Info("storage::storage::Open; version set loaded.")
 
 	// TODO: replay any log files that aren't in the manifest.
 	var ve versionEdit
@@ -93,7 +93,7 @@ func (s *Storage) Open() error {
 
 	// TODO: recovery and cleanup
 
-	log.Info("storage: Open; done")
+	log.Info("storage::storage::Open; done")
 	return nil
 }
 
@@ -101,9 +101,9 @@ func (s *Storage) Open() error {
 func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": string(key),
-	}).Info("storage::storage: Get")
+	}).Info("storage::storage::Get")
 
-	log.Info("storage::storage: Get; looking in memtable")
+	log.Info("storage::storage::Get; looking in memtable")
 
 	seqNumber := s.vs.lastSequenceNumber + 1
 
@@ -117,7 +117,7 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	value, conclusive, err := s.memtable.get(ikey)
 	if err == nil {
-		log.WithFields(log.Fields{"value": value}).Info("storage::storage: Get; found key in memtable")
+		log.WithFields(log.Fields{"value": value}).Info("storage::storage::Get; found key in memtable")
 		return value, nil
 	}
 
@@ -134,7 +134,7 @@ func (s *Storage) Set(key, value []byte, opts *WriteOptions) error {
 		"key":   string(key),
 		"value": string(value),
 		"opts":  opts,
-	}).Info("storage::storage: Set")
+	}).Info("storage::storage::Set")
 
 	var batch writeBatch
 	batch.set(key, value)
@@ -146,7 +146,7 @@ func (s *Storage) Delete(key []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
 		"key":  string(key),
 		"opts": opts,
-	}).Info("storage::storage: Delete")
+	}).Info("storage::storage::Delete")
 
 	var batch writeBatch
 	batch.delete(key)
@@ -176,34 +176,34 @@ func (s *Storage) Close() error {
 
 // append appends a snapshot to the storage.
 func (s *Storage) appendSnapshot(snap *Snapshot) {
-	log.Info("storage::storage: appendSnapshot; start")
+	log.Info("storage::storage::appendSnapshot; start")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	snap.prev = s.snapshotDummy.prev
 	snap.prev.next = snap
 	snap.next = &s.snapshotDummy
 	snap.next.prev = snap
-	log.Info("storage::storage: appendSnapshot; done")
+	log.Info("storage::storage::appendSnapshot; done")
 }
 
 // apply applies a writeBatch atomically according to write options.
 func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
-	log.Info("storage::storage: apply; started")
+	log.Info("storage::storage::apply; started")
 
 	if len(wb.data) == 0 {
-		log.Info("storage::storage: apply; empty write batch.")
+		log.Info("storage::storage::apply; empty write batch.")
 		return nil
 	}
 
 	cnt := wb.getCount()
-	log.Info(fmt.Sprintf("storage::storage: apply; write batch of count %d.", cnt))
+	log.Info(fmt.Sprintf("storage::storage::apply; write batch of count %d.", cnt))
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	log.Info("storage::storage: apply; making room for write")
 	if err := s.makeRoomForWrite(false); err != nil {
-		log.Error(fmt.Errorf("storage::storage: apply; error in making room for write. err: %V", err))
+		log.Error(fmt.Errorf("storage::storage::apply; error in making room for write. err: %V", err))
 		return err
 	}
 
@@ -211,7 +211,7 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 	wb.setSeqNum(seqNum)
 	s.vs.lastSequenceNumber += uint64(cnt)
 
-	log.Info("storage::storage: apply; writing batch to log file")
+	log.Info("storage::storage::apply; writing batch to log file")
 
 	// write batch to log file
 	w, err := s.logWriter.next()
@@ -230,7 +230,7 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 		}
 	}
 
-	log.Info("storage::storage: apply; writing batch to memtable")
+	log.Info("storage::storage::apply; writing batch to memtable")
 
 	// write/update in memtable
 	for itr := wb.getIterator(); ; seqNum++ {
@@ -247,7 +247,7 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 		panic("storage: inconsistent batch count in write batch")
 	}
 
-	log.Info("storage::storage: apply; done")
+	log.Info("storage::storage::apply; done")
 	return nil
 }
 
@@ -263,7 +263,7 @@ func (s *Storage) makeRoomForWrite(force bool) error {
 func (s *Storage) createNewDB() (ret error) {
 	log.WithFields(log.Fields{"storage": s}).Info("storage::storage: createNewDB")
 
-	log.Info("storage::storage: createNewDB; creating manifest file")
+	log.Info("storage::storage::createNewDB; creating manifest file")
 	const mno = 1
 	mfName := getDbFileName(s.dirname, manifestFileType, mno)
 	mf, err := s.options.Fs.create(mfName)
@@ -273,13 +273,13 @@ func (s *Storage) createNewDB() (ret error) {
 	}
 	defer func() {
 		if ret != nil {
-			log.Error("storage::storage: createNewDB; failure in creating db. Deleting created manifest")
+			log.Error("storage::storage::createNewDB; failure in creating db. Deleting created manifest")
 			s.options.Fs.remove(mfName)
 		}
 	}()
 	defer mf.Close()
 
-	log.Info("storage::storage: createNewDB; adding contents in the manifest file..")
+	log.Info("storage::storage::createNewDB; adding contents in the manifest file..")
 	ve := versionEdit{
 		comparatorName: s.ukComparator.Name(),
 		nextFileNumber: mno + 1,
@@ -287,17 +287,17 @@ func (s *Storage) createNewDB() (ret error) {
 	lrw := newLogRecordWriter(mf)
 	lrww, err := lrw.next()
 	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in calling next on log record writer.")
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage::createNewDB; error in calling next on log record writer.")
 		return err
 	}
 	err = ve.encode(lrww)
 	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in encoding the vedit to log file.")
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage::createNewDB; error in encoding the vedit to log file.")
 		return err
 	}
 	err = lrw.close()
 	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; error in closing the log record writer.")
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage::createNewDB; error in closing the log record writer.")
 		return err
 	}
 	log.Info("storage::storage: createNewDB; done adding contents in the manifest file.")
@@ -305,11 +305,11 @@ func (s *Storage) createNewDB() (ret error) {
 	log.Info("storage::storage: createNewDB; setting current file..")
 	err = setCurrentFile(s.dirname, s.options.Fs, mno)
 	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage: createNewDB; failure in setting current file")
+		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage::createNewDB; failure in setting current file")
 		return err
 	}
 
-	log.Info("storage::storage: createNewDB; successfully created db.")
+	log.Info("storage::storage::createNewDB; successfully created db.")
 	return nil
 }
 
