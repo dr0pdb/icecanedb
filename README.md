@@ -6,4 +6,13 @@
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/golang-standards/project-layout)](https://pkg.go.dev/github.com/dr0pdb/icecanedb)
 [![Release](https://img.shields.io/github/release/golang-standards/project-layout.svg?style=flat-square)](https://github.com/dr0pdb/icecanedb/releases/latest)
 
-A Distributed OLTP Database with a SQL API written in Go
+A Distributed OLTP Database with a SQL API written in Go.
+
+## Features
+List of features
+
+## Architecture
+Architecture diagrams and blog posts
+
+## Roadmap
+Upcoming features if any
