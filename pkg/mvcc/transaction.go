@@ -1,6 +1,10 @@
 package mvcc
 
 import (
+	"fmt"
+	"sync"
+
+	"github.com/dr0pdb/icecanedb/internal/common"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -25,8 +29,13 @@ type Transaction struct {
 	// The validation phase verifies that before commiting.
 	concTxns []*Transaction
 
-	// changes contains all the updates that this transaction has made.
-	changes *storage.SkipList
+	// mu protects the sets and deletes data structures.
+	mu *sync.RWMutex
+
+	// sets and deletes are the set/delete operations done in this txn respectively.
+	// invariant is that a key can only be present in one of the two.
+	sets    map[string]string
+	deletes map[string]bool
 
 	// aborted indicates if the transaction has been aborted or not.
 	aborted bool
@@ -40,6 +49,10 @@ func newTransaction(id uint64, mvcc *MVCC, storage *storage.Storage, snapshot *s
 		storage:  storage,
 		snapshot: snapshot,
 		concTxns: concTxns,
+		mu:       new(sync.RWMutex),
+		sets:     make(map[string]string),
+		deletes:  make(map[string]bool),
+		aborted:  false,
 	}
 }
 
@@ -54,39 +67,73 @@ func (t *Transaction) Rollback() error {
 	return nil
 }
 
-// Set todo
+// Set overwrites the data if the key already exists.
+// returns a error if something goes wrong
+// error equal to nil represents success.
 func (t *Transaction) Set(key, value []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
 		"key":   string(key),
 		"value": string(value),
 	}).Info("mvcc::transaction::Set; started.")
 
-	// todo: decide a mvcc key first.
-	t.changes.Set(key, value)
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
+	skey := string(key)
+	if _, found := t.deletes[skey]; found {
+		delete(t.deletes, skey)
+	}
+	t.sets[skey] = string(value)
+
+	log.Info("mvcc::transaction::Set; done.")
 	return nil
 }
 
 // Get todo
+// returns a byte slice pointing to the value if the key is found.
+// returns NotFoundError if the key is not found.
 func (t *Transaction) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": string(key),
 	}).Info("mvcc::transaction::Get; started.")
 
-	// TODO: read from t.changes
+	skey := string(key)
+	t.mu.RLock()
+	if _, found := t.deletes[skey]; found {
+		return nil, common.NewNotFoundError(fmt.Sprintf("key %v not found", skey))
+	}
+	if value, found := t.sets[skey]; found {
+		return []byte(value), nil
+	}
+	t.mu.Unlock()
 
+	// This variable hasn't been modified in this txn, so read from the snapshot.
 	sOpts := mapReadOptsToStorageReadOpts(opts, t.snapshot)
 	return t.storage.Get(key, sOpts)
 }
 
-// Delete todo
+// Delete deletes the data if the key already exists.
+// returns an error if something goes wrong
+// returns a not found error if the key is already deleted.
+// error equal to nil represents success.
 func (t *Transaction) Delete(key []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
 		"key": string(key),
 	}).Info("mvcc::transaction::Delete; started.")
 
-	// We need to store the marker in the skiplist.
-	// Also ensure that it works for scenarios where the user deletes a key and then sets a new value for it.
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
+	skey := string(key)
+	if _, found := t.sets[skey]; found {
+		delete(t.sets, skey)
+	}
+	if _, found := t.deletes[skey]; found {
+		// when the key has already been deleted. return not found second time.
+		return common.NewNotFoundError(fmt.Sprintf("key %v not found", skey))
+	}
+	t.deletes[skey] = true
+
+	log.Info("mvcc::transaction::Delete; done.")
 	return nil
 }
