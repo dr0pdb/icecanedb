@@ -106,39 +106,6 @@ func (s *SkipList) Set(key, value []byte) *SkipListNode {
 	return element
 }
 
-// Delete deletes a value in the list associated with the specified key.
-//
-// returns a pointer to the inserted/modified skip list node.
-// returns nil if the node isn't found.
-func (s *SkipList) Delete(key []byte) *SkipListNode {
-	log.WithFields(log.Fields{
-		"key": string(key),
-	}).Info("SkipList: Delete")
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	prevs := s.getPreviousNodesForAllLevels(key)
-
-	if element := prevs[0].next[0]; element != nil && s.comparator.Compare(element.getKey(), key) <= 0 {
-		log.WithFields(log.Fields{
-			"key": string(key),
-		}).Info("SkipList: Delete; Found the node with the key. Removing it.")
-
-		for k, v := range element.next {
-			prevs[k].next[k] = v
-		}
-
-		return element
-	}
-
-	log.WithFields(log.Fields{
-		"key": string(key),
-	}).Info("SkipList: Delete; Key not found.")
-
-	return nil
-}
-
 // Front returns the first node of the skip list.
 func (s *SkipList) Front() *SkipListNode {
 	return s.head.next[0]

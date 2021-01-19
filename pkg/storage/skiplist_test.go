@@ -41,10 +41,6 @@ func TestBasicCRUD(t *testing.T) {
 	key5Node := skipList.Get(key5)
 	assert.Equal(t, value5, key5Node.getValue(), "Value for Key5 is different than what's Set in Skiplist.")
 
-	key2Node = skipList.Delete(key2)
-	assert.NotNil(t, key2Node)
-	assert.NotEqual(t, skipList.Get(key2).key, key2, "Deletion from skiplist not successful")
-
 	key2Node = skipList.Set(key2, value2)
 	assert.Equal(t, value2, key2Node.getValue(), "Value for Key2 is different than what's Set in Skiplist.")
 }

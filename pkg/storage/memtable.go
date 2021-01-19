@@ -74,30 +74,6 @@ func (m *memtable) set(key, value []byte) error {
 	return nil
 }
 
-// delete deletes a value in the memtable associated with the specified key.
-//
-// returns nil if the operation was successful,
-// returns NotFoundError if the key is not found.
-func (m *memtable) delete(key []byte) error {
-	log.WithFields(log.Fields{
-		"key": string(key),
-	}).Info("memtable: delete")
-
-	skipNode := m.skipList.Delete(key)
-	if skipNode == nil {
-		log.WithFields(log.Fields{
-			"key": string(key),
-		}).Info("memtable: delete; Key not found in the memtable.")
-		return common.NewUnknownError("Key not found.")
-	}
-
-	log.WithFields(log.Fields{
-		"key": string(key),
-	}).Info("memtable: delete; Deleted the value in the memtable for the given key.")
-
-	return nil
-}
-
 // newMemtable returns a new instance of the memtable struct
 func newMemtable(skipList *SkipList, comparator Comparator) *memtable {
 	return &memtable{
