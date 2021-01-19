@@ -6,6 +6,14 @@ import (
 	"path"
 )
 
+var (
+	// TestKeys - test data
+	TestKeys [][]byte = [][]byte{[]byte("Key1"), []byte("Key2"), []byte("Key3"), []byte("Key4"), []byte("Key5")}
+
+	// TestValues - test data
+	TestValues [][]byte = [][]byte{[]byte("Value1"), []byte("Value2"), []byte("Value3"), []byte("Value4"), []byte("Value5")}
+)
+
 // CreateTestDirectory creates a test directory for running tests.
 func CreateTestDirectory(testDirectory string) {
 	os.MkdirAll(testDirectory, os.ModePerm)

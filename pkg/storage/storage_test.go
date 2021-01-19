@@ -3,19 +3,11 @@ package storage
 import (
 	"bytes"
 	"fmt"
-	"path"
 	"testing"
 
 	"github.com/dr0pdb/icecanedb/test"
 	"github.com/stretchr/testify/assert"
 )
-
-var (
-	testKeys   [][]byte = [][]byte{[]byte("Key1"), []byte("Key2"), []byte("Key3"), []byte("Key4"), []byte("Key5")}
-	testValues [][]byte = [][]byte{[]byte("Value1"), []byte("Value2"), []byte("Value3"), []byte("Value4"), []byte("Value5")}
-)
-
-var testDirectory = path.Join("/tmp", "icecanetest")
 
 // NewTestCustomComparator returns a new instance of storage.Comparator for testing purposes.
 func NewTestCustomComparator() Comparator {
@@ -33,14 +25,14 @@ func (d *customTestComparator) Name() string {
 }
 
 func TestOpenDBWithDefaultComparator(t *testing.T) {
-	test.CreateTestDirectory(testDirectory)
-	defer test.CleanupTestDirectory(testDirectory)
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
 
 	options := &Options{
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(testDirectory, options)
+	s, err := NewStorage(test.TestDirectory, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
@@ -50,8 +42,8 @@ func TestOpenDBWithDefaultComparator(t *testing.T) {
 }
 
 func TestOpenDBWithCustomComparator(t *testing.T) {
-	test.CreateTestDirectory(testDirectory)
-	defer test.CleanupTestDirectory(testDirectory)
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
 
 	options := &Options{
 		CreateIfNotExist: true,
@@ -59,7 +51,7 @@ func TestOpenDBWithCustomComparator(t *testing.T) {
 
 	customComparator := NewTestCustomComparator()
 
-	s, err := NewStorageWithCustomComparator(testDirectory, customComparator, options)
+	s, err := NewStorageWithCustomComparator(test.TestDirectory, customComparator, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
@@ -69,113 +61,113 @@ func TestOpenDBWithCustomComparator(t *testing.T) {
 }
 
 func TestBasicSingleGetSet(t *testing.T) {
-	test.CreateTestDirectory(testDirectory)
-	defer test.CleanupTestDirectory(testDirectory)
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
 
 	options := &Options{
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(testDirectory, options)
+	s, err := NewStorage(test.TestDirectory, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
 	assert.Nil(t, err, "Unexpected error in opening database")
 
-	err = s.Set(testKeys[0], testValues[0], nil)
+	err = s.Set(test.TestKeys[0], test.TestValues[0], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
-	val, err := s.Get(testKeys[0], nil)
+	val, err := s.Get(test.TestKeys[0], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in getting value for key%d", 0))
-	assert.Equal(t, testValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, testValues[0], val))
+	assert.Equal(t, test.TestValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, test.TestValues[0], val))
 }
 
 func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
-	test.CreateTestDirectory(testDirectory)
-	defer test.CleanupTestDirectory(testDirectory)
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
 
 	options := &Options{
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(testDirectory, options)
+	s, err := NewStorage(test.TestDirectory, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
 	assert.Nil(t, err, "Unexpected error in opening database")
 
-	oldValue := testValues[0]
-	latestValue := testValues[1]
+	oldValue := test.TestValues[0]
+	latestValue := test.TestValues[1]
 
-	err = s.Set(testKeys[0], oldValue, nil)
+	err = s.Set(test.TestKeys[0], oldValue, nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
-	val, err := s.Get(testKeys[0], nil)
+	val, err := s.Get(test.TestKeys[0], nil)
 	assert.Nil(t, err)
 	assert.Equal(t, oldValue, val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, oldValue, val))
 
 	// update value for key
-	err = s.Set(testKeys[0], latestValue, nil)
+	err = s.Set(test.TestKeys[0], latestValue, nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
 	// get should return latest value
-	val, err = s.Get(testKeys[0], nil)
+	val, err = s.Get(test.TestKeys[0], nil)
 	assert.Nil(t, err)
 	assert.Equal(t, latestValue, val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, latestValue, val))
 }
 
 func TestBasicMultipleGetSetDelete(t *testing.T) {
-	test.CreateTestDirectory(testDirectory)
-	defer test.CleanupTestDirectory(testDirectory)
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
 
 	options := &Options{
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(testDirectory, options)
+	s, err := NewStorage(test.TestDirectory, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
 	assert.Nil(t, err, "Unexpected error in opening database")
 
-	for i := range testKeys {
-		err = s.Set(testKeys[i], testValues[i], nil)
+	for i := range test.TestKeys {
+		err = s.Set(test.TestKeys[i], test.TestValues[i], nil)
 		assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", i))
 	}
 
-	for i := range testKeys {
-		val, err := s.Get(testKeys[i], nil)
+	for i := range test.TestKeys {
+		val, err := s.Get(test.TestKeys[i], nil)
 		assert.Nil(t, err)
-		assert.Equal(t, testValues[i], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", i, testValues[i], val))
+		assert.Equal(t, test.TestValues[i], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", i, test.TestValues[i], val))
 	}
 
-	err = s.Delete(testKeys[0], nil)
+	err = s.Delete(test.TestKeys[0], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 0))
 
-	err = s.Delete(testKeys[1], nil)
+	err = s.Delete(test.TestKeys[1], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 1))
 
-	_, err = s.Get(testKeys[0], nil)
+	_, err = s.Get(test.TestKeys[0], nil)
 	assert.NotNil(t, err, fmt.Sprintf("Found entry for key%d when it was deleted", 0))
 
-	err = s.Delete(testKeys[1], nil)
+	err = s.Delete(test.TestKeys[1], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 1))
 
-	val, err := s.Get(testKeys[3], nil)
+	val, err := s.Get(test.TestKeys[3], nil)
 	assert.Nil(t, err)
-	assert.Equal(t, testValues[3], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 3, testValues[3], val))
+	assert.Equal(t, test.TestValues[3], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 3, test.TestValues[3], val))
 }
 
 // Spawn go routines to do put, get and delete concurrently.
 func TestConcurrentFunctionality(t *testing.T) {
-	test.CreateTestDirectory(testDirectory)
-	defer test.CleanupTestDirectory(testDirectory)
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
 
 	options := &Options{
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(testDirectory, options)
+	s, err := NewStorage(test.TestDirectory, options)
 	assert.Nil(t, err)
 
 	err = s.Open()
@@ -185,19 +177,19 @@ func TestConcurrentFunctionality(t *testing.T) {
 
 	for i := 1; i < num; i++ {
 		go func(idx int) {
-			tidx := idx % len(testKeys)
+			tidx := idx % len(test.TestKeys)
 
-			err = s.Set(testKeys[tidx], testValues[tidx], nil)
+			err = s.Set(test.TestKeys[tidx], test.TestValues[tidx], nil)
 			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", idx))
 
-			val, err := s.Get(testKeys[tidx], nil)
+			val, err := s.Get(test.TestKeys[tidx], nil)
 			assert.Nil(t, err)
-			assert.Equal(t, testValues[tidx], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", tidx, testValues[tidx], val))
+			assert.Equal(t, test.TestValues[tidx], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", tidx, test.TestValues[tidx], val))
 
-			err = s.Delete(testKeys[tidx], nil)
+			err = s.Delete(test.TestKeys[tidx], nil)
 			assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", tidx))
 
-			_, err = s.Get(testKeys[tidx], nil)
+			_, err = s.Get(test.TestKeys[tidx], nil)
 			assert.NotNil(t, err, fmt.Sprintf("Found entry for key%d when it was deleted", tidx))
 		}(i)
 	}

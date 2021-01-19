@@ -109,7 +109,7 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	if opts != nil {
 		if opts.Snapshot != nil {
-			seqNumber = opts.Snapshot.seqNum
+			seqNumber = opts.Snapshot.SeqNum
 		}
 	}
 
@@ -157,7 +157,7 @@ func (s *Storage) Delete(key []byte, opts *WriteOptions) error {
 // It is thread safe and can be called concurrently.
 func (s *Storage) GetSnapshot() *Snapshot {
 	snap := &Snapshot{
-		seqNum: s.vs.lastSequenceNumber,
+		SeqNum: s.vs.lastSequenceNumber,
 	}
 	s.appendSnapshot(snap)
 	return snap
