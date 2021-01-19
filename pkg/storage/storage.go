@@ -25,7 +25,7 @@ type Storage struct {
 	//
 	// immMemtable is the memtable that is being compacted right now.
 	// it could be nil right now.
-	memtable, immMemtable *memtable
+	memtable, immMemtable *Memtable
 
 	logNumber uint64
 	logFile   file
@@ -115,7 +115,7 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	ikey := newInternalKey(key, internalKeyKindSet, seqNumber)
 
-	value, conclusive, err := s.memtable.get(ikey)
+	value, conclusive, err := s.memtable.Get(ikey)
 	if err == nil {
 		log.WithFields(log.Fields{"value": value}).Info("storage::storage::Get; found key in memtable")
 		return value, nil
@@ -240,7 +240,7 @@ func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
 		}
 
 		ikey := newInternalKey(ukey, kind, seqNum)
-		s.memtable.set(ikey, value)
+		s.memtable.Set(ikey, value)
 	}
 
 	if seqNum != s.vs.lastSequenceNumber+1 {
@@ -340,7 +340,7 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options *
 	strg.mu = new(sync.Mutex)
 
 	skipList := NewSkipList(defaultSkipListHeight, ikComparator)
-	memtable := newMemtable(skipList, ikComparator)
+	memtable := NewMemtable(skipList, ikComparator)
 
 	strg.memtable = memtable
 	strg.options = options
