@@ -105,7 +105,7 @@ func (t *Transaction) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 	if value, found := t.sets[skey]; found {
 		return []byte(value), nil
 	}
-	t.mu.Unlock()
+	t.mu.RUnlock()
 
 	// This variable hasn't been modified in this txn, so read from the snapshot.
 	sOpts := mapReadOptsToStorageReadOpts(opts, t.snapshot)

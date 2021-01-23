@@ -348,6 +348,10 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options *
 	versions := newVersionSet(dirname, ukComparator, ikComparator, strg.options)
 	strg.vs = versions
 
+	// init snapshot list.
+	strg.snapshotDummy.prev = &strg.snapshotDummy
+	strg.snapshotDummy.next = &strg.snapshotDummy
+
 	return strg, nil
 }
 

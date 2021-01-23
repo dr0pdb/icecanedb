@@ -1,6 +1,7 @@
 package mvcc
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/dr0pdb/icecanedb/pkg/storage"
@@ -12,14 +13,17 @@ var (
 	mvcc *MVCC = newTestMVCC()
 )
 
+// create a snapshot with the given seq number. set seq to 0, for the default one.
 func newTestSnapshot(storage *storage.Storage, seq uint64) *storage.Snapshot {
 	snap := storage.GetSnapshot()
-	snap.SeqNum = seq
+	if seq != 0 {
+		snap.SeqNum = seq
+	}
 	return snap
 }
 
-func newTestTransaction(storage *storage.Storage, id uint64) *Transaction {
-	return newTransaction(id, mvcc, storage, newTestSnapshot(storage, 1), make([]*Transaction, 0))
+func newTestTransaction(storage *storage.Storage, id, seq uint64) *Transaction {
+	return newTransaction(id, mvcc, storage, newTestSnapshot(storage, seq), make([]*Transaction, 0))
 }
 
 func setupStorage() (*storage.Storage, error) {
@@ -35,19 +39,30 @@ func setupStorage() (*storage.Storage, error) {
 	return s, err
 }
 
-func addDataBeforeSnapshot() {
-
+func addDataBeforeSnapshot(storage *storage.Storage) error {
+	for i := range test.TestKeys {
+		err := storage.Set(test.TestKeys[i], test.TestValues[i], nil)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestBasicGetSetDelete(t *testing.T) {
 	test.CreateTestDirectory(test.TestDirectory)
 	defer test.CleanupTestDirectory(test.TestDirectory)
 
-	_, err := setupStorage()
+	s, err := setupStorage()
 	assert.Nil(t, err, "Unexpected error in creating new storage")
-}
 
-func TestConcurrentGetSetDelete(t *testing.T) {
-	test.CreateTestDirectory(test.TestDirectory)
-	defer test.CleanupTestDirectory(test.TestDirectory)
+	addDataBeforeSnapshot(s)
+
+	txn := newTestTransaction(s, 1, 0) // seq 0 means the current one.
+
+	for i := range test.TestKeys {
+		val, err := txn.Get(test.TestKeys[i], nil)
+		assert.Nil(t, err)
+		assert.Equal(t, test.TestValues[i], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", i, test.TestValues[i], val))
+	}
 }
