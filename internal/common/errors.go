@@ -51,3 +51,19 @@ func NewStaleLogRecordWriterError(message string) StaleLogRecordWriterError {
 		Message: message,
 	}
 }
+
+// AbortedTransactionError is returned when an operation is called on an aborted txn.
+type AbortedTransactionError struct {
+	Message string
+}
+
+func (ate AbortedTransactionError) Error() string {
+	return fmt.Sprintf("%s", ate.Message)
+}
+
+// NewAbortedTransactionError creates a new instance of AbortedTransactionError with the given message.
+func NewAbortedTransactionError(message string) AbortedTransactionError {
+	return AbortedTransactionError{
+		Message: message,
+	}
+}

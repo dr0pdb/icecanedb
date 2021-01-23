@@ -63,6 +63,7 @@ func (t *Transaction) Commit() error {
 
 // Rollback rolls back the transaction
 func (t *Transaction) Rollback() error {
+	// Since everything is in memory in this optimistic concurrency control protocol, we can just mark this txn as aborted.
 	t.aborted = true
 	return nil
 }
@@ -75,6 +76,10 @@ func (t *Transaction) Set(key, value []byte, opts *WriteOptions) error {
 		"key":   string(key),
 		"value": string(value),
 	}).Info("mvcc::transaction::Set; started.")
+
+	if t.aborted {
+		return common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
+	}
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -96,6 +101,10 @@ func (t *Transaction) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": string(key),
 	}).Info("mvcc::transaction::Get; started.")
+
+	if t.aborted {
+		return nil, common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
+	}
 
 	skey := string(key)
 	t.mu.RLock()
@@ -122,6 +131,10 @@ func (t *Transaction) Delete(key []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
 		"key": string(key),
 	}).Info("mvcc::transaction::Delete; started.")
+
+	if t.aborted {
+		return common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
+	}
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
