@@ -12,6 +12,9 @@ var (
 
 	// TestValues - test data
 	TestValues [][]byte = [][]byte{[]byte("Value1"), []byte("Value2"), []byte("Value3"), []byte("Value4"), []byte("Value5")}
+
+	// TestUpdatedValues - updated test data
+	TestUpdatedValues [][]byte = [][]byte{[]byte("UpdatedValue1"), []byte("UpdatedValue2"), []byte("UpdatedValue3"), []byte("UpdatedValue4"), []byte("UpdatedValue5")}
 )
 
 // CreateTestDirectory creates a test directory for running tests.

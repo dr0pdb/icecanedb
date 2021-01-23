@@ -49,7 +49,7 @@ func addDataBeforeSnapshot(storage *storage.Storage) error {
 	return nil
 }
 
-func TestBasicGetSetDelete(t *testing.T) {
+func TestSingleGetSetDelete(t *testing.T) {
 	test.CreateTestDirectory(test.TestDirectory)
 	defer test.CleanupTestDirectory(test.TestDirectory)
 
@@ -64,5 +64,28 @@ func TestBasicGetSetDelete(t *testing.T) {
 		val, err := txn.Get(test.TestKeys[i], nil)
 		assert.Nil(t, err)
 		assert.Equal(t, test.TestValues[i], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", i, test.TestValues[i], val))
+	}
+
+	for i := range test.TestKeys {
+		err := txn.Set(test.TestKeys[i], test.TestUpdatedValues[i], nil)
+		assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d.", i))
+	}
+
+	// should get new updated values.
+	for i := range test.TestKeys {
+		val, err := txn.Get(test.TestKeys[i], nil)
+		assert.Nil(t, err)
+		assert.Equal(t, test.TestUpdatedValues[i], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", i, test.TestUpdatedValues[i], val))
+	}
+
+	for i := range test.TestKeys {
+		err := txn.Delete(test.TestKeys[i], nil)
+		assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d.", i))
+	}
+
+	// should get a not found error
+	for i := range test.TestKeys {
+		val, err := txn.Get(test.TestKeys[i], nil)
+		assert.NotNil(t, err, fmt.Sprintf("Unexpected value for key%d. Expected not found error, found %v", i, val))
 	}
 }
