@@ -173,7 +173,7 @@ func TestConcurrentFunctionality(t *testing.T) {
 	err = s.Open()
 	assert.Nil(t, err)
 
-	num := 100000
+	num := 1000000
 
 	for i := 1; i < num; i++ {
 		go func(idx int) {

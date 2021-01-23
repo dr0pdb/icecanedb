@@ -48,6 +48,33 @@ func (m *Memtable) Get(ikey []byte) ([]byte, bool, error) {
 	return skipNode.getValue(), true, nil
 }
 
+// GetLatestSeqForKey finds an the latest seq number for a key.
+//
+// returns the latest seq number if the key is present in the memtable.
+// returns NotFoundError if the key is not found.
+func (m *Memtable) GetLatestSeqForKey(ikey []byte) (uint64, bool, error) {
+	log.WithFields(log.Fields{
+		"ikey": string(ikey),
+	}).Info("memtable: GetLatestSeqForKey")
+
+	skipNode := m.skipList.Get(ikey)
+	if skipNode == nil ||
+		m.comparator.Compare(internalKey(skipNode.getKey()).userKey(), internalKey(ikey).userKey()) != 0 {
+
+		log.WithFields(log.Fields{
+			"ikey": string(ikey),
+		}).Info("memtable: GetLatestSeqForKey; Key not found in the memtable.")
+		return 0, false, common.NewNotFoundError("Key not found.")
+	}
+
+	log.WithFields(log.Fields{
+		"ikey":  string(ikey),
+		"value": string(skipNode.getValue()),
+	}).Info("memtable: Get; Key found in the memtable; returning seq number")
+
+	return internalKey(skipNode.getKey()).sequenceNumber(), true, nil
+}
+
 // Set inserts a value in the memtable associated with the specified key.
 //
 // Overwrites the data if the key already exists.

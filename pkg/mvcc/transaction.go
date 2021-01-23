@@ -63,6 +63,9 @@ func (t *Transaction) Commit() error {
 
 // Rollback rolls back the transaction
 func (t *Transaction) Rollback() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	// Since everything is in memory in this optimistic concurrency control protocol, we can just mark this txn as aborted.
 	t.aborted = true
 	return nil

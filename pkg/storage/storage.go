@@ -165,8 +165,28 @@ func (s *Storage) GetSnapshot() *Snapshot {
 
 // GetLatestSeqForKey returns the latest seq number of the key
 // This can be used to implement transaction support over the storage layer.
-func (s *Storage) GetLatestSeqForKey() uint64 {
-	panic("not implemented")
+// returns the seq number if found in the db otherwise returns 0.
+func (s *Storage) GetLatestSeqForKey(key []byte) uint64 {
+	log.WithFields(log.Fields{
+		"key": string(key),
+	}).Info("storage::storage::GetLatestSeqForKey; started")
+
+	log.Info("storage::storage::GetLatestSeqForKey; looking in memtable")
+
+	seqNumber := s.vs.lastSequenceNumber + 1
+	ikey := newInternalKey(key, internalKeyKindSet, seqNumber)
+
+	value, conclusive, err := s.memtable.GetLatestSeqForKey(ikey)
+	if err == nil && value != 0 {
+		log.WithFields(log.Fields{"value": value}).Info("storage::storage::GetLatestSeqForKey; found seq number for key in memtable")
+		return value
+	}
+
+	if !conclusive {
+		// TODO: read from sst files.
+	}
+
+	return 0
 }
 
 // Close todo
