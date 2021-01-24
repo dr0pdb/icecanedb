@@ -10,7 +10,7 @@ compile-windows:
 
 .PHONY: unit-test
 unit-test:
-	go test -race -covermode=count -coverprofile=profile.cov -v ./...
+	go test -race -covermode=atomic -coverprofile=profile.cov -v ./...
 
 .PHONY: build-example-storage
 build-example-storage:
