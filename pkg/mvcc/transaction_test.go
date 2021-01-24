@@ -89,3 +89,21 @@ func TestSingleGetSetDelete(t *testing.T) {
 		assert.NotNil(t, err, fmt.Sprintf("Unexpected value for key%d. Expected not found error, found %v", i, val))
 	}
 }
+
+func TestOperationOnAbortedTxn(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	s, err := setupStorage()
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	addDataBeforeSnapshot(s)
+
+	txn := newTestTransaction(s, 1, 0) // seq 0 means the current one.
+
+	err = txn.Rollback()
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in rolling back txn."))
+
+	val, err := txn.Get(test.TestKeys[0], nil)
+	assert.NotNil(t, err, fmt.Sprintf("Unexpected value for key%d. Expected error due to aborted txn, found %v", 0, val))
+}

@@ -37,7 +37,10 @@ type Transaction struct {
 	sets    map[string]string
 	deletes map[string]bool
 
-	// aborted indicates if the transaction has been aborted or not.
+	// committed indicates txn commit status.
+	committed bool
+
+	// aborted indicates txn rollback status.
 	aborted bool
 }
 
@@ -58,13 +61,41 @@ func newTransaction(id uint64, mvcc *MVCC, storage *storage.Storage, snapshot *s
 
 // Commit commits the transaction.
 func (t *Transaction) Commit() error {
-	panic("not implemented")
+	t.mu.Lock()
+	var err error
+
+	if t.aborted {
+		err = common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
+	}
+	if t.committed {
+		err = common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed", t.id))
+	}
+	if !t.validateInvariants() {
+		err = fmt.Errorf("Invalid txn %d. Invariant not satisfied", t.id) // todo: rethink on this. Maybe this should be another error type.
+	}
+	if err != nil {
+		t.mu.Unlock()
+		return err
+	}
+
+	t.mu.Unlock() // unlock mutex since storage mutex will be held.
+
+	// write to storage layer atomically.
+
+	return err
 }
 
 // Rollback rolls back the transaction
 func (t *Transaction) Rollback() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted {
+		return common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
+	}
+	if t.committed {
+		return common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed", t.id))
+	}
 
 	// Since everything is in memory in this optimistic concurrency control protocol, we can just mark this txn as aborted.
 	t.aborted = true
@@ -80,12 +111,16 @@ func (t *Transaction) Set(key, value []byte, opts *WriteOptions) error {
 		"value": string(value),
 	}).Info("mvcc::transaction::Set; started.")
 
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// TODO: These two errors can be combined into InvalidTxnOperationError
 	if t.aborted {
 		return common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
 	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	if t.committed {
+		return common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed", t.id))
+	}
 
 	skey := string(key)
 	if _, found := t.deletes[skey]; found {
@@ -105,12 +140,16 @@ func (t *Transaction) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 		"key": string(key),
 	}).Info("mvcc::transaction::Get; started.")
 
+	t.mu.RLock()
+
 	if t.aborted {
 		return nil, common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
 	}
+	if t.committed {
+		return nil, common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed", t.id))
+	}
 
 	skey := string(key)
-	t.mu.RLock()
 	if _, found := t.deletes[skey]; found {
 		t.mu.RUnlock()
 		return nil, common.NewNotFoundError(fmt.Sprintf("key %v not found", skey))
@@ -135,12 +174,15 @@ func (t *Transaction) Delete(key []byte, opts *WriteOptions) error {
 		"key": string(key),
 	}).Info("mvcc::transaction::Delete; started.")
 
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if t.aborted {
 		return common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
 	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	if t.committed {
+		return common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed", t.id))
+	}
 
 	skey := string(key)
 	if _, found := t.sets[skey]; found {
@@ -154,4 +196,11 @@ func (t *Transaction) Delete(key []byte, opts *WriteOptions) error {
 
 	log.Info("mvcc::transaction::Delete; done.")
 	return nil
+}
+
+// validateInvariants validates the sets/deletes invariant.
+// assumes that the lock on txn is already held.
+func (t *Transaction) validateInvariants() bool {
+
+	return true
 }

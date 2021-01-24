@@ -67,3 +67,19 @@ func NewAbortedTransactionError(message string) AbortedTransactionError {
 		Message: message,
 	}
 }
+
+// CommittedTransactionError is returned when an operation is called on an already committed txn.
+type CommittedTransactionError struct {
+	Message string
+}
+
+func (ate CommittedTransactionError) Error() string {
+	return fmt.Sprintf("%s", ate.Message)
+}
+
+// NewCommittedTransactionError creates a new instance of CommittedTransactionError with the given message.
+func NewCommittedTransactionError(message string) CommittedTransactionError {
+	return CommittedTransactionError{
+		Message: message,
+	}
+}
