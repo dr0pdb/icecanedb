@@ -48,7 +48,7 @@ func TestBasicCRUD(t *testing.T) {
 // TestConcurrency tests the concurrency operations on the skip list
 func TestConcurrency(t *testing.T) {
 	skipList := NewSkipList(10, DefaultComparator)
-	l := 100000
+	l := 10000
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
