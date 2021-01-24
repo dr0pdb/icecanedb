@@ -2,11 +2,11 @@ VERSION?="0.0.1"
 
 .PHONY: compile-linux
 compile-linux:
-	GOOS=linux GOARCH=386 go build -race -v ./...
+	GOOS=linux GOARCH=amd64 go build -race -v ./...
 
 .PHONY: compile-windows
 compile-windows:
-	GOOS=windows GOARCH=386 go build -race -v ./...
+	GOOS=windows GOARCH=amd64 go build -race -v ./...
 
 .PHONY: unit-test
 unit-test:
