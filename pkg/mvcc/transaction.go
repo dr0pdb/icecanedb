@@ -38,10 +38,10 @@ type Transaction struct {
 	deletes map[string]bool
 
 	// committed indicates txn commit status.
-	committed bool
+	commitInProgress, committed bool
 
 	// aborted indicates txn rollback status.
-	aborted bool
+	abortInProgress, aborted bool
 }
 
 // newTransaction creates a new transaction.
@@ -64,11 +64,11 @@ func (t *Transaction) Commit() error {
 	t.mu.Lock()
 	var err error
 
-	if t.aborted {
-		err = common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
+	if t.aborted || t.abortInProgress {
+		err = common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted or is in progress", t.id))
 	}
-	if t.committed {
-		err = common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed", t.id))
+	if t.committed || t.commitInProgress {
+		err = common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed or is in progress", t.id))
 	}
 	if !t.validateInvariants() {
 		err = fmt.Errorf("Invalid txn %d. Invariant not satisfied", t.id) // todo: rethink on this. Maybe this should be another error type.
@@ -78,7 +78,26 @@ func (t *Transaction) Commit() error {
 		return err
 	}
 
-	t.mu.Unlock() // unlock mutex since storage mutex will be held.
+	t.commitInProgress = true
+	defer func() {
+		t.commitInProgress = false
+	}()
+
+	// validation phase
+	for val := range t.deletes {
+		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
+			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
+		}
+	}
+	for val := range t.sets {
+		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
+			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
+		}
+	}
+	t.mu.Unlock() // unlock mutex since either validation failed or the storage mutex will be held.
+	if err != nil {
+		return err
+	}
 
 	// write to storage layer atomically.
 

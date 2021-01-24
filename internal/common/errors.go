@@ -83,3 +83,19 @@ func NewCommittedTransactionError(message string) CommittedTransactionError {
 		Message: message,
 	}
 }
+
+// TransactionCommitError is returned when a commit operation fails on a txn.
+type TransactionCommitError struct {
+	Message string
+}
+
+func (ate TransactionCommitError) Error() string {
+	return fmt.Sprintf("%s", ate.Message)
+}
+
+// NewTransactionCommitError creates a new instance of TransactionCommitError with the given message.
+func NewTransactionCommitError(message string) TransactionCommitError {
+	return TransactionCommitError{
+		Message: message,
+	}
+}
