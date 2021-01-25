@@ -128,3 +128,81 @@ func TestValidateInvariant(t *testing.T) {
 
 	assert.False(t, txn.validateInvariants(), fmt.Sprintf("Validate invariant error; expected false, got true"))
 }
+
+func TestAbortedTxnNoSideEffect(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	s, err := setupStorage()
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	addDataBeforeSnapshot(s)
+
+	txn := newTestTransaction(s, 0, 0) // seq 0 means the current one.
+
+	txn.Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
+	err = txn.Rollback()
+	assert.Nil(t, err)
+
+	val, err := s.Get(test.TestKeys[0], nil)
+	assert.Nil(t, err)
+	assert.Equal(t, test.TestValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, test.TestValues[0], val))
+}
+
+func TestBasicMultipleTxn(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	s, err := setupStorage()
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	addDataBeforeSnapshot(s)
+
+	txn := newTestTransaction(s, 1, 0) // seq 0 means the current one.
+	txn2 := newTestTransaction(s, 2, 0)
+
+	// txn updates 0 and txn2 updates 1.
+	txn.Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
+	txn2.Set(test.TestKeys[1], test.TestUpdatedValues[1], nil)
+
+	// txn shouldn't see the update on key1.
+	val, err := txn.Get(test.TestKeys[1], nil)
+	assert.Nil(t, err)
+	assert.Equal(t, test.TestValues[1], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 1, test.TestValues[1], val))
+
+	// txn2 shouldn't see the update on key0.
+	val, err = txn2.Get(test.TestKeys[0], nil)
+	assert.Nil(t, err)
+	assert.Equal(t, test.TestValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, test.TestValues[0], val))
+
+	err = txn.Commit()
+	assert.Nil(t, err)
+
+	// committing of txn shouldn't affect txn2
+	val, err = txn2.Get(test.TestKeys[0], nil)
+	assert.Nil(t, err)
+	assert.Equal(t, test.TestValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, test.TestValues[0], val))
+
+	err = txn2.Commit()
+	assert.Nil(t, err)
+
+	val, err = s.Get(test.TestKeys[0], nil)
+	assert.Nil(t, err)
+	assert.Equal(t, test.TestUpdatedValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, test.TestUpdatedValues[0], val))
+
+	val, err = s.Get(test.TestKeys[1], nil)
+	assert.Nil(t, err)
+	assert.Equal(t, test.TestUpdatedValues[1], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 1, test.TestUpdatedValues[1], val))
+}
+
+func TestMultipleTxnConcurrent(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	s, err := setupStorage()
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	addDataBeforeSnapshot(s)
+
+	// todo: add test
+}
