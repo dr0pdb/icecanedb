@@ -107,3 +107,24 @@ func TestOperationOnAbortedTxn(t *testing.T) {
 	val, err := txn.Get(test.TestKeys[0], nil)
 	assert.NotNil(t, err, fmt.Sprintf("Unexpected value for key%d. Expected error due to aborted txn, found %v", 0, val))
 }
+
+func TestValidateInvariant(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	s, err := setupStorage()
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	addDataBeforeSnapshot(s)
+
+	txn := newTestTransaction(s, 1, 0) // seq 0 means the current one.
+
+	txn.sets[string(test.TestKeys[0])] = string(test.TestValues[0])
+	txn.sets[string(test.TestKeys[1])] = string(test.TestValues[1])
+
+	assert.True(t, txn.validateInvariants(), fmt.Sprintf("Validate invariant error; expected true, got false"))
+
+	txn.deletes[string(test.TestKeys[1])] = true
+
+	assert.False(t, txn.validateInvariants(), fmt.Sprintf("Validate invariant error; expected false, got true"))
+}

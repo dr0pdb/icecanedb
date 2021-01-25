@@ -164,7 +164,7 @@ func (t *Transaction) Set(key, value []byte, opts *WriteOptions) error {
 	return nil
 }
 
-// Get todo
+// Get returns the value associated with the given key.
 // returns a byte slice pointing to the value if the key is found.
 // returns NotFoundError if the key is not found.
 func (t *Transaction) Get(key []byte, opts *ReadOptions) ([]byte, error) {
@@ -225,5 +225,17 @@ func (t *Transaction) Delete(key []byte, opts *WriteOptions) error {
 // validateInvariants validates the sets/deletes invariant.
 // assumes that the lock on txn is already held.
 func (t *Transaction) validateInvariants() bool {
+	for key := range t.deletes {
+		if _, found := t.sets[key]; found {
+			return false
+		}
+	}
+
+	for key := range t.sets {
+		if _, found := t.deletes[key]; found {
+			return false
+		}
+	}
+
 	return true
 }
