@@ -2,7 +2,6 @@ package mvcc
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/dr0pdb/icecanedb/internal/common"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
@@ -11,6 +10,8 @@ import (
 
 // Transaction is the MVCC transaction.
 // It implements an optimistic concurrency control protocol.
+// A single transaction is not thread safe.
+// Operations on a single txn should be called sequentially.
 type Transaction struct {
 	// unique transaction id
 	id uint64
@@ -28,9 +29,6 @@ type Transaction struct {
 	// concurrent txns at the start. This txn should be invisible to these transactions.
 	// The validation phase verifies that before commiting.
 	concTxns []*Transaction
-
-	// mu protects the sets and deletes data structures.
-	mu *sync.RWMutex
 
 	// sets and deletes are the set/delete operations done in this txn respectively.
 	// invariant is that a key can only be present in one of the two.
@@ -52,7 +50,6 @@ func newTransaction(id uint64, mvcc *MVCC, storage *storage.Storage, snapshot *s
 		storage:  storage,
 		snapshot: snapshot,
 		concTxns: concTxns,
-		mu:       new(sync.RWMutex),
 		sets:     make(map[string]string),
 		deletes:  make(map[string]bool),
 		aborted:  false,
@@ -61,7 +58,6 @@ func newTransaction(id uint64, mvcc *MVCC, storage *storage.Storage, snapshot *s
 
 // Commit commits the transaction.
 func (t *Transaction) Commit() error {
-	t.mu.Lock()
 	var err error
 
 	if t.aborted || t.abortInProgress {
@@ -74,7 +70,6 @@ func (t *Transaction) Commit() error {
 		err = fmt.Errorf("Invalid txn %d. Invariant not satisfied", t.id) // todo: rethink on this. Maybe this should be another error type.
 	}
 	if err != nil {
-		t.mu.Unlock()
 		return err
 	}
 
@@ -94,7 +89,6 @@ func (t *Transaction) Commit() error {
 			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
 		}
 	}
-	t.mu.Unlock() // unlock mutex since either validation failed or the storage mutex will be held.
 	if err != nil {
 		return err
 	}
@@ -106,9 +100,6 @@ func (t *Transaction) Commit() error {
 
 // Rollback rolls back the transaction
 func (t *Transaction) Rollback() error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	if t.aborted {
 		return common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
 	}
@@ -129,9 +120,6 @@ func (t *Transaction) Set(key, value []byte, opts *WriteOptions) error {
 		"key":   string(key),
 		"value": string(value),
 	}).Info("mvcc::transaction::Set; started.")
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	// TODO: These two errors can be combined into InvalidTxnOperationError
 	if t.aborted {
@@ -159,8 +147,6 @@ func (t *Transaction) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 		"key": string(key),
 	}).Info("mvcc::transaction::Get; started.")
 
-	t.mu.RLock()
-
 	if t.aborted {
 		return nil, common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
 	}
@@ -170,14 +156,11 @@ func (t *Transaction) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	skey := string(key)
 	if _, found := t.deletes[skey]; found {
-		t.mu.RUnlock()
 		return nil, common.NewNotFoundError(fmt.Sprintf("key %v not found", skey))
 	}
 	if value, found := t.sets[skey]; found {
-		t.mu.RUnlock()
 		return []byte(value), nil
 	}
-	t.mu.RUnlock() // todo: find a better way of doing this.
 
 	// This variable hasn't been modified in this txn, so read from the snapshot.
 	sOpts := mapReadOptsToStorageReadOpts(opts, t.snapshot)
@@ -192,9 +175,6 @@ func (t *Transaction) Delete(key []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
 		"key": string(key),
 	}).Info("mvcc::transaction::Delete; started.")
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	if t.aborted {
 		return common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted", t.id))
@@ -220,6 +200,5 @@ func (t *Transaction) Delete(key []byte, opts *WriteOptions) error {
 // validateInvariants validates the sets/deletes invariant.
 // assumes that the lock on txn is already held.
 func (t *Transaction) validateInvariants() bool {
-
 	return true
 }
