@@ -97,7 +97,7 @@ func (s *Storage) Open() error {
 	return nil
 }
 
-// Get TODO
+// Get returns the value associated with the given key in the storage.
 func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"key": string(key),
@@ -128,7 +128,7 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 	return nil, err
 }
 
-// Set TODO
+// Set sets the value for a particular key in the storage layer.
 func (s *Storage) Set(key, value []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
 		"key":   string(key),
@@ -136,21 +136,27 @@ func (s *Storage) Set(key, value []byte, opts *WriteOptions) error {
 		"opts":  opts,
 	}).Info("storage::storage::Set")
 
-	var batch writeBatch
-	batch.set(key, value)
-	return s.apply(batch, opts)
+	var batch WriteBatch
+	batch.Set(key, value)
+	return s.apply(&batch, opts)
 }
 
-// Delete TODO
+// Delete deletes the value for a particular key in the storage layer.
 func (s *Storage) Delete(key []byte, opts *WriteOptions) error {
 	log.WithFields(log.Fields{
 		"key":  string(key),
 		"opts": opts,
 	}).Info("storage::storage::Delete")
 
-	var batch writeBatch
-	batch.delete(key)
-	return s.apply(batch, opts)
+	var batch WriteBatch
+	batch.Delete(key)
+	return s.apply(&batch, opts)
+}
+
+// BatchWrite writes a batch of Set/Delete entries to the storage atomically.
+func (s *Storage) BatchWrite(wb *WriteBatch) error {
+	log.Info("storage::storage::BatchWrite; started")
+	return s.apply(wb, nil)
 }
 
 // GetSnapshot creates a snapshot and returns it.
@@ -207,7 +213,7 @@ func (s *Storage) appendSnapshot(snap *Snapshot) {
 }
 
 // apply applies a writeBatch atomically according to write options.
-func (s *Storage) apply(wb writeBatch, opts *WriteOptions) error {
+func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 	log.Info("storage::storage::apply; started")
 
 	if len(wb.data) == 0 {

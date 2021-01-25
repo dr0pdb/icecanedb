@@ -58,6 +58,10 @@ func newTransaction(id uint64, mvcc *MVCC, storage *storage.Storage, snapshot *s
 
 // Commit commits the transaction.
 func (t *Transaction) Commit() error {
+	log.WithFields(log.Fields{
+		"id": t.id,
+	}).Info("mvcc::transaction::Commit; started")
+
 	var err error
 
 	if t.aborted || t.abortInProgress {
@@ -90,11 +94,32 @@ func (t *Transaction) Commit() error {
 		}
 	}
 	if err != nil {
+		t.aborted = true // no way this can succeed, so the txn can be aborted.
+		log.WithFields(log.Fields{
+			"id": t.id,
+		}).Error("mvcc::transaction::Commit; commit failed; aborting txn")
 		return err
 	}
 
 	// write to storage layer atomically.
-
+	var batch storage.WriteBatch
+	for val := range t.deletes {
+		batch.Delete([]byte(val))
+	}
+	for key, value := range t.sets {
+		batch.Set([]byte(key), []byte(value))
+	}
+	err = t.storage.BatchWrite(&batch)
+	if err == nil {
+		t.committed = true
+		log.WithFields(log.Fields{
+			"id": t.id,
+		}).Info("mvcc::transaction::Commit; commit success")
+	} else {
+		log.WithFields(log.Fields{
+			"id": t.id,
+		}).Error("mvcc::transaction::Commit; commit failed")
+	}
 	return err
 }
 
