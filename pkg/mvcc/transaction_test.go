@@ -271,7 +271,7 @@ func TestMultipleConflictingTxnConcurrent(t *testing.T) {
 			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting key%d for txn%d", 0, i))
 
 			err = txn.Commit()
-			if err == nil {
+			if err == nil { // success
 				ch <- 1
 			} else {
 				ch <- 0

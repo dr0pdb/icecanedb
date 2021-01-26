@@ -62,19 +62,14 @@ func (t *Transaction) Commit() error {
 		"id": t.id,
 	}).Info("mvcc::transaction::Commit; started")
 
-	var err error
-
 	if t.aborted || t.abortInProgress {
-		err = common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted or is in progress", t.id))
+		return common.NewAbortedTransactionError(fmt.Sprintf("txn %d is already aborted or is in progress", t.id))
 	}
 	if t.committed || t.commitInProgress {
-		err = common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed or is in progress", t.id))
+		return common.NewCommittedTransactionError(fmt.Sprintf("txn %d is already committed or is in progress", t.id))
 	}
 	if !t.validateInvariants() {
-		err = fmt.Errorf("Invalid txn %d. Invariant not satisfied", t.id) // todo: rethink on this. Maybe this should be another error type.
-	}
-	if err != nil {
-		return err
+		return fmt.Errorf("Invalid txn %d. Invariant not satisfied", t.id) // todo: rethink on this. Maybe this should be another error type.
 	}
 
 	t.commitInProgress = true
@@ -82,7 +77,7 @@ func (t *Transaction) Commit() error {
 		t.commitInProgress = false
 	}()
 
-	err = t.mvcc.commitTxn(t)
+	err := t.mvcc.commitTxn(t)
 	return err
 }
 

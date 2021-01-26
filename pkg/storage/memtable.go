@@ -69,7 +69,7 @@ func (m *Memtable) GetLatestSeqForKey(ikey []byte) (uint64, bool, error) {
 
 	log.WithFields(log.Fields{
 		"ikey":  string(ikey),
-		"value": string(skipNode.getValue()),
+		"seqno": internalKey(skipNode.getKey()).sequenceNumber(),
 	}).Info("memtable: Get; Key found in the memtable; returning seq number")
 
 	return internalKey(skipNode.getKey()).sequenceNumber(), true, nil

@@ -62,11 +62,13 @@ func (m *MVCC) commitTxn(t *Transaction) (err error) {
 	for val := range t.deletes {
 		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
 			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
+			break
 		}
 	}
 	for val := range t.sets {
 		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
 			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
+			break
 		}
 	}
 	if err != nil {

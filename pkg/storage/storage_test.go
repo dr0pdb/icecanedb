@@ -194,3 +194,29 @@ func TestConcurrentFunctionality(t *testing.T) {
 		}(i)
 	}
 }
+
+func TestGetLatestSeqNumberForKey(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	options := &Options{
+		CreateIfNotExist: true,
+	}
+
+	s, err := NewStorage(test.TestDirectory, options)
+	assert.Nil(t, err)
+
+	err = s.Open()
+	assert.Nil(t, err)
+
+	err = s.Set(test.TestKeys[0], test.TestValues[0], nil)
+	assert.Nil(t, err)
+
+	sn := s.GetLatestSeqForKey(test.TestKeys[0])
+
+	err = s.Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
+	assert.Nil(t, err)
+
+	sn2 := s.GetLatestSeqForKey(test.TestKeys[0])
+	assert.Equal(t, sn+1, sn2)
+}
