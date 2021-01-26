@@ -1,8 +1,10 @@
 package mvcc
 
 import (
+	"fmt"
 	"sync"
 
+	"github.com/dr0pdb/icecanedb/internal/common"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -48,4 +50,52 @@ func (m *MVCC) Begin() *Transaction {
 
 	log.Info("mvcc::mvcc::Begin; done")
 	return txn
+}
+
+func (m *MVCC) commitTxn(t *Transaction) (err error) {
+	log.Info("mvcc::mvcc::commitTxn; started")
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// validation phase
+	for val := range t.deletes {
+		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
+			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
+		}
+	}
+	for val := range t.sets {
+		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
+			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
+		}
+	}
+	if err != nil {
+		t.aborted = true // no way this can succeed, so the txn can be aborted.
+		log.WithFields(log.Fields{
+			"id": t.id,
+		}).Error("mvcc::mvcc::commitTxn; commit failed; aborting txn")
+		return err
+	}
+
+	// write to storage layer atomically.
+	var batch storage.WriteBatch
+	for val := range t.deletes {
+		batch.Delete([]byte(val))
+	}
+	for key, value := range t.sets {
+		batch.Set([]byte(key), []byte(value))
+	}
+	err = t.storage.BatchWrite(&batch)
+	if err == nil {
+		t.committed = true
+		log.WithFields(log.Fields{
+			"id": t.id,
+		}).Info("mvcc::mvcc::commitTxn; commit success")
+	} else {
+		log.WithFields(log.Fields{
+			"id": t.id,
+		}).Error("mvcc::mvcc::commitTxn; commit failed")
+	}
+
+	return err
 }

@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	mvcc *MVCC = newTestMVCC()
+	mvcc *MVCC
 )
 
 // create a snapshot with the given seq number. set seq to 0, for the default one.
@@ -37,6 +37,7 @@ func setupStorage() (*storage.Storage, error) {
 		return nil, err
 	}
 	err = s.Open()
+	mvcc = newTestMVCC(s)
 	return s, err
 }
 
@@ -259,7 +260,7 @@ func TestMultipleConflictingTxnConcurrent(t *testing.T) {
 	addDataBeforeSnapshot(s)
 	success := 0
 	tot := 0
-	ch := make(chan int)
+	ch := make(chan int, 5)
 
 	// spawn 5 go routines, each one will update key 0. only one should succeed and rest 4 should fail.
 	for i := uint64(0); i < 5; i++ {

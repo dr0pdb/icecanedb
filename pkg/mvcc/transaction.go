@@ -82,44 +82,7 @@ func (t *Transaction) Commit() error {
 		t.commitInProgress = false
 	}()
 
-	// validation phase
-	for val := range t.deletes {
-		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
-			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
-		}
-	}
-	for val := range t.sets {
-		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
-			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
-		}
-	}
-	if err != nil {
-		t.aborted = true // no way this can succeed, so the txn can be aborted.
-		log.WithFields(log.Fields{
-			"id": t.id,
-		}).Error("mvcc::transaction::Commit; commit failed; aborting txn")
-		return err
-	}
-
-	// write to storage layer atomically.
-	var batch storage.WriteBatch
-	for val := range t.deletes {
-		batch.Delete([]byte(val))
-	}
-	for key, value := range t.sets {
-		batch.Set([]byte(key), []byte(value))
-	}
-	err = t.storage.BatchWrite(&batch)
-	if err == nil {
-		t.committed = true
-		log.WithFields(log.Fields{
-			"id": t.id,
-		}).Info("mvcc::transaction::Commit; commit success")
-	} else {
-		log.WithFields(log.Fields{
-			"id": t.id,
-		}).Error("mvcc::transaction::Commit; commit failed")
-	}
+	err = t.mvcc.commitTxn(t)
 	return err
 }
 
