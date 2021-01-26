@@ -2,6 +2,7 @@ package mvcc
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/dr0pdb/icecanedb/pkg/storage"
@@ -195,7 +196,7 @@ func TestBasicMultipleTxn(t *testing.T) {
 	assert.Equal(t, test.TestUpdatedValues[1], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 1, test.TestUpdatedValues[1], val))
 }
 
-func TestMultipleTxnConcurrent(t *testing.T) {
+func TestShouldAbortConflictingTxn(t *testing.T) {
 	test.CreateTestDirectory(test.TestDirectory)
 	defer test.CleanupTestDirectory(test.TestDirectory)
 
@@ -204,5 +205,92 @@ func TestMultipleTxnConcurrent(t *testing.T) {
 
 	addDataBeforeSnapshot(s)
 
-	// todo: add test
+	txn := newTestTransaction(s, 1, 0) // seq 0 means the current one.
+	txn2 := newTestTransaction(s, 2, 0)
+
+	// txn updates 0 and txn2 updates 0 and 1.
+	// txn will commit first and then txn2 shouldn't be allowed to commit.
+	txn.Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
+	txn2.Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
+	txn2.Set(test.TestKeys[1], test.TestUpdatedValues[1], nil)
+
+	err = txn.Commit()
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in committing txn%d", 0))
+
+	err = txn2.Commit()
+	assert.NotNil(t, err, fmt.Sprintf("Unexpected success in committing txn%d, expected failure, got success", 1))
+}
+
+func TestShouldAllowNonConflictingTxn(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	s, err := setupStorage()
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	addDataBeforeSnapshot(s)
+	wg := &sync.WaitGroup{}
+	wg.Add(5)
+
+	// ith txn will only update ith key, so they all should commit
+	for i := uint64(0); i < 5; i++ {
+		go func(t *testing.T, i uint64) {
+			defer wg.Done()
+			txn := newTestTransaction(s, i, 0)
+
+			err := txn.Set(test.TestKeys[i], test.TestUpdatedValues[i], nil)
+			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting key%d for txn%d", i, i))
+
+			err = txn.Commit()
+			assert.Nil(t, err, fmt.Sprintf("Unexpected error in committing txn%d", i))
+		}(t, i)
+	}
+
+	wg.Wait()
+}
+
+func TestMultipleConflictingTxnConcurrent(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	s, err := setupStorage()
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	addDataBeforeSnapshot(s)
+	success := 0
+	tot := 0
+	ch := make(chan int)
+
+	// spawn 5 go routines, each one will update key 0. only one should succeed and rest 4 should fail.
+	for i := uint64(0); i < 5; i++ {
+		go func(t *testing.T, i uint64, ch chan int) {
+			txn := newTestTransaction(s, i, 0)
+
+			err := txn.Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
+			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting key%d for txn%d", 0, i))
+
+			err = txn.Commit()
+			if err == nil {
+				ch <- 1
+			} else {
+				ch <- 0
+			}
+		}(t, i, ch)
+	}
+
+	// not proud of this but works for now.
+	for {
+		msg := <-ch
+		if msg == 1 {
+			success++
+			tot++
+		} else {
+			tot++
+		}
+		if tot == 5 {
+			break
+		}
+	}
+
+	assert.Equal(t, 1, success, fmt.Sprintf("Unexpected value of success. Expected one txn to succeed, found %d", success))
 }
