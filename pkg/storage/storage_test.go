@@ -219,4 +219,14 @@ func TestGetLatestSeqNumberForKey(t *testing.T) {
 
 	sn2 := s.GetLatestSeqForKey(test.TestKeys[0])
 	assert.Equal(t, sn+1, sn2)
+
+	err = s.Set(test.TestKeys[1], test.TestUpdatedValues[1], nil)
+	assert.Nil(t, err)
+
+	sn3 := s.GetLatestSeqForKey(test.TestKeys[1])
+	assert.Equal(t, sn+2, sn3)
+
+	// inserting another key shouldn't change latest seq for this key.
+	sn2 = s.GetLatestSeqForKey(test.TestKeys[0])
+	assert.Equal(t, sn+1, sn2)
 }
