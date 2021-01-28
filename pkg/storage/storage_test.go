@@ -175,7 +175,7 @@ func TestConcurrentFunctionality(t *testing.T) {
 	err = s.Open()
 	assert.Nil(t, err)
 
-	num := 1000000
+	num := 100000
 	wg := &sync.WaitGroup{}
 	wg.Add(num)
 
