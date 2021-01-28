@@ -58,15 +58,17 @@ func (m *MVCC) commitTxn(t *Transaction) (err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	log.WithFields(log.Fields{"id": t.id}).Info("mvcc::mvcc::commitTxn; validation starting")
+
 	// validation phase
-	for val := range t.deletes {
-		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
+	for key := range t.deletes {
+		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(key)) {
 			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
 			break
 		}
 	}
-	for val := range t.sets {
-		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(val)) {
+	for key := range t.sets {
+		if t.snapshot.SeqNumber() < t.storage.GetLatestSeqForKey([]byte(key)) {
 			err = common.NewTransactionCommitError(fmt.Sprintf("error while committing txn %d", t.id))
 			break
 		}
@@ -75,9 +77,11 @@ func (m *MVCC) commitTxn(t *Transaction) (err error) {
 		t.aborted = true // no way this can succeed, so the txn can be aborted.
 		log.WithFields(log.Fields{
 			"id": t.id,
-		}).Error("mvcc::mvcc::commitTxn; commit failed; aborting txn")
+		}).Error("mvcc::mvcc::commitTxn; commit failed; aborting txn due to conflicting txn")
 		return err
 	}
+
+	log.WithFields(log.Fields{"id": t.id}).Info("mvcc::mvcc::commitTxn; validation done")
 
 	// write to storage layer atomically.
 	var batch storage.WriteBatch

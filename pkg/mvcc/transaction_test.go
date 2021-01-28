@@ -262,15 +262,18 @@ func TestMultipleConflictingTxnConcurrent(t *testing.T) {
 	tot := 0
 	ch := make(chan int, 5)
 
+	var txns [5]*Transaction
+	for i := uint64(0); i < 5; i++ {
+		txns[i] = newTestTransaction(s, i, 0)
+	}
+
 	// spawn 5 go routines, each one will update key 0. only one should succeed and rest 4 should fail.
 	for i := uint64(0); i < 5; i++ {
 		go func(t *testing.T, i uint64, ch chan int) {
-			txn := newTestTransaction(s, i, 0)
-
-			err := txn.Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
+			err := txns[i].Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
 			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting key%d for txn%d", 0, i))
 
-			err = txn.Commit()
+			err = txns[i].Commit()
 			if err == nil { // success
 				ch <- 1
 			} else {

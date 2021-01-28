@@ -3,6 +3,8 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/dr0pdb/icecanedb/test"
@@ -174,25 +176,32 @@ func TestConcurrentFunctionality(t *testing.T) {
 	assert.Nil(t, err)
 
 	num := 1000000
+	wg := &sync.WaitGroup{}
+	wg.Add(num)
 
-	for i := 1; i < num; i++ {
-		go func(idx int) {
+	for i := 0; i < num; i++ {
+		go func(idx int, wg *sync.WaitGroup) {
+			defer wg.Done()
 			tidx := idx % len(test.TestKeys)
 
-			err = s.Set(test.TestKeys[tidx], test.TestValues[tidx], nil)
-			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", idx))
+			key := []byte(strconv.Itoa(idx))
 
-			val, err := s.Get(test.TestKeys[tidx], nil)
+			err = s.Set(key, test.TestValues[tidx], nil)
+			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key %v", key))
+
+			val, err := s.Get(key, nil)
 			assert.Nil(t, err)
-			assert.Equal(t, test.TestValues[tidx], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", tidx, test.TestValues[tidx], val))
+			assert.Equal(t, test.TestValues[tidx], val, fmt.Sprintf("Unexpected value for key %v. Expected %v, found %v", key, test.TestValues[tidx], val))
 
-			err = s.Delete(test.TestKeys[tidx], nil)
-			assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", tidx))
+			err = s.Delete(key, nil)
+			assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key %v", key))
 
-			_, err = s.Get(test.TestKeys[tidx], nil)
-			assert.NotNil(t, err, fmt.Sprintf("Found entry for key%d when it was deleted", tidx))
-		}(i)
+			_, err = s.Get(key, nil)
+			assert.NotNil(t, err, fmt.Sprintf("Found entry for key %v when it was deleted", key))
+		}(i, wg)
 	}
+
+	wg.Wait()
 }
 
 func TestGetLatestSeqNumberForKey(t *testing.T) {
