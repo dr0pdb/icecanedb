@@ -12,6 +12,10 @@ compile-windows:
 unit-test:
 	go test -covermode=count -coverprofile=profile.cov -v ./...
 
+.PHONY: protogen
+protogen:
+	./generate_proto.sh
+
 .PHONY: build-example-storage
 build-example-storage:
 	go build -o _output/example_storage -v ./examples/storage/

@@ -19,7 +19,12 @@ func main() {
 
 	// TODO: update default config according to flags
 
-	_, err := icecanekv.NewKVServer(conf)
+	err := conf.Validate()
+	if err != nil {
+		log.Fatalf("%V", err)
+	}
+
+	_, err = icecanekv.NewKVServer(conf)
 	if err != nil {
 		log.Fatalf("%V", err)
 	}

@@ -24,5 +24,6 @@ func NewDefaultKVConfig() *KVConfig {
 
 // Validate validates a KVConfig and returns an error if it's invalid.
 func (conf *KVConfig) Validate() error {
-	panic("Not implemented")
+	// todo: implement this
+	return nil
 }

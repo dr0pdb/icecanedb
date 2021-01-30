@@ -1,0 +1,13 @@
+syntax = "proto3";
+package icecanekvpb;
+
+// import "kvrpcpb.proto";
+
+// IcecaneKV is the key value server.
+service IcecaneKV {
+    // KV commands with txn supported.
+
+    // RawKV commands.
+
+    // Raft commands b/w two kv servers.
+}
