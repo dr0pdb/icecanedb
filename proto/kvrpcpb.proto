@@ -1,2 +1,16 @@
 syntax = "proto3";
-package kvrpcpb;
+package icecanedbpb;
+
+message RawGetRequest {
+    Context context = 1;
+    bytes key = 2;
+}
+
+message RawGetResponse {
+    
+}
+
+// Context is the metadata that is present in every request.
+message Context {
+
+}

@@ -9,8 +9,8 @@ function generate() {
 	file=$(basename $1)
 	base_name=$(basename $1 ".proto")
 	echo "generating for file: " $file
-	mkdir $DST_DIR/$base_name
-	protoc -I=$SRC_DIR --go_out=$DST_DIR/$base_name --go_opt=paths=source_relative $SRC_DIR/$file
+	mkdir -p $DST_DIR
+	protoc -I=$SRC_DIR --go_out=$DST_DIR --go_opt=paths=source_relative $SRC_DIR/$file
 }
 
 for file in `ls proto/*.proto`
