@@ -9,6 +9,8 @@ service IcecaneKV {
 
     // RawKV commands.
     rpc RawGet(RawGetRequest) returns (RawGetResponse) {}
+    rpc RawPut(RawPutRequest) returns (RawPutResponse) {}
+    rpc RawDelete(RawDeleteRequest) returns (RawDeleteResponse) {}
 
     // Raft commands b/w two kv servers.
 }

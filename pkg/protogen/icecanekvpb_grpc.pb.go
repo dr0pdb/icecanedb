@@ -19,6 +19,8 @@ const _ = grpc.SupportPackageIsVersion7
 type IcecaneKVClient interface {
 	// RawKV commands.
 	RawGet(ctx context.Context, in *RawGetRequest, opts ...grpc.CallOption) (*RawGetResponse, error)
+	RawPut(ctx context.Context, in *RawPutRequest, opts ...grpc.CallOption) (*RawPutResponse, error)
+	RawDelete(ctx context.Context, in *RawDeleteRequest, opts ...grpc.CallOption) (*RawDeleteResponse, error)
 }
 
 type icecaneKVClient struct {
@@ -38,12 +40,32 @@ func (c *icecaneKVClient) RawGet(ctx context.Context, in *RawGetRequest, opts ..
 	return out, nil
 }
 
+func (c *icecaneKVClient) RawPut(ctx context.Context, in *RawPutRequest, opts ...grpc.CallOption) (*RawPutResponse, error) {
+	out := new(RawPutResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/RawPut", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *icecaneKVClient) RawDelete(ctx context.Context, in *RawDeleteRequest, opts ...grpc.CallOption) (*RawDeleteResponse, error) {
+	out := new(RawDeleteResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/RawDelete", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IcecaneKVServer is the server API for IcecaneKV service.
 // All implementations must embed UnimplementedIcecaneKVServer
 // for forward compatibility
 type IcecaneKVServer interface {
 	// RawKV commands.
 	RawGet(context.Context, *RawGetRequest) (*RawGetResponse, error)
+	RawPut(context.Context, *RawPutRequest) (*RawPutResponse, error)
+	RawDelete(context.Context, *RawDeleteRequest) (*RawDeleteResponse, error)
 	mustEmbedUnimplementedIcecaneKVServer()
 }
 
@@ -53,6 +75,12 @@ type UnimplementedIcecaneKVServer struct {
 
 func (UnimplementedIcecaneKVServer) RawGet(context.Context, *RawGetRequest) (*RawGetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+func (UnimplementedIcecaneKVServer) RawPut(context.Context, *RawPutRequest) (*RawPutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawPut not implemented")
+}
+func (UnimplementedIcecaneKVServer) RawDelete(context.Context, *RawDeleteRequest) (*RawDeleteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawDelete not implemented")
 }
 func (UnimplementedIcecaneKVServer) mustEmbedUnimplementedIcecaneKVServer() {}
 
@@ -85,6 +113,42 @@ func _IcecaneKV_RawGet_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IcecaneKV_RawPut_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RawPutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).RawPut(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/RawPut",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).RawPut(ctx, req.(*RawPutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IcecaneKV_RawDelete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RawDeleteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).RawDelete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/RawDelete",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).RawDelete(ctx, req.(*RawDeleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _IcecaneKV_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "icecanedbpb.IcecaneKV",
 	HandlerType: (*IcecaneKVServer)(nil),
@@ -92,6 +156,14 @@ var _IcecaneKV_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RawGet",
 			Handler:    _IcecaneKV_RawGet_Handler,
+		},
+		{
+			MethodName: "RawPut",
+			Handler:    _IcecaneKV_RawPut_Handler,
+		},
+		{
+			MethodName: "RawDelete",
+			Handler:    _IcecaneKV_RawDelete_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

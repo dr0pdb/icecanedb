@@ -1,16 +1,22 @@
 package icecanekv
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
+	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
+	codes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // KVServer is the Key-value server that receives and processes requests from clients.
 type KVServer struct {
+	pb.UnimplementedIcecaneKVServer
+
 	// stores raft logs
 	raftStorage *storage.Storage
 	raftPath    string
@@ -21,6 +27,21 @@ type KVServer struct {
 
 	// the mvcc layer for the key-value data
 	kvMvcc *mvcc.MVCC
+}
+
+// RawGet returns the value associated with the given key.
+func (kvs *KVServer) RawGet(context.Context, *pb.RawGetRequest) (*pb.RawGetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// RawPut puts the value in the db for the given key.
+func (kvs *KVServer) RawPut(context.Context, *pb.RawPutRequest) (*pb.RawPutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawPut not implemented")
+}
+
+// RawDelete deletes the value in the db for the given key.
+func (kvs *KVServer) RawDelete(context.Context, *pb.RawDeleteRequest) (*pb.RawDeleteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawDelete not implemented")
 }
 
 // NewKVServer creates a new instance of KV Server
