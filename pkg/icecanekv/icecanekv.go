@@ -7,6 +7,7 @@ import (
 
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
+	"github.com/dr0pdb/icecanedb/pkg/raft"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 	codes "google.golang.org/grpc/codes"
@@ -14,12 +15,16 @@ import (
 )
 
 // KVServer is the Key-value server that receives and processes requests from clients.
+// TODO: A lot of these fields may not be required. For eg. We won't be using kvMvcc directly but only via raftServer.
 type KVServer struct {
 	pb.UnimplementedIcecaneKVServer
 
 	// stores raft logs
 	raftStorage *storage.Storage
 	raftPath    string
+
+	// the raft server
+	raftServer *raft.Server
 
 	// stores actual key-value data
 	kvStorage *storage.Storage
@@ -63,6 +68,7 @@ func NewKVServer(kvConfig *KVConfig) (*KVServer, error) {
 	}
 
 	kvMvcc := mvcc.NewMVCC(kvStorage)
+	raftServer := raft.NewRaftServer(kvConfig.Id, raftStorage, kvStorage, kvMvcc)
 
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{
@@ -71,6 +77,7 @@ func NewKVServer(kvConfig *KVConfig) (*KVServer, error) {
 		kvStorage:   kvStorage,
 		kvPath:      kvPath,
 		kvMvcc:      kvMvcc,
+		raftServer:  raftServer,
 	}, nil
 }
 

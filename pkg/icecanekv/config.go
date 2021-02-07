@@ -10,6 +10,7 @@ const (
 
 // KVConfig defines the configuration settings for IcecaneKV
 type KVConfig struct {
+	Id       uint64
 	DbPath   string
 	LogLevel string
 }
