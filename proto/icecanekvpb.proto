@@ -2,6 +2,7 @@ syntax = "proto3";
 package icecanedbpb;
 
 import "kvrpcpb.proto";
+import "raftpb.proto";
 
 // IcecaneKV is the key value server.
 service IcecaneKV {
@@ -13,4 +14,5 @@ service IcecaneKV {
     rpc RawDelete(RawDeleteRequest) returns (RawDeleteResponse) {}
 
     // Raft commands b/w two kv servers.
+    rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse) {}
 }

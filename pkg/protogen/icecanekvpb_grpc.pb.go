@@ -21,6 +21,8 @@ type IcecaneKVClient interface {
 	RawGet(ctx context.Context, in *RawGetRequest, opts ...grpc.CallOption) (*RawGetResponse, error)
 	RawPut(ctx context.Context, in *RawPutRequest, opts ...grpc.CallOption) (*RawPutResponse, error)
 	RawDelete(ctx context.Context, in *RawDeleteRequest, opts ...grpc.CallOption) (*RawDeleteResponse, error)
+	// Raft commands b/w two kv servers.
+	RequestVote(ctx context.Context, in *RequestVoteRequest, opts ...grpc.CallOption) (*RequestVoteResponse, error)
 }
 
 type icecaneKVClient struct {
@@ -58,6 +60,15 @@ func (c *icecaneKVClient) RawDelete(ctx context.Context, in *RawDeleteRequest, o
 	return out, nil
 }
 
+func (c *icecaneKVClient) RequestVote(ctx context.Context, in *RequestVoteRequest, opts ...grpc.CallOption) (*RequestVoteResponse, error) {
+	out := new(RequestVoteResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/RequestVote", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IcecaneKVServer is the server API for IcecaneKV service.
 // All implementations must embed UnimplementedIcecaneKVServer
 // for forward compatibility
@@ -66,6 +77,8 @@ type IcecaneKVServer interface {
 	RawGet(context.Context, *RawGetRequest) (*RawGetResponse, error)
 	RawPut(context.Context, *RawPutRequest) (*RawPutResponse, error)
 	RawDelete(context.Context, *RawDeleteRequest) (*RawDeleteResponse, error)
+	// Raft commands b/w two kv servers.
+	RequestVote(context.Context, *RequestVoteRequest) (*RequestVoteResponse, error)
 	mustEmbedUnimplementedIcecaneKVServer()
 }
 
@@ -81,6 +94,9 @@ func (UnimplementedIcecaneKVServer) RawPut(context.Context, *RawPutRequest) (*Ra
 }
 func (UnimplementedIcecaneKVServer) RawDelete(context.Context, *RawDeleteRequest) (*RawDeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RawDelete not implemented")
+}
+func (UnimplementedIcecaneKVServer) RequestVote(context.Context, *RequestVoteRequest) (*RequestVoteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestVote not implemented")
 }
 func (UnimplementedIcecaneKVServer) mustEmbedUnimplementedIcecaneKVServer() {}
 
@@ -149,6 +165,24 @@ func _IcecaneKV_RawDelete_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IcecaneKV_RequestVote_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestVoteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).RequestVote(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/RequestVote",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).RequestVote(ctx, req.(*RequestVoteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _IcecaneKV_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "icecanedbpb.IcecaneKV",
 	HandlerType: (*IcecaneKVServer)(nil),
@@ -164,6 +198,10 @@ var _IcecaneKV_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RawDelete",
 			Handler:    _IcecaneKV_RawDelete_Handler,
+		},
+		{
+			MethodName: "RequestVote",
+			Handler:    _IcecaneKV_RequestVote_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

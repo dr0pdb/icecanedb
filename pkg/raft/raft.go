@@ -21,8 +21,12 @@ type Progress struct {
 
 // Raft todo
 type Raft struct {
+	// id of the raft node.
+	// IMPORTANT: starts from 1 so that Vote = 0 indicates no vote.
 	id uint64
 
+	// Term denotes the latest term node has seen.
+	// Vote denotes the candidate id that got the vote from this node. 0 is no one.
 	Term, Vote uint64
 
 	// stores raft logs
