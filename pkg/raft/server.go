@@ -1,10 +1,14 @@
 package raft
 
 import (
+	"context"
 	"sync"
 
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
+	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
+	codes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Server is the icecane kv raft server
@@ -24,6 +28,11 @@ type Server struct {
 	// snapshot if log size exceeds it. -1 indicates no snapshotting
 	// todo: consider passing it to raft.Raft
 	maxRaftState int64
+}
+
+// RequestVote is used by the raft candidate to request for votes.
+func (s *Server) RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestVote not implemented")
 }
 
 // NewRaftServer creates a new instance of a Raft server

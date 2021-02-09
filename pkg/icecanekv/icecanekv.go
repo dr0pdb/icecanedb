@@ -15,6 +15,7 @@ import (
 )
 
 // KVServer is the Key-value server that receives and processes requests from clients.
+// Presently, it forwards all the requests to raft.Server
 // TODO: A lot of these fields may not be required. For eg. We won't be using kvMvcc directly but only via raftServer.
 type KVServer struct {
 	pb.UnimplementedIcecaneKVServer
@@ -47,6 +48,11 @@ func (kvs *KVServer) RawPut(context.Context, *pb.RawPutRequest) (*pb.RawPutRespo
 // RawDelete deletes the value in the db for the given key.
 func (kvs *KVServer) RawDelete(context.Context, *pb.RawDeleteRequest) (*pb.RawDeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RawDelete not implemented")
+}
+
+// RequestVote is used by the raft candidate to request for votes.
+func (kvs *KVServer) RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
+	return kvs.raftServer.RequestVote(ctx, request)
 }
 
 // NewKVServer creates a new instance of KV Server
