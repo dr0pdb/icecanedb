@@ -2,6 +2,7 @@ package raft
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
@@ -95,7 +96,7 @@ func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) 
 //
 
 func (r *Raft) sendRequestVote(id uint64) {
-	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::sendRequestVote; sending vote to %d peer", id)
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote to %d peer", id))
 }
 
 func (r *Raft) initRoutines() {
