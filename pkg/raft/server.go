@@ -3,12 +3,16 @@ package raft
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
-	codes "google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+)
+
+const (
+	// ElectionTimeout is the duration for which a follower waits before becoming a candidate
+	ElectionTimeout = 200 * time.Millisecond
 )
 
 // Server is the icecane kv raft server
@@ -30,10 +34,18 @@ type Server struct {
 	maxRaftState int64
 }
 
+//
+// grpc server calls
+//
+
 // RequestVote is used by the raft candidate to request for votes.
 func (s *Server) RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RequestVote not implemented")
+	return s.raft.requestVote(ctx, request)
 }
+
+//
+// raft callbacks
+//
 
 // NewRaftServer creates a new instance of a Raft server
 func NewRaftServer(id uint64, raftStorage, kvStorage *storage.Storage, kvMvcc *mvcc.MVCC) *Server {
@@ -42,10 +54,7 @@ func NewRaftServer(id uint64, raftStorage, kvStorage *storage.Storage, kvMvcc *m
 	mu := new(sync.Mutex)
 	raft := NewRaft(id, raftStorage, applyCh, commCh)
 
-	// TODO: spin up go routines for various processes
-	// leader election, handling applyCh and commCh messages
-
-	return &Server{
+	s := &Server{
 		id:           id,
 		mu:           mu,
 		raft:         raft,
@@ -55,4 +64,6 @@ func NewRaftServer(id uint64, raftStorage, kvStorage *storage.Storage, kvMvcc *m
 		commCh:       commCh,
 		maxRaftState: -1,
 	}
+
+	return s
 }
