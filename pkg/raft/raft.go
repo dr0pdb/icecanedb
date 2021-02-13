@@ -21,6 +21,10 @@ const (
 	candidate
 )
 
+const (
+	noVote uint64 = 0
+)
+
 // Progress denotes the progress of a peer.
 // It indicates where the peer is in it's log.
 // This is only used in the leader.
@@ -95,8 +99,9 @@ func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) 
 // internal functions
 //
 
-func (r *Raft) sendRequestVote(id uint64) {
+func (r *Raft) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote to %d peer", id))
+	panic("")
 }
 
 func (r *Raft) initRoutines() {
@@ -104,12 +109,14 @@ func (r *Raft) initRoutines() {
 	go func(r *Raft) {
 		for {
 			if r.role == follower {
-				time.Sleep(ElectionTimeout)
-				if r.istate.appendReceived && r.votedFor != 0 {
+				time.Sleep(ElectionTimeout) // todo: add randomness
+
+				// either current leader is alive or I've voted for some other candidate.
+				if r.istate.appendReceived || r.votedFor != noVote {
 					r.istate.appendReceived = false
-					r.votedFor = 0 // reset vote
+					r.votedFor = noVote // reset vote
 				} else {
-					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; becoming candidate")
+					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; no append/vote request received.")
 					r.role = candidate
 					r.istate.cch <- true
 				}
@@ -123,15 +130,56 @@ func (r *Raft) initRoutines() {
 	// candidate
 	go func(r *Raft) {
 		for {
-			<-r.istate.cch
-			if r.role != candidate {
-				log.Fatal("raft::raft::followerroutine; reached invalid state")
-			}
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; became candidate; requesting votes")
-			for k := range r.allProgress {
-				if k != r.id {
-					r.sendRequestVote(k)
+			if r.role == candidate {
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; became candidate; requesting votes")
+				t := time.NewTicker(ElectionTimeout)
+				cnt := 1 // counting self votes
+				allcnt := 1
+				voteRec := make(chan *pb.RequestVoteResponse, len(r.allProgress))
+
+				for i := range r.allProgress {
+					if i != r.id {
+						go func(i uint64) {
+							resp, err := r.sendRequestVote(i)
+							if err != nil {
+								// todo: handle error
+							}
+							voteRec <- resp
+						}(i)
+					}
 				}
+
+				for {
+					tobreak := false
+					select {
+					case resp := <-voteRec:
+						allcnt++
+						if resp.VoteGranted {
+							cnt++
+							log.WithFields(log.Fields{"id": r.id}).Debug(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
+						}
+						if allcnt == len(r.allProgress) {
+							tobreak = true
+						}
+					case <-t.C:
+						log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; leader election timed out. restarting..")
+						tobreak = true
+					}
+
+					if tobreak {
+						break
+					}
+				}
+
+				if isMajiority(cnt, allcnt) {
+					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; received majiority of votes. becoming leader")
+					r.role = leader
+					r.istate.lch <- true
+				}
+
+			} else {
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; sleeping on the candidate chan")
+				<-r.istate.cch // wait to become the candidate
 			}
 		}
 	}(r)
@@ -153,7 +201,7 @@ func NewRaft(id uint64, raftStorage *storage.Storage, applyCh chan raftServerApp
 	r := &Raft{
 		id:          id,
 		currentTerm: 0, // redundant but still good for clarity to explicitly set to 0
-		votedFor:    0,
+		votedFor:    noVote,
 		raftStorage: raftStorage,
 		commitIndex: 0,
 		lastApplied: 0,

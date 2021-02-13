@@ -2,12 +2,14 @@ package raft
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -46,6 +48,12 @@ func (s *Server) RequestVote(ctx context.Context, request *pb.RequestVoteRequest
 //
 // raft callbacks
 //
+
+func (s *Server) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; sending vote to %d peer", id))
+
+	return nil, nil
+}
 
 // NewRaftServer creates a new instance of a Raft server
 func NewRaftServer(id uint64, raftStorage, kvStorage *storage.Storage, kvMvcc *mvcc.MVCC) *Server {
