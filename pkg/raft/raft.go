@@ -12,6 +12,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
+	MinElectionTimeout = 200 * time.Millisecond
+	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
+	MaxElectionTimeout = 2 * MinElectionTimeout
+)
+
 // PeerRole defines the role of a raft peer.
 type PeerRole uint64
 
@@ -73,6 +80,7 @@ type Raft struct {
 	role PeerRole
 
 	// applyCh is used to communicate with the wrapper server
+	// raft -> server
 	applyCh chan raftServerApplyMsg
 	commCh  chan raftServerCommunicationMsg
 
@@ -80,10 +88,14 @@ type Raft struct {
 }
 
 type internalState struct {
-	fch, lch, cch chan bool
+	// grpc requests from the client
+	clientRequests chan interface{}
 
-	// variable indicating whether an append was received in the timeout window
-	appendReceived bool
+	// grpc requests from the leader
+	leaderRequests chan interface{}
+
+	// grpc requests for requesting votes
+	requestVoteRequests chan *pb.RequestVoteRequest
 }
 
 //
@@ -104,96 +116,109 @@ func (r *Raft) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
 	panic("")
 }
 
-func (r *Raft) initRoutines() {
-	// follower
-	go func(r *Raft) {
+func (r *Raft) follower() {
+	t := time.NewTicker(getElectionTimeout())
+	appendReceived := false
+
+	for {
+		tobreak := false
+		select {
+		case <-r.istate.clientRequests: // client requests are ignored if the peer is not the leader
+			log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; server request received")
+		case <-r.istate.leaderRequests:
+			log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; leader request received")
+			// apply it.
+			t.Reset(getElectionTimeout())
+		case <-r.istate.requestVoteRequests:
+			log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; request for vote received")
+			// give vote
+			t.Reset(getElectionTimeout())
+		case <-t.C:
+			if appendReceived || r.votedFor != noVote {
+				appendReceived = false
+				r.votedFor = noVote // todo: is it required/correct?
+				t.Reset(getElectionTimeout())
+			} else {
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; no append/vote request received. timeout")
+				r.role = candidate
+				t.Stop()
+				tobreak = true
+			}
+		}
+
+		if tobreak {
+			break
+		}
+	}
+}
+
+func (r *Raft) candidate() {
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; became candidate;")
+	for {
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; requesting votes")
+		t := time.NewTicker(getElectionTimeout())
+		cnt := 1 // counting self votes
+		allcnt := 1
+		voteRec := make(chan *pb.RequestVoteResponse, len(r.allProgress))
+
+		for i := range r.allProgress {
+			if i != r.id {
+				go func(i uint64) {
+					resp, err := r.sendRequestVote(i)
+					if err != nil {
+						// todo: handle error
+					}
+					voteRec <- resp
+				}(i)
+			}
+		}
+
+		for {
+			tobreak := false
+			select {
+			case resp := <-voteRec:
+				allcnt++
+				if resp.VoteGranted {
+					cnt++
+					log.WithFields(log.Fields{"id": r.id}).Debug(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
+				}
+				if allcnt == len(r.allProgress) {
+					tobreak = true
+				}
+			case <-t.C:
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; leader election timed out. restarting..")
+				tobreak = true
+			}
+
+			if tobreak {
+				break
+			}
+		}
+
+		if isMajiority(cnt, allcnt) {
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; received majiority of votes. becoming leader")
+			r.role = leader
+			break
+		}
+	}
+}
+
+func (r *Raft) leader() {
+
+}
+
+func (r *Raft) init() {
+	go func() {
 		for {
 			if r.role == follower {
-				time.Sleep(ElectionTimeout) // todo: add randomness
-
-				// either current leader is alive or I've voted for some other candidate.
-				if r.istate.appendReceived || r.votedFor != noVote {
-					r.istate.appendReceived = false
-					r.votedFor = noVote // reset vote
-				} else {
-					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; no append/vote request received.")
-					r.role = candidate
-					r.istate.cch <- true
-				}
+				r.follower()
+			} else if r.role == candidate {
+				r.candidate()
 			} else {
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; sleeping on the follower chan")
-				<-r.istate.fch // wait to become the follower
+				r.leader()
 			}
 		}
-	}(r)
-
-	// candidate
-	go func(r *Raft) {
-		for {
-			if r.role == candidate {
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; became candidate; requesting votes")
-				t := time.NewTicker(ElectionTimeout)
-				cnt := 1 // counting self votes
-				allcnt := 1
-				voteRec := make(chan *pb.RequestVoteResponse, len(r.allProgress))
-
-				for i := range r.allProgress {
-					if i != r.id {
-						go func(i uint64) {
-							resp, err := r.sendRequestVote(i)
-							if err != nil {
-								// todo: handle error
-							}
-							voteRec <- resp
-						}(i)
-					}
-				}
-
-				for {
-					tobreak := false
-					select {
-					case resp := <-voteRec:
-						allcnt++
-						if resp.VoteGranted {
-							cnt++
-							log.WithFields(log.Fields{"id": r.id}).Debug(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
-						}
-						if allcnt == len(r.allProgress) {
-							tobreak = true
-						}
-					case <-t.C:
-						log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; leader election timed out. restarting..")
-						tobreak = true
-					}
-
-					if tobreak {
-						break
-					}
-				}
-
-				if isMajiority(cnt, allcnt) {
-					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; received majiority of votes. becoming leader")
-					r.role = leader
-					r.istate.lch <- true
-				}
-
-			} else {
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; sleeping on the candidate chan")
-				<-r.istate.cch // wait to become the candidate
-			}
-		}
-	}(r)
-
-	// leader
-	go func(r *Raft) {
-		for {
-			if r.role == leader {
-
-			} else {
-				<-r.istate.lch // wait to become the leader
-			}
-		}
-	}(r)
+	}()
 }
 
 // NewRaft initializes a new raft state machine.
@@ -210,12 +235,10 @@ func NewRaft(id uint64, raftStorage *storage.Storage, applyCh chan raftServerApp
 		applyCh:     applyCh,
 		commCh:      commCh,
 		istate: &internalState{
-			lch: make(chan bool, 3),
-			cch: make(chan bool, 3),
-			fch: make(chan bool, 3),
+			clientRequests:      make(chan interface{}), // todo: consider some buffer?
+			leaderRequests:      make(chan interface{}),
+			requestVoteRequests: make(chan *pb.RequestVoteRequest),
 		},
 	}
-
-	r.initRoutines()
 	return r
 }

@@ -4,17 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	// ElectionTimeout is the duration for which a follower waits before becoming a candidate
-	ElectionTimeout = 200 * time.Millisecond
 )
 
 // Server is the icecane kv raft server
