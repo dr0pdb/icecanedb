@@ -35,6 +35,10 @@ type KVServer struct {
 	kvMvcc *mvcc.MVCC
 }
 
+//
+// grpc server calls - incoming to this server from other peers/client
+//
+
 // RawGet returns the value associated with the given key.
 func (kvs *KVServer) RawGet(context.Context, *pb.RawGetRequest) (*pb.RawGetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
@@ -50,9 +54,18 @@ func (kvs *KVServer) RawDelete(context.Context, *pb.RawDeleteRequest) (*pb.RawDe
 	return nil, status.Errorf(codes.Unimplemented, "method RawDelete not implemented")
 }
 
-// RequestVote is used by the raft candidate to request for votes.
+// RequestVote is used by the raft candidate to request for votes. The current server has to respond to this req by casting vote or decling.
 func (kvs *KVServer) RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
 	return kvs.raftServer.RequestVote(ctx, request)
+}
+
+//
+// grpc client calls - outgoing from this server to other peers
+//
+
+// SendRequestVote is used by the raft candidate to send the request for votes to other peers.
+func (kvs *KVServer) SendRequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendRequestVote not implemented")
 }
 
 // NewKVServer creates a new instance of KV Server
@@ -74,7 +87,7 @@ func NewKVServer(kvConfig *KVConfig) (*KVServer, error) {
 	}
 
 	kvMvcc := mvcc.NewMVCC(kvStorage)
-	raftServer := raft.NewRaftServer(kvConfig.Id, raftStorage, kvStorage, kvMvcc)
+	raftServer := raft.NewRaftServer(kvConfig.ID, raftStorage, kvStorage, kvMvcc)
 
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{

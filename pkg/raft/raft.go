@@ -79,11 +79,6 @@ type Raft struct {
 	// this peer's role
 	role PeerRole
 
-	// applyCh is used to communicate with the wrapper server
-	// raft -> server
-	applyCh chan raftServerApplyMsg
-	commCh  chan raftServerCommunicationMsg
-
 	istate *internalState
 }
 
@@ -96,6 +91,11 @@ type internalState struct {
 
 	// grpc requests for requesting votes
 	requestVoteRequests chan *pb.RequestVoteRequest
+
+	// applyCh is used to communicate with the wrapper server
+	// raft -> server
+	applyCh chan raftServerApplyMsg
+	commCh  chan raftServerCommunicationMsg
 }
 
 //
@@ -117,6 +117,7 @@ func (r *Raft) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
 }
 
 func (r *Raft) follower() {
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; became follower;")
 	t := time.NewTicker(getElectionTimeout())
 	appendReceived := false
 
@@ -127,12 +128,11 @@ func (r *Raft) follower() {
 			log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; server request received")
 		case <-r.istate.leaderRequests:
 			log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; leader request received")
+			appendReceived = true
 			// apply it.
-			t.Reset(getElectionTimeout())
-		case <-r.istate.requestVoteRequests:
-			log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; request for vote received")
+		case req := <-r.istate.requestVoteRequests:
+			log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Debug("raft::raft::followerroutine; request for vote received")
 			// give vote
-			t.Reset(getElectionTimeout())
 		case <-t.C:
 			if appendReceived || r.votedFor != noVote {
 				appendReceived = false
@@ -209,13 +209,16 @@ func (r *Raft) leader() {
 
 func (r *Raft) init() {
 	go func() {
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
 		for {
 			if r.role == follower {
 				r.follower()
 			} else if r.role == candidate {
 				r.candidate()
-			} else {
+			} else if r.role == leader {
 				r.leader()
+			} else {
+				break
 			}
 		}
 	}()
@@ -232,12 +235,12 @@ func NewRaft(id uint64, raftStorage *storage.Storage, applyCh chan raftServerApp
 		lastApplied: 0,
 		allProgress: make(map[uint64]*Progress),
 		role:        follower, // starts as a follower
-		applyCh:     applyCh,
-		commCh:      commCh,
 		istate: &internalState{
 			clientRequests:      make(chan interface{}), // todo: consider some buffer?
 			leaderRequests:      make(chan interface{}),
 			requestVoteRequests: make(chan *pb.RequestVoteRequest),
+			applyCh:             applyCh,
+			commCh:              commCh,
 		},
 	}
 	return r
