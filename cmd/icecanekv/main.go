@@ -2,6 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/dr0pdb/icecanedb/pkg/icecanekv"
@@ -46,4 +51,28 @@ func main() {
 	)
 
 	icecanedbpb.RegisterIcecaneKVServer(grpcServer, server)
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%s", conf.Port))
+	if err != nil {
+		log.Fatalf("%V", err)
+	}
+
+	subSignal(grpcServer)
+
+	err = grpcServer.Serve(listener)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Info("Server stopped.")
+}
+
+// https://gobyexample.com/signals
+func subSignal(grpcServer *grpc.Server) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigCh
+		log.Infof("Exiting server")
+		grpcServer.Stop()
+	}()
 }

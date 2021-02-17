@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	common "github.com/dr0pdb/icecanedb/pkg/common"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
@@ -96,6 +97,10 @@ type internalState struct {
 	// raft -> server
 	applyCh chan raftServerApplyMsg
 	commCh  chan raftServerCommunicationMsg
+
+	// running indicates if the server is running or not.
+	// to stop the server, set it to false
+	running common.ProtectedBool
 }
 
 //
@@ -209,7 +214,9 @@ func (r *Raft) leader() {
 
 func (r *Raft) init() {
 	go func() {
+		time.Sleep(2 * time.Second) // allow starting grpc server
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
+		r.istate.running.Set(true)
 		for {
 			if r.role == follower {
 				r.follower()
@@ -217,7 +224,8 @@ func (r *Raft) init() {
 				r.candidate()
 			} else if r.role == leader {
 				r.leader()
-			} else {
+			} else if !r.istate.running.Get() {
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; stopping;")
 				break
 			}
 		}
@@ -243,5 +251,6 @@ func NewRaft(id uint64, raftStorage *storage.Storage, applyCh chan raftServerApp
 			commCh:              commCh,
 		},
 	}
+	r.init()
 	return r
 }

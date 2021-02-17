@@ -48,6 +48,15 @@ func (conf *KVConfig) Validate() error {
 	if conf.ID == 0 {
 		return fmt.Errorf("invalid id provided in config")
 	}
+	if conf.DbPath == "" {
+		return fmt.Errorf("invalid db path provided in config")
+	}
+	if conf.Address == "" {
+		return fmt.Errorf("invalid address provided in config")
+	}
+	if conf.Port == "" {
+		return fmt.Errorf("invalid port provided in config")
+	}
 	return nil
 }
 
