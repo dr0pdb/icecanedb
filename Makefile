@@ -21,6 +21,7 @@ build-example-storage:
 	go build -o _output/example_storage -v ./examples/storage/
 
 .PHONY: build-run-kv
+build-run-kv:
 	go build -o _output/kv -v ./cmd/icecanekv/
 	./_output/kv -configFilePath=./cluster/1.yaml
 

@@ -31,8 +31,8 @@ type KVConfig struct {
 	Address  string `yaml:"address"`
 	Port     string `yaml:"port"`
 
-	// Peers contains the list of all the icecanekv instances including this server. key - ID, value - Peer details.
-	Peers map[uint64]Peer `yaml:"peers"`
+	// Peers contains the list of all the icecanekv instances excluding this server.
+	Peers []Peer `yaml:"peers"`
 }
 
 // NewDefaultKVConfig returns a new default key vault configuration.
@@ -69,5 +69,20 @@ func (conf *KVConfig) LoadFromFile(path string) {
 
 	log.WithFields(log.Fields{"config": fconf}).Debug("icecanekv::config::LoadFromFile; read contents from the file")
 
-	// populate in the config.
+	// populate fields
+	if fconf.ID != 0 {
+		conf.ID = fconf.ID
+	}
+	if fconf.DbPath != "" {
+		conf.DbPath = fconf.DbPath
+	}
+	if fconf.Address != "" {
+		conf.Address = fconf.Address
+	}
+	if fconf.Port != "" {
+		conf.Port = fconf.Port
+	}
+	if len(fconf.Peers) != 0 {
+		conf.Peers = fconf.Peers
+	}
 }
