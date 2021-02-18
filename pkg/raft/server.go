@@ -5,11 +5,17 @@ import (
 	"fmt"
 	"sync"
 
+	common "github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 )
+
+type peer struct {
+	address string
+	port    string
+}
 
 // Server is the icecane kv raft server
 type Server struct {
@@ -28,6 +34,9 @@ type Server struct {
 	// snapshot if log size exceeds it. -1 indicates no snapshotting
 	// todo: consider passing it to raft.Raft
 	maxRaftState int64
+
+	// peers is the list of raft peers of this server
+	peers map[uint64]peer
 }
 
 //
@@ -50,14 +59,14 @@ func (s *Server) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
 }
 
 // NewRaftServer creates a new instance of a Raft server
-func NewRaftServer(id uint64, raftStorage, kvStorage *storage.Storage, kvMvcc *mvcc.MVCC) *Server {
+func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.Storage, kvMvcc *mvcc.MVCC) *Server {
 	applyCh := make(chan raftServerApplyMsg)
 	commCh := make(chan raftServerCommunicationMsg)
 	mu := new(sync.Mutex)
-	raft := NewRaft(id, raftStorage, applyCh, commCh)
+	raft := NewRaft(kvConfig, raftStorage, applyCh, commCh)
 
 	s := &Server{
-		id:           id,
+		id:           kvConfig.ID,
 		mu:           mu,
 		raft:         raft,
 		kvStorage:    kvStorage,

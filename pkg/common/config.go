@@ -1,4 +1,4 @@
-package icecanekv
+package common
 
 import (
 	"fmt"

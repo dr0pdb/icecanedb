@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/icecanekv"
 	icecanedbpb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"google.golang.org/grpc"
@@ -23,7 +24,7 @@ var (
 
 func main() {
 	flag.Parse()
-	conf := icecanekv.NewDefaultKVConfig()
+	conf := common.NewDefaultKVConfig()
 
 	if *configFilePath != "" {
 		conf.LoadFromFile(*configFilePath)

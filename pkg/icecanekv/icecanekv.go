@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
@@ -69,7 +70,7 @@ func (kvs *KVServer) SendRequestVote(ctx context.Context, request *pb.RequestVot
 }
 
 // NewKVServer creates a new instance of KV Server
-func NewKVServer(kvConfig *KVConfig) (*KVServer, error) {
+func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 	log.Info("icecanekv::icecanekv::NewKVServer; started")
 	raftPath, kvPath, err := prepareDirectories(kvConfig)
 	if err != nil {
@@ -87,7 +88,7 @@ func NewKVServer(kvConfig *KVConfig) (*KVServer, error) {
 	}
 
 	kvMvcc := mvcc.NewMVCC(kvStorage)
-	raftServer := raft.NewRaftServer(kvConfig.ID, raftStorage, kvStorage, kvMvcc)
+	raftServer := raft.NewRaftServer(kvConfig, raftStorage, kvStorage, kvMvcc)
 
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{
@@ -101,7 +102,7 @@ func NewKVServer(kvConfig *KVConfig) (*KVServer, error) {
 }
 
 // prepareDirectories creates relevant kv server directories inside the db path.
-func prepareDirectories(kvConfig *KVConfig) (string, string, error) {
+func prepareDirectories(kvConfig *common.KVConfig) (string, string, error) {
 	log.Info("icecanekv::icecanekv::prepareDirectories; started")
 	dbPath := kvConfig.DbPath
 	kvPath := filepath.Join(dbPath, "kv")

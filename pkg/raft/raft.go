@@ -233,9 +233,9 @@ func (r *Raft) init() {
 }
 
 // NewRaft initializes a new raft state machine.
-func NewRaft(id uint64, raftStorage *storage.Storage, applyCh chan raftServerApplyMsg, commCh chan raftServerCommunicationMsg) *Raft {
+func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, applyCh chan raftServerApplyMsg, commCh chan raftServerCommunicationMsg) *Raft {
 	r := &Raft{
-		id:          id,
+		id:          kvConfig.ID,
 		currentTerm: 0, // redundant but still good for clarity to explicitly set to 0
 		votedFor:    noVote,
 		raftStorage: raftStorage,
