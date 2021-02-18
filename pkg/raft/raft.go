@@ -9,8 +9,6 @@ import (
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
-	codes "google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -80,6 +78,9 @@ type Raft struct {
 	// this peer's role
 	role PeerRole
 
+	// kvConfig is the complete key value config.
+	kvConfig *common.KVConfig
+
 	istate *internalState
 }
 
@@ -90,8 +91,9 @@ type internalState struct {
 	// grpc requests from the leader
 	leaderRequests chan interface{}
 
-	// grpc requests for requesting votes
-	requestVoteRequests chan *pb.RequestVoteRequest
+	// grpc requests for requesting votes and responses
+	requestVoteRequests  chan *pb.RequestVoteRequest
+	requestVoteResponses chan bool
 
 	// applyCh is used to communicate with the wrapper server
 	// raft -> server
@@ -109,7 +111,28 @@ type internalState struct {
 
 // RequestVote is used by the raft candidate to request for votes.
 func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RequestVote not implemented")
+	r.istate.requestVoteRequests <- request
+	t := time.NewTicker(getElectionTimeout())
+	voteGranted := false
+	for {
+		tobreak := false
+		select {
+		case granted := <-r.istate.requestVoteResponses:
+			voteGranted = granted
+			tobreak = true
+		case <-t.C:
+			return nil, fmt.Errorf("request timeout")
+		}
+
+		if tobreak {
+			break
+		}
+	}
+	return &pb.RequestVoteResponse{
+		Term:        r.currentTerm,
+		VoteGranted: voteGranted,
+		VoterId:     r.id,
+	}, nil
 }
 
 //
@@ -137,14 +160,18 @@ func (r *Raft) follower() {
 			// apply it.
 		case req := <-r.istate.requestVoteRequests:
 			log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Debug("raft::raft::followerroutine; request for vote received")
-			// give vote
+			if req.Term >= r.currentTerm && r.votedFor == noVote && r.isUpToDate(req) {
+				r.istate.requestVoteResponses <- true
+			} else {
+				r.istate.requestVoteResponses <- false
+			}
 		case <-t.C:
 			if appendReceived || r.votedFor != noVote {
 				appendReceived = false
 				r.votedFor = noVote // todo: is it required/correct?
 				t.Reset(getElectionTimeout())
 			} else {
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; no append/vote request received. timeout")
+				log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; no append/vote request received. timeout")
 				r.role = candidate
 				t.Stop()
 				tobreak = true
@@ -155,6 +182,17 @@ func (r *Raft) follower() {
 			break
 		}
 	}
+}
+
+// isUpToDate returns if the candidate's log is to update in comparison to this node.
+// it compares the log of the candidate with this node's log
+// for the last entry of the committed log,
+// if it's terms are different, we favour the later term
+// in case of tie, we favour the index of the last term.
+// for more info check section 5.4.1 last paragraph of the paper.
+func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
+	// TODO: implement
+	return true
 }
 
 func (r *Raft) candidate() {
@@ -250,6 +288,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, applyCh ch
 			applyCh:             applyCh,
 			commCh:              commCh,
 		},
+		kvConfig: kvConfig,
 	}
 	r.init()
 	return r

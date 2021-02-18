@@ -12,11 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type peer struct {
-	address string
-	port    string
-}
-
 // Server is the icecane kv raft server
 type Server struct {
 	mu      *sync.Mutex
@@ -35,8 +30,7 @@ type Server struct {
 	// todo: consider passing it to raft.Raft
 	maxRaftState int64
 
-	// peers is the list of raft peers of this server
-	peers map[uint64]peer
+	kvConfig *common.KVConfig
 }
 
 //
@@ -74,6 +68,7 @@ func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.St
 		applyCh:      applyCh,
 		commCh:       commCh,
 		maxRaftState: -1,
+		kvConfig:     kvConfig,
 	}
 
 	return s

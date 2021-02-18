@@ -1,5 +1,5 @@
 id: 1
-dbPath: /tmp/icecanekv/1/
+dbPath: ./_output/icecanekv/1/
 address: 127.0.0.1
 port: 9001
 peers:
