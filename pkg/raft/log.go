@@ -1,5 +1,7 @@
 package raft
 
+import "fmt"
+
 // raftLog is serialized and stored into the raft storage
 type raftLog struct {
 	term    uint64
@@ -27,6 +29,24 @@ func (rl *raftLog) toBytes() []byte {
 	return res
 }
 
-func deserializeRaftLog([]byte) (*raftLog, error) {
-	panic("not implemented")
+func deserializeRaftLog(l []byte) (*raftLog, error) {
+	if len(l) < 8 {
+		return nil, fmt.Errorf("invalid log bytes")
+	}
+	var term uint64 = 0
+
+	term |= uint64(l[0])
+	term |= uint64(l[1]) << 8
+	term |= uint64(l[2]) << 16
+	term |= uint64(l[3]) << 24
+	term |= uint64(l[4]) << 32
+	term |= uint64(l[5]) << 40
+	term |= uint64(l[6]) << 48
+	term |= uint64(l[7]) << 56
+
+	cmd := string(l[8:])
+	return &raftLog{
+		term:    term,
+		command: cmd,
+	}, nil
 }
