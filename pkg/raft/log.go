@@ -1,6 +1,10 @@
 package raft
 
-import "fmt"
+import (
+	"fmt"
+
+	common "github.com/dr0pdb/icecanedb/pkg/common"
+)
 
 // raftLog is serialized and stored into the raft storage
 type raftLog struct {
@@ -9,17 +13,7 @@ type raftLog struct {
 }
 
 func (rl *raftLog) toBytes() []byte {
-	res := make([]byte, 8)
-
-	// encode term in first 8 bytes
-	res[0] = uint8(rl.term) // last 1 byte of term
-	res[1] = uint8(rl.term >> 8)
-	res[2] = uint8(rl.term >> 16)
-	res[3] = uint8(rl.term >> 24)
-	res[4] = uint8(rl.term >> 32)
-	res[5] = uint8(rl.term >> 40)
-	res[6] = uint8(rl.term >> 48)
-	res[7] = uint8(rl.term >> 56)
+	res := common.U64ToByte(rl.term)
 
 	b := []byte(rl.command)
 	for _, sb := range b {

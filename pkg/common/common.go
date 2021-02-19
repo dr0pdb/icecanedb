@@ -43,3 +43,20 @@ func (b *ProtectedString) Get() string {
 	defer b.m.RUnlock()
 	return b.value
 }
+
+// U64ToByte converts a uint64 to []byte
+func U64ToByte(num uint64) []byte {
+	res := make([]byte, 8)
+
+	// encode term in first 8 bytes
+	res[0] = uint8(num) // last 1 byte of term
+	res[1] = uint8(num >> 8)
+	res[2] = uint8(num >> 16)
+	res[3] = uint8(num >> 24)
+	res[4] = uint8(num >> 32)
+	res[5] = uint8(num >> 40)
+	res[6] = uint8(num >> 48)
+	res[7] = uint8(num >> 56)
+
+	return res
+}

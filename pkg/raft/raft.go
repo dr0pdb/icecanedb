@@ -191,7 +191,20 @@ func (r *Raft) follower() {
 // in case of tie, we favour the index of the last term.
 // for more info check section 5.4.1 last paragraph of the paper.
 func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
-	// TODO: implement
+	b, err := r.raftStorage.Get(common.U64ToByte(r.commitIndex), &storage.ReadOptions{})
+	if err != nil {
+		return false
+	}
+	rl, err := deserializeRaftLog(b)
+	if err != nil {
+		return false
+	}
+
+	// we decline if the candidate log is not at least up to date as us.
+	if rl.term > req.LastLogTerm || r.commitIndex > req.LastLogIndex {
+		return false
+	}
+
 	return true
 }
 
