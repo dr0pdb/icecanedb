@@ -1,0 +1,17 @@
+id: 2
+dbPath: ./_output/icecanekv/2/
+address: 127.0.0.1
+port: 9002
+peers:
+  -
+    id: 1
+    address: 127.0.0.1
+    port: 9001
+  - 
+    id: 3
+    address: 127.0.0.1
+    port: 9003
+  - 
+    id: 4
+    address: 127.0.0.1
+    port: 9004

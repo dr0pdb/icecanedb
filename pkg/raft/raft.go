@@ -187,22 +187,26 @@ func (r *Raft) follower() {
 // isUpToDate returns if the candidate's log is to update in comparison to this node.
 // it compares the log of the candidate with this node's log
 // for the last entry of the committed log,
-// if it's terms are different, we favour the later term
+// if it's terms are different, we favour the later term.
 // in case of tie, we favour the index of the last term.
 // for more info check section 5.4.1 last paragraph of the paper.
 func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
-	b, err := r.raftStorage.Get(common.U64ToByte(r.commitIndex), &storage.ReadOptions{})
-	if err != nil {
-		return false
-	}
-	rl, err := deserializeRaftLog(b)
-	if err != nil {
-		return false
-	}
+	// commit Index is 0 when the server just starts.
+	// In this case, the candidate will always be at least up to date as us.
+	if r.commitIndex > 0 {
+		b, err := r.raftStorage.Get(common.U64ToByte(r.commitIndex), &storage.ReadOptions{})
+		if err != nil {
+			return false
+		}
+		rl, err := deserializeRaftLog(b)
+		if err != nil {
+			return false
+		}
 
-	// we decline if the candidate log is not at least up to date as us.
-	if rl.term > req.LastLogTerm || r.commitIndex > req.LastLogIndex {
-		return false
+		// we decline if the candidate log is not at least up to date as us.
+		if rl.term > req.LastLogTerm || r.commitIndex > req.LastLogIndex {
+			return false
+		}
 	}
 
 	return true
