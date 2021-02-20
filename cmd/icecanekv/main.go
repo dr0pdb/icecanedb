@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -18,16 +17,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	configFilePath = flag.String("configFilePath", "", "defines the config file path for the kv server.")
-)
-
 func main() {
-	flag.Parse()
+	configFilePath := os.Getenv("ICECANEKV_CONFIG_FILE")
 	conf := common.NewDefaultKVConfig()
 
-	if *configFilePath != "" {
-		conf.LoadFromFile(*configFilePath)
+	if configFilePath != "" {
+		conf.LoadFromFile(configFilePath)
 	}
 	err := conf.Validate()
 	if err != nil {

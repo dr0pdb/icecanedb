@@ -23,7 +23,8 @@ build-example-storage:
 .PHONY: build-run-kv
 build-run-kv:
 	go build -o _output/kv -v ./cmd/icecanekv/
-	./_output/kv -configFilePath=./cluster/1.yaml
+	export ICECANEKV_CONFIG_FILE=./cluster/local/1.yaml
+	./_output/kv
 
 #### Dev Commands ####
 .PHONY: clean-example-directory

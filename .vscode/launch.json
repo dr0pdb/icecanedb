@@ -7,9 +7,9 @@
             "request": "launch",
             "mode": "debug",
             "program": "${file}",
-            "args": [
-                "-configFilePath=${workspaceFolder}/cluster/1.yaml"
-            ]
+            "env": {
+                "ICECANEKV_CONFIG_FILE": "./cluster/local/1.yaml",
+            }
         }
     ]
 }
