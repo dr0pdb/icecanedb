@@ -141,7 +141,7 @@ func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) 
 
 func (r *Raft) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote to %d peer", id))
-	panic("")
+	panic("not implemented")
 }
 
 func (r *Raft) follower() {
@@ -268,6 +268,7 @@ func (r *Raft) leader() {
 }
 
 func (r *Raft) init() {
+	log.Info("raft::raft::init; started")
 	go func() {
 		time.Sleep(2 * time.Second) // allow starting grpc server
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
@@ -285,10 +286,12 @@ func (r *Raft) init() {
 			}
 		}
 	}()
+	log.Info("raft::raft::init; done")
 }
 
 // NewRaft initializes a new raft state machine.
 func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, applyCh chan raftServerApplyMsg, commCh chan raftServerCommunicationMsg) *Raft {
+	log.Info("raft::raft::NewRaft; started")
 	r := &Raft{
 		id:          kvConfig.ID,
 		currentTerm: 0, // redundant but still good for clarity to explicitly set to 0
@@ -308,5 +311,6 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, applyCh ch
 		kvConfig: kvConfig,
 	}
 	r.init()
+	log.Info("raft::raft::NewRaft; done")
 	return r
 }

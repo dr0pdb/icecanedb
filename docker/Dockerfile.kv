@@ -1,0 +1,7 @@
+FROM golang:1.15
+
+LABEL AUTHOR="Saurav Tiwary (srv.twry@gmail.com)"
+
+WORKDIR /go/src/icecanekv
+
+ENTRYPOINT ["docker/entrypoint-kv.sh"]

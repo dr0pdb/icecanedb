@@ -20,11 +20,9 @@ protogen:
 build-example-storage:
 	go build -o _output/example_storage -v ./examples/storage/
 
-.PHONY: build-run-kv
-build-run-kv:
-	go build -o _output/kv -v ./cmd/icecanekv/
-	export ICECANEKV_CONFIG_FILE=./cluster/local/1.yaml
-	./_output/kv
+.PHONY: run-kv-cluster
+run-kv-cluster:
+	docker-compose -f docker/docker-compose.yml up --remove-orphans
 
 #### Dev Commands ####
 .PHONY: clean-example-directory

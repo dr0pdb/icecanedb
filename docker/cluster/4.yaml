@@ -1,0 +1,16 @@
+id: 4
+address: 172.20.0.104
+port: 9000
+peers:
+  - id: 2
+    address: 172.20.0.102
+    port: 9000
+  - id: 3
+    address: 172.20.0.103
+    port: 9000
+  - id: 1
+    address: 172.20.0.101
+    port: 9000
+  - id: 5
+    address: 172.20.0.105
+    port: 9000

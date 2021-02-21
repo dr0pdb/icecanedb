@@ -54,6 +54,7 @@ func (s *Server) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
 
 // NewRaftServer creates a new instance of a Raft server
 func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.Storage, kvMvcc *mvcc.MVCC) *Server {
+	log.Info("raft::server::NewRaftServer; started")
 	applyCh := make(chan raftServerApplyMsg)
 	commCh := make(chan raftServerCommunicationMsg)
 	mu := new(sync.Mutex)
@@ -70,6 +71,6 @@ func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.St
 		maxRaftState: -1,
 		kvConfig:     kvConfig,
 	}
-
+	log.Info("raft::server::NewRaftServer; done")
 	return s
 }

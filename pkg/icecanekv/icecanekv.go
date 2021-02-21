@@ -77,12 +77,18 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 		return nil, err
 	}
 
-	raftStorage, err := storage.NewStorage(raftPath, nil)
+	rOpts := &storage.Options{
+		CreateIfNotExist: true,
+	}
+	raftStorage, err := storage.NewStorage(raftPath, rOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	kvStorage, err := storage.NewStorage(kvPath, nil)
+	sOpts := &storage.Options{
+		CreateIfNotExist: true,
+	}
+	kvStorage, err := storage.NewStorage(kvPath, sOpts)
 	if err != nil {
 		return nil, err
 	}

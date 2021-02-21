@@ -17,13 +17,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func main() {
-	configFilePath := os.Getenv("ICECANEKV_CONFIG_FILE")
-	conf := common.NewDefaultKVConfig()
+const (
+	configFilePath = "/etc/icecanekv.yaml"
+)
 
-	if configFilePath != "" {
-		conf.LoadFromFile(configFilePath)
-	}
+func main() {
+	log.Info("icecanekvmain::main::main; starting")
+	conf := common.NewDefaultKVConfig()
+	conf.LoadFromFile(configFilePath)
 	err := conf.Validate()
 	if err != nil {
 		log.Fatalf("%V", err)
@@ -33,6 +34,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("%V", err)
 	}
+
+	log.Info("icecanekvmain::main::main; setting up grpc server")
 
 	var alivePolicy = keepalive.EnforcementPolicy{
 		MinTime:             2 * time.Second, // If a client pings more than once every 2 seconds, terminate the connection
@@ -52,13 +55,15 @@ func main() {
 		log.Fatalf("%V", err)
 	}
 
+	log.Info(fmt.Sprintf("icecanekvmain::main::main; grpc server listening on port %s", conf.Port))
+
 	subSignal(grpcServer)
 
 	err = grpcServer.Serve(listener)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Info("Server stopped.")
+	log.Info("icecanekvmain::main::main; grpc server stopped.")
 }
 
 // https://gobyexample.com/signals
@@ -68,7 +73,7 @@ func subSignal(grpcServer *grpc.Server) {
 
 	go func() {
 		<-sigCh
-		log.Infof("Exiting server")
+		log.Infof("icecanekvmain::main::main; exiting server")
 		grpcServer.Stop()
 	}()
 }

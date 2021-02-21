@@ -1,0 +1,81 @@
+version: "3"
+services:
+  kv-one: &kv
+    networks:
+      icecanedb:
+        ipv4_address: 172.20.0.101
+    build:
+      context: .
+      dockerfile: Dockerfile.kv
+    container_name: kv-one
+    env_file: .env
+    volumes:
+      - "../:/go/src/icecanekv"
+      - ./cluster/1.yaml:/etc/icecanekv.yaml
+      - ../_output/1:/var/lib/icecanekv
+    security_opt:
+      - seccomp:unconfined
+    ports:
+      - "9001:9000"
+    cap_add:
+      - SYS_PTRACE
+
+  kv-two:
+    <<: *kv
+    networks:
+      icecanedb:
+        ipv4_address: 172.20.0.102
+    container_name: kv-two
+    volumes:
+      - "../:/go/src/icecanekv"
+      - ./cluster/2.yaml:/etc/icecanekv.yaml
+      - ../_output/2:/var/lib/icecanekv
+    ports:
+      - "9002:9000"
+
+  kv-three:
+    <<: *kv
+    networks:
+      icecanedb:
+        ipv4_address: 172.20.0.103
+    container_name: kv-three
+    volumes:
+      - "../:/go/src/icecanekv"
+      - ./cluster/3.yaml:/etc/icecanekv.yaml
+      - ../_output/3:/var/lib/icecanekv
+    ports:
+      - "9003:9000"
+
+  kv-four:
+    <<: *kv
+    networks:
+      icecanedb:
+        ipv4_address: 172.20.0.104
+    container_name: kv-four
+    volumes:
+      - "../:/go/src/icecanekv"
+      - ./cluster/4.yaml:/etc/icecanekv.yaml
+      - ../_output/4:/var/lib/icecanekv
+    ports:
+      - "9004:9000"
+
+  kv-five:
+    <<: *kv
+    networks:
+      icecanedb:
+        ipv4_address: 172.20.0.105
+    container_name: kv-five
+    volumes:
+      - "../:/go/src/icecanekv"
+      - ./cluster/5.yaml:/etc/icecanekv.yaml
+      - ../_output/5:/var/lib/icecanekv
+    ports:
+      - "9005:9000"
+
+networks:
+  icecanedb:
+    name: icecanedb
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/24
