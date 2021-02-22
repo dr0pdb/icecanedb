@@ -347,11 +347,13 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options *
 
 	var logNumber uint64 = 1
 
-	if options.Fs == nil {
-		options.Fs = DefaultFileSystem
-	}
-	if options.Cachesz == 0 {
-		options.Cachesz = defaultTableCacheSize
+	if options != nil {
+		if options.Fs == nil {
+			options.Fs = DefaultFileSystem
+		}
+		if options.Cachesz == 0 {
+			options.Cachesz = defaultTableCacheSize
+		}
 	}
 
 	strg := &Storage{

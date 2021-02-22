@@ -2,6 +2,7 @@ package icecanekv
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -80,16 +81,18 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 	rOpts := &storage.Options{
 		CreateIfNotExist: true,
 	}
-	raftStorage, err := storage.NewStorage(raftPath, rOpts)
+	raftStorage, err := createAndOpenStorage(raftPath, rOpts)
 	if err != nil {
+		log.Error(fmt.Sprintf("icecanekv::icecanekv::NewKVServer; error %V in creating raft storage", err))
 		return nil, err
 	}
 
 	sOpts := &storage.Options{
 		CreateIfNotExist: true,
 	}
-	kvStorage, err := storage.NewStorage(kvPath, sOpts)
+	kvStorage, err := createAndOpenStorage(kvPath, sOpts)
 	if err != nil {
+		log.Error(fmt.Sprintf("icecanekv::icecanekv::NewKVServer; error %V in creating kv storage", err))
 		return nil, err
 	}
 
@@ -125,4 +128,14 @@ func prepareDirectories(kvConfig *common.KVConfig) (string, string, error) {
 
 	log.Info("icecanekv::icecanekv::prepareDirectories; done")
 	return kvPath, raftPath, err
+}
+
+// createAndOpenStorage creates a storage and opens it.
+func createAndOpenStorage(path string, opts *storage.Options) (*storage.Storage, error) {
+	s, err := storage.NewStorage(path, opts)
+	if err != nil {
+		return nil, err
+	}
+	err = s.Open()
+	return s, err
 }

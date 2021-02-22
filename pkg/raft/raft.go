@@ -11,9 +11,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// TODO: There are a lot of inconsistencies in the file. Mixed use of boolean flags and goto.
+// make it consistent.
+
 const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = 200 * time.Millisecond
+	MinElectionTimeout = 300 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
 	MaxElectionTimeout = 2 * MinElectionTimeout
 )
@@ -88,8 +91,8 @@ type internalState struct {
 	// grpc requests from the client
 	clientRequests chan interface{}
 
-	// grpc requests from the leader
-	leaderRequests chan interface{}
+	// append grpc requests from the leader
+	appendRequests chan interface{}
 
 	// grpc requests for requesting votes and responses
 	requestVoteRequests  chan *pb.RequestVoteRequest
@@ -110,7 +113,9 @@ type internalState struct {
 //
 
 // RequestVote is used by the raft candidate to request for votes.
+// The current node has received a request to vote by another peer.
 func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
+	log.WithFields(log.Fields{"id": r.id, "candidateId": request.CandidateId, "candidateTerm": request.Term}).Info("raft::raft::requestVote; received grpc request to vote;")
 	r.istate.requestVoteRequests <- request
 	t := time.NewTicker(getElectionTimeout())
 	voteGranted := false
@@ -144,44 +149,44 @@ func (r *Raft) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
 	panic("not implemented")
 }
 
+// follower is the follower routine that does the role of raft follower.
 func (r *Raft) follower() {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; became follower;")
 	t := time.NewTicker(getElectionTimeout())
-	appendReceived := false
 
 	for {
 		tobreak := false
 		select {
+		case <-t.C:
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; no append/vote request received. timeout")
+			r.role = candidate
+			t.Stop()
+			tobreak = true
+
 		case <-r.istate.clientRequests: // client requests are ignored if the peer is not the leader
-			log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; server request received")
-		case <-r.istate.leaderRequests:
-			log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; leader request received")
-			appendReceived = true
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; server request received")
+
+		case <-r.istate.appendRequests:
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; leader request received")
 			// apply it.
+			t.Reset(getElectionTimeout())
+
 		case req := <-r.istate.requestVoteRequests:
 			log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Debug("raft::raft::followerroutine; request for vote received")
 			if req.Term >= r.currentTerm && r.votedFor == noVote && r.isUpToDate(req) {
 				r.istate.requestVoteResponses <- true
+				t.Reset(getElectionTimeout())
 			} else {
 				r.istate.requestVoteResponses <- false
 			}
-		case <-t.C:
-			if appendReceived || r.votedFor != noVote {
-				appendReceived = false
-				r.votedFor = noVote // todo: is it required/correct?
-				t.Reset(getElectionTimeout())
-			} else {
-				log.WithFields(log.Fields{"id": r.id}).Debug("raft::raft::followerroutine; no append/vote request received. timeout")
-				r.role = candidate
-				t.Stop()
-				tobreak = true
-			}
+
 		}
 
 		if tobreak {
 			break
 		}
 	}
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; follower routine ending;")
 }
 
 // isUpToDate returns if the candidate's log is to update in comparison to this node.
@@ -216,10 +221,11 @@ func (r *Raft) candidate() {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; became candidate;")
 	for {
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; requesting votes")
-		t := time.NewTicker(getElectionTimeout())
 		cnt := 1 // counting self votes
 		allcnt := 1
-		voteRec := make(chan *pb.RequestVoteResponse, len(r.allProgress))
+		voteRecCh := make(chan *pb.RequestVoteResponse, len(r.allProgress)-1)
+		r.currentTerm++
+		r.votedFor = noVote
 
 		for i := range r.allProgress {
 			if i != r.id {
@@ -228,39 +234,45 @@ func (r *Raft) candidate() {
 					if err != nil {
 						// todo: handle error
 					}
-					voteRec <- resp
+					voteRecCh <- resp
 				}(i)
 			}
 		}
 
+		t := time.After(getElectionTimeout())
+
 		for {
-			tobreak := false
 			select {
-			case resp := <-voteRec:
+			case resp := <-voteRecCh:
+				log.WithFields(log.Fields{"id": r.id, "voterId": resp.VoterId, "granted": resp.VoteGranted}).Info(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
 				allcnt++
 				if resp.VoteGranted {
 					cnt++
-					log.WithFields(log.Fields{"id": r.id}).Debug(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
 				}
 				if allcnt == len(r.allProgress) {
-					tobreak = true
+					goto majiorityCheck
 				}
-			case <-t.C:
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; leader election timed out. restarting..")
-				tobreak = true
-			}
-
-			if tobreak {
-				break
+			case <-r.istate.appendRequests:
+				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::candidateroutine; received append request from ..; becoming follower again"))
+				r.role = follower
+				goto end
+			case <-t:
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; leader election timed out.")
+				goto majiorityCheck
 			}
 		}
-
+	majiorityCheck:
 		if isMajiority(cnt, allcnt) {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; received majiority of votes. becoming leader")
 			r.role = leader
-			break
+			goto end
+		} else {
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; didn't receive majiority votes; restarting...")
 		}
 	}
+
+end:
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; ending;")
 }
 
 func (r *Raft) leader() {
@@ -270,7 +282,7 @@ func (r *Raft) leader() {
 func (r *Raft) init() {
 	log.Info("raft::raft::init; started")
 	go func() {
-		time.Sleep(2 * time.Second) // allow starting grpc server
+		time.Sleep(5 * time.Second) // allow starting grpc server
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
 		r.istate.running.Set(true)
 		for {
@@ -303,7 +315,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, applyCh ch
 		role:        follower, // starts as a follower
 		istate: &internalState{
 			clientRequests:      make(chan interface{}), // todo: consider some buffer?
-			leaderRequests:      make(chan interface{}),
+			appendRequests:      make(chan interface{}),
 			requestVoteRequests: make(chan *pb.RequestVoteRequest),
 			applyCh:             applyCh,
 			commCh:              commCh,
