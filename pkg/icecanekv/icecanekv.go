@@ -12,6 +12,7 @@ import (
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -35,6 +36,13 @@ type KVServer struct {
 
 	// the mvcc layer for the key-value data
 	kvMvcc *mvcc.MVCC
+
+	// kvConfig is the config
+	kvConfig *common.KVConfig
+
+	// clientConnections contains the grpc client connections made with other raft peers.
+	// key: id of the peer.
+	clientConnections map[uint64]*grpc.ClientConn
 }
 
 //
@@ -70,6 +78,51 @@ func (kvs *KVServer) SendRequestVote(ctx context.Context, request *pb.RequestVot
 	return nil, status.Errorf(codes.Unimplemented, "method SendRequestVote not implemented")
 }
 
+//
+// kv server utility functions
+//
+
+// getOrCreateClientConnection gets or creates a grpc client connection for talking to peer with given id.
+// In the case of creation, it caches it the clientConnections map
+func (kvs *KVServer) getOrCreateClientConnection(id uint64) (*grpc.ClientConn, error) {
+	if conn, ok := kvs.clientConnections[id]; ok {
+		return conn, nil
+	}
+	var p *common.Peer = nil
+
+	for _, peer := range kvs.kvConfig.Peers {
+		if peer.ID == id {
+			p = &peer
+			break
+		}
+	}
+
+	if p == nil {
+		return nil, fmt.Errorf("invalid peer id %d", id)
+	}
+
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithInsecure())
+	opts = append(opts, grpc.WithBlock())
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", p.Address, p.Port), opts...)
+	if err != nil {
+		return nil, err
+	}
+	kvs.clientConnections[id] = conn
+	return conn, nil
+}
+
+// Close cleans up the kv server
+func (kvs *KVServer) Close() {
+	log.Info("icecanekv::icecanekv::Close; started")
+
+	for _, conn := range kvs.clientConnections {
+		defer conn.Close()
+	}
+
+	log.Info("icecanekv::icecanekv::Close; done")
+}
+
 // NewKVServer creates a new instance of KV Server
 func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 	log.Info("icecanekv::icecanekv::NewKVServer; started")
@@ -101,14 +154,20 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{
-		raftStorage: raftStorage,
-		raftPath:    raftPath,
-		kvStorage:   kvStorage,
-		kvPath:      kvPath,
-		kvMvcc:      kvMvcc,
-		raftServer:  raftServer,
+		raftStorage:       raftStorage,
+		raftPath:          raftPath,
+		kvStorage:         kvStorage,
+		kvPath:            kvPath,
+		kvMvcc:            kvMvcc,
+		raftServer:        raftServer,
+		kvConfig:          kvConfig,
+		clientConnections: make(map[uint64]*grpc.ClientConn),
 	}, nil
 }
+
+//
+// static utility functions
+//
 
 // prepareDirectories creates relevant kv server directories inside the db path.
 func prepareDirectories(kvConfig *common.KVConfig) (string, string, error) {

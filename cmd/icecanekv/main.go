@@ -57,7 +57,7 @@ func main() {
 
 	log.Info(fmt.Sprintf("icecanekvmain::main::main; grpc server listening on port %s", conf.Port))
 
-	subSignal(grpcServer)
+	subSignal(server, grpcServer)
 
 	err = grpcServer.Serve(listener)
 	if err != nil {
@@ -67,13 +67,14 @@ func main() {
 }
 
 // https://gobyexample.com/signals
-func subSignal(grpcServer *grpc.Server) {
+func subSignal(server *icecanekv.KVServer, grpcServer *grpc.Server) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-sigCh
 		log.Infof("icecanekvmain::main::main; exiting server")
+		server.Close()
 		grpcServer.Stop()
 	}()
 }

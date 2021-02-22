@@ -34,7 +34,8 @@ type Server struct {
 }
 
 //
-// grpc server calls
+// grpc server calls.
+// forwarded to raft
 //
 
 // RequestVote is used by the raft candidate to request for votes.
@@ -44,10 +45,11 @@ func (s *Server) RequestVote(ctx context.Context, request *pb.RequestVoteRequest
 
 //
 // raft callbacks
+// forwarded to grpc server or changes are made to the storage layer.
 //
 
-func (s *Server) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; sending vote to %d peer", id))
+func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; sending vote to %d peer", voterID))
 
 	return nil, nil
 }
