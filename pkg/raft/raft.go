@@ -84,6 +84,8 @@ type Raft struct {
 	// kvConfig is the complete key value config.
 	kvConfig *common.KVConfig
 
+	s *Server
+
 	istate *internalState
 }
 
@@ -97,11 +99,6 @@ type internalState struct {
 	// grpc requests for requesting votes and responses
 	requestVoteRequests  chan *pb.RequestVoteRequest
 	requestVoteResponses chan bool
-
-	// applyCh is used to communicate with the wrapper server
-	// raft -> server
-	applyCh chan raftServerApplyMsg
-	commCh  chan raftServerCommunicationMsg
 
 	// running indicates if the server is running or not.
 	// to stop the server, set it to false
@@ -144,9 +141,10 @@ func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) 
 // internal functions
 //
 
-func (r *Raft) sendRequestVote(id uint64) (*pb.RequestVoteResponse, error) {
-	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote to %d peer", id))
-	panic("not implemented")
+func (r *Raft) sendRequestVote(voterID uint64) (*pb.RequestVoteResponse, error) {
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote to peer %d", voterID))
+	req := &pb.RequestVoteRequest{}
+	return r.s.sendRequestVote(voterID, req)
 }
 
 // follower is the follower routine that does the role of raft follower.
@@ -302,7 +300,7 @@ func (r *Raft) init() {
 }
 
 // NewRaft initializes a new raft state machine.
-func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, applyCh chan raftServerApplyMsg, commCh chan raftServerCommunicationMsg) *Raft {
+func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server) *Raft {
 	log.Info("raft::raft::NewRaft; started")
 	r := &Raft{
 		id:          kvConfig.ID,
@@ -317,10 +315,9 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, applyCh ch
 			clientRequests:      make(chan interface{}), // todo: consider some buffer?
 			appendRequests:      make(chan interface{}),
 			requestVoteRequests: make(chan *pb.RequestVoteRequest),
-			applyCh:             applyCh,
-			commCh:              commCh,
 		},
 		kvConfig: kvConfig,
+		s:        s,
 	}
 	r.init()
 	log.Info("raft::raft::NewRaft; done")
