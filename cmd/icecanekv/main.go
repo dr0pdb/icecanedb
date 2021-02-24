@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -17,13 +18,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	configFilePath = "/etc/icecanekv.yaml"
+var (
+	configFilePath     = "/etc/icecanekv.yaml"
+	configFilePathFlag = flag.String("configFilePath", "", "overrides the default config file path")
 )
 
 func main() {
+	flag.Parse()
 	log.Info("icecanekvmain::main::main; starting")
 	conf := common.NewDefaultKVConfig()
+	if *configFilePathFlag != "" {
+		configFilePath = *configFilePathFlag
+	}
 	conf.LoadFromFile(configFilePath)
 	err := conf.Validate()
 	if err != nil {

@@ -16,7 +16,7 @@ import (
 
 const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = 300 * time.Millisecond
+	MinElectionTimeout = 5000 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
 	MaxElectionTimeout = 2 * MinElectionTimeout
 )
@@ -141,9 +141,14 @@ func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) 
 // internal functions
 //
 
-func (r *Raft) sendRequestVote(voterID uint64) (*pb.RequestVoteResponse, error) {
+func (r *Raft) sendRequestVote(rl *raftLog, voterID uint64) (*pb.RequestVoteResponse, error) {
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote to peer %d", voterID))
-	req := &pb.RequestVoteRequest{}
+	req := &pb.RequestVoteRequest{
+		Term:         r.currentTerm,
+		CandidateId:  r.id,
+		LastLogIndex: r.commitIndex,
+		LastLogTerm:  rl.term,
+	}
 	return r.s.sendRequestVote(voterID, req)
 }
 
@@ -221,16 +226,35 @@ func (r *Raft) candidate() {
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; requesting votes")
 		cnt := 1 // counting self votes
 		allcnt := 1
-		voteRecCh := make(chan *pb.RequestVoteResponse, len(r.allProgress)-1)
+		voteRecCh := make(chan *pb.RequestVoteResponse, len(r.allProgress))
 		r.currentTerm++
 		r.votedFor = noVote
+
+		// dummy raft log with term 0
+		rl := &raftLog{
+			term: 0,
+		}
+
+		if r.commitIndex > 0 {
+			// get the latest committed entry to get it's term number
+			b, err := r.raftStorage.Get(common.U64ToByte(r.commitIndex), &storage.ReadOptions{})
+			if err != nil {
+				// todo: handle this? this is a fatal failure. panic?
+				log.Error(fmt.Sprintf("raft::raft::candidateroutine; error in fetching last committed entry: %v", err))
+			}
+			rl, err = deserializeRaftLog(b)
+			if err != nil {
+				// todo: handle this? this is a fatal failure. panic?
+				log.Error(fmt.Sprintf("raft::raft::candidateroutine; error in deserializing last committed entry: %v", err))
+			}
+		}
 
 		for i := range r.allProgress {
 			if i != r.id {
 				go func(i uint64) {
-					resp, err := r.sendRequestVote(i)
+					resp, err := r.sendRequestVote(rl, i)
 					if err != nil {
-						// todo: handle error
+						log.Error(fmt.Sprintf("raft::raft::candidateroutine; error in sending vote request: %v", err))
 					}
 					voteRecCh <- resp
 				}(i)
@@ -242,11 +266,13 @@ func (r *Raft) candidate() {
 		for {
 			select {
 			case resp := <-voteRecCh:
-				log.WithFields(log.Fields{"id": r.id, "voterId": resp.VoterId, "granted": resp.VoteGranted}).Info(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
-				allcnt++
-				if resp.VoteGranted {
-					cnt++
+				if resp != nil {
+					log.WithFields(log.Fields{"id": r.id, "voterId": resp.VoterId, "granted": resp.VoteGranted}).Info(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
+					if resp.VoteGranted {
+						cnt++
+					}
 				}
+				allcnt++
 				if allcnt == len(r.allProgress) {
 					goto majiorityCheck
 				}
@@ -274,13 +300,15 @@ end:
 }
 
 func (r *Raft) leader() {
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; became leader;")
 
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; ending;")
 }
 
 func (r *Raft) init() {
 	log.Info("raft::raft::init; started")
 	go func() {
-		time.Sleep(5 * time.Second) // allow starting grpc server
+		time.Sleep(time.Second) // allow starting grpc server
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
 		r.istate.running.Set(true)
 		for {

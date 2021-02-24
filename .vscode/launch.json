@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch KV",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${file}",
+            "args": [
+                "-configFilePath=${workspaceFolder}/local/1.yaml"
+            ]
+        }
+    ]
+}

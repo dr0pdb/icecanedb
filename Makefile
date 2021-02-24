@@ -20,6 +20,10 @@ protogen:
 build-example-storage:
 	go build -o _output/example_storage -v ./examples/storage/
 
+.PHONY: build-kv
+build-kv:
+	go build -gcflags="-N -l" -o _output/icecanekv ./cmd/icecanekv/main.go
+
 .PHONY: run-kv-cluster
 run-kv-cluster:
 	docker-compose -f docker/docker-compose.yml up --remove-orphans
