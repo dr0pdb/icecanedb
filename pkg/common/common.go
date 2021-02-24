@@ -44,6 +44,26 @@ func (b *ProtectedString) Get() string {
 	return b.value
 }
 
+// ProtectedUint64 is a Uint64 protected by RW lock
+type ProtectedUint64 struct {
+	m     sync.RWMutex
+	value uint64
+}
+
+// Set sets the value (surprise surprise!)
+func (b *ProtectedUint64) Set(nvalue uint64) {
+	b.m.Lock()
+	defer b.m.Unlock()
+	b.value = nvalue
+}
+
+// Get gets the value
+func (b *ProtectedUint64) Get() uint64 {
+	b.m.RLock()
+	defer b.m.RUnlock()
+	return b.value
+}
+
 // U64ToByte converts a uint64 to []byte
 func U64ToByte(num uint64) []byte {
 	res := make([]byte, 8)

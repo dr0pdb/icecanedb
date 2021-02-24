@@ -75,6 +75,8 @@ func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest)
 	resp, err := client.RequestVote(context.Background(), request) //todo: do we need a different context?
 	if err != nil {
 		log.Error(fmt.Sprintf("raft::server::sendRequestVote; error in grpc request: %v", err))
+	} else {
+		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; received resp from peer %d, result: %v", voterID, resp.VoteGranted))
 	}
 	return resp, err
 }
