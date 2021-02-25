@@ -178,6 +178,7 @@ func (r *Raft) follower() {
 
 		case <-r.istate.clientRequests: // client requests are ignored if the peer is not the leader
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; server request received")
+			// TODO: redirect to the leader
 
 		case <-r.istate.endFollower:
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; received on endFollower chan")
@@ -273,12 +274,13 @@ func (r *Raft) candidate() {
 				goto end
 
 			case resp := <-voteRecCh:
-				if resp != nil {
-					log.WithFields(log.Fields{"id": r.id, "voterId": resp.VoterId, "granted": resp.VoteGranted}).Info(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
-					if resp.VoteGranted {
-						cnt++
-					}
+				log.WithFields(log.Fields{"id": r.id, "voterId": resp.VoterId, "granted": resp.VoteGranted}).Info(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
+				if resp.VoteGranted {
+					cnt++
 				}
+
+				// TODO: update progress using the resp.Term
+
 				allcnt++
 				if allcnt == len(r.allProgress) {
 					goto majiorityCheck

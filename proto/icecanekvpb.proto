@@ -6,13 +6,14 @@ import "raftpb.proto";
 
 // IcecaneKV is the key value server.
 service IcecaneKV {
-    // KV commands with txn supported.
+  // KV commands with txn supported.
 
-    // RawKV commands.
-    rpc RawGet(RawGetRequest) returns (RawGetResponse) {}
-    rpc RawPut(RawPutRequest) returns (RawPutResponse) {}
-    rpc RawDelete(RawDeleteRequest) returns (RawDeleteResponse) {}
+  // RawKV commands.
+  rpc RawGet(RawGetRequest) returns (RawGetResponse) {}
+  rpc RawPut(RawPutRequest) returns (RawPutResponse) {}
+  rpc RawDelete(RawDeleteRequest) returns (RawDeleteResponse) {}
 
-    // Raft commands b/w two kv servers.
-    rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse) {}
+  // Raft commands b/w two kv servers.
+  rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse) {}
+  rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse) {}
 }
