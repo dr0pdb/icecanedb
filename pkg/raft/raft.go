@@ -11,21 +11,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// TODO: There are a lot of inconsistencies in the file. Mixed use of boolean flags and goto.
-// make it consistent.
-
 const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
 	MinElectionTimeout = 5000 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = 2 * MinElectionTimeout
+	MaxElectionTimeout = 5500 * time.Millisecond
 )
 
-// PeerRole defines the role of a raft peer.
-type PeerRole uint64
-
 const (
-	leader PeerRole = iota
+	leader uint64 = iota
 	follower
 	candidate
 )
@@ -83,7 +77,7 @@ type Raft struct {
 
 	// this peer's role
 	// TODO: protect with mutex
-	role PeerRole
+	role common.ProtectedUint64
 
 	// kvConfig is the complete key value config.
 	kvConfig *common.KVConfig
@@ -275,7 +269,7 @@ func (r *Raft) candidate() {
 			select {
 			case <-r.istate.appendRequests:
 				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::candidateroutine; received append request from ..; becoming follower again"))
-				r.role = follower
+				r.role.Set(follower)
 				goto end
 
 			case resp := <-voteRecCh:
@@ -293,6 +287,7 @@ func (r *Raft) candidate() {
 
 			case <-t:
 				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; leader election timed out.")
+				close(voteRecCh) // this might lead to rpc go routines crashing but that isn't an issue.
 				goto majiorityCheck
 			}
 		}
@@ -300,7 +295,7 @@ func (r *Raft) candidate() {
 	majiorityCheck:
 		if isMajiority(cnt, len(r.allProgress)) {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; received majiority of votes. becoming leader")
-			r.role = leader
+			r.role.Set(leader)
 			goto end
 		} else {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; didn't receive majiority votes; restarting...")
@@ -323,11 +318,11 @@ func (r *Raft) electionTimerRoutine() {
 		for {
 			time.Sleep(50 * time.Millisecond)
 
-			if r.role == follower {
+			if r.role.Get() == follower {
 				ts := getElectionTimeout()
 				if time.Now().Sub(r.istate.lastAppendOrVoteTime) > ts {
 					log.Info("raft::raft::electionTimerRoutine; election timeout triggered; sending end signal to follower")
-					r.role = candidate
+					r.role.Set(candidate)
 					r.istate.endFollower <- true
 				}
 			}
@@ -339,9 +334,9 @@ func (r *Raft) electionTimerRoutine() {
 func (r *Raft) heartBeatRoutine() {
 	log.Info("raft::raft::heartBeatRoutine; started")
 	go func() {
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(MinElectionTimeout / 5)
 
-		if r.role == leader {
+		if r.role.Get() == leader {
 			// send heartbeats (empty append entries)
 		}
 	}()
@@ -359,11 +354,12 @@ func (r *Raft) init() {
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
 		r.istate.running.Set(true)
 		for {
-			if r.role == follower {
+			role := r.role.Get()
+			if role == follower {
 				r.follower()
-			} else if r.role == candidate {
+			} else if role == candidate {
 				r.candidate()
-			} else if r.role == leader {
+			} else if role == leader {
 				r.leader()
 			} else if !r.istate.running.Get() {
 				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; stopping;")
@@ -382,7 +378,6 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 		id:          kvConfig.ID,
 		raftStorage: raftStorage,
 		allProgress: initProgress(kvConfig.ID, kvConfig.Peers),
-		role:        follower, // starts as a follower
 		istate: &internalState{
 			clientRequests:       make(chan interface{}), // todo: consider some buffer?
 			appendRequests:       make(chan interface{}),
@@ -399,6 +394,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 	r.commitIndex.Set(0)
 	r.lastApplied.Set(0)
 	r.currentTerm.Set(0)
+	r.role.Set(follower)
 
 	r.votedFor.Set(noVote)
 

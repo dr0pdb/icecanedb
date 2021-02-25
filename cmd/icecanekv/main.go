@@ -21,10 +21,12 @@ import (
 var (
 	configFilePath     = "/etc/icecanekv.yaml"
 	configFilePathFlag = flag.String("configFilePath", "", "overrides the default config file path")
+	debug              = true
 )
 
 func main() {
 	flag.Parse()
+	log.SetFormatter(&log.JSONFormatter{})
 	log.Info("icecanekvmain::main::main; starting")
 	conf := common.NewDefaultKVConfig()
 	if *configFilePathFlag != "" {
@@ -34,6 +36,14 @@ func main() {
 	err := conf.Validate()
 	if err != nil {
 		log.Fatalf("%V", err)
+	}
+
+	if debug {
+		f, err := os.OpenFile(fmt.Sprintf("/tmp/logfile-%d", conf.ID), os.O_WRONLY|os.O_CREATE, 0755)
+		if err == nil {
+			log.SetOutput(f)
+			defer f.Close()
+		}
 	}
 
 	server, err := icecanekv.NewKVServer(conf)
