@@ -11,6 +11,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
 // IcecaneKVClient is the client API for IcecaneKV service.
@@ -23,6 +24,7 @@ type IcecaneKVClient interface {
 	RawDelete(ctx context.Context, in *RawDeleteRequest, opts ...grpc.CallOption) (*RawDeleteResponse, error)
 	// Raft commands b/w two kv servers.
 	RequestVote(ctx context.Context, in *RequestVoteRequest, opts ...grpc.CallOption) (*RequestVoteResponse, error)
+	AppendEntries(ctx context.Context, in *AppendEntriesRequest, opts ...grpc.CallOption) (*AppendEntriesResponse, error)
 }
 
 type icecaneKVClient struct {
@@ -69,6 +71,15 @@ func (c *icecaneKVClient) RequestVote(ctx context.Context, in *RequestVoteReques
 	return out, nil
 }
 
+func (c *icecaneKVClient) AppendEntries(ctx context.Context, in *AppendEntriesRequest, opts ...grpc.CallOption) (*AppendEntriesResponse, error) {
+	out := new(AppendEntriesResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/AppendEntries", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IcecaneKVServer is the server API for IcecaneKV service.
 // All implementations must embed UnimplementedIcecaneKVServer
 // for forward compatibility
@@ -79,6 +90,7 @@ type IcecaneKVServer interface {
 	RawDelete(context.Context, *RawDeleteRequest) (*RawDeleteResponse, error)
 	// Raft commands b/w two kv servers.
 	RequestVote(context.Context, *RequestVoteRequest) (*RequestVoteResponse, error)
+	AppendEntries(context.Context, *AppendEntriesRequest) (*AppendEntriesResponse, error)
 	mustEmbedUnimplementedIcecaneKVServer()
 }
 
@@ -98,6 +110,9 @@ func (UnimplementedIcecaneKVServer) RawDelete(context.Context, *RawDeleteRequest
 func (UnimplementedIcecaneKVServer) RequestVote(context.Context, *RequestVoteRequest) (*RequestVoteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestVote not implemented")
 }
+func (UnimplementedIcecaneKVServer) AppendEntries(context.Context, *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AppendEntries not implemented")
+}
 func (UnimplementedIcecaneKVServer) mustEmbedUnimplementedIcecaneKVServer() {}
 
 // UnsafeIcecaneKVServer may be embedded to opt out of forward compatibility for this service.
@@ -108,7 +123,7 @@ type UnsafeIcecaneKVServer interface {
 }
 
 func RegisterIcecaneKVServer(s grpc.ServiceRegistrar, srv IcecaneKVServer) {
-	s.RegisterService(&_IcecaneKV_serviceDesc, srv)
+	s.RegisterService(&IcecaneKV_ServiceDesc, srv)
 }
 
 func _IcecaneKV_RawGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -183,7 +198,28 @@ func _IcecaneKV_RequestVote_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-var _IcecaneKV_serviceDesc = grpc.ServiceDesc{
+func _IcecaneKV_AppendEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AppendEntriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).AppendEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/AppendEntries",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).AppendEntries(ctx, req.(*AppendEntriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// IcecaneKV_ServiceDesc is the grpc.ServiceDesc for IcecaneKV service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var IcecaneKV_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "icecanedbpb.IcecaneKV",
 	HandlerType: (*IcecaneKVServer)(nil),
 	Methods: []grpc.MethodDesc{
@@ -202,6 +238,10 @@ var _IcecaneKV_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequestVote",
 			Handler:    _IcecaneKV_RequestVote_Handler,
+		},
+		{
+			MethodName: "AppendEntries",
+			Handler:    _IcecaneKV_AppendEntries_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

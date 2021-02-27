@@ -11,6 +11,8 @@ import (
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Server is the icecane kv raft server
@@ -46,6 +48,11 @@ type Server struct {
 // RequestVote is used by the raft candidate to request for votes.
 func (s *Server) RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
 	return s.raft.requestVote(ctx, request)
+}
+
+// AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
+func (s *Server) AppendEntries(context.Context, *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AppendEntries not implemented")
 }
 
 // Close cleanups the underlying resources of the raft server.

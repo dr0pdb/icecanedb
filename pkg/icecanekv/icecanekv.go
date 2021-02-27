@@ -64,6 +64,11 @@ func (kvs *KVServer) RequestVote(ctx context.Context, request *pb.RequestVoteReq
 	return kvs.raftServer.RequestVote(ctx, request)
 }
 
+// AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
+func (kvs *KVServer) AppendEntries(ctx context.Context, request *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
+	return kvs.raftServer.AppendEntries(ctx, request)
+}
+
 // Close cleans up the kv server
 func (kvs *KVServer) Close() {
 	log.Info("icecanekv::icecanekv::Close; started")
