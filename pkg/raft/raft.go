@@ -25,7 +25,8 @@ const (
 )
 
 const (
-	noVote uint64 = 0
+	noVote   uint64 = 0
+	noLeader uint64 = 0
 )
 
 // Progress denotes the progress of a peer.
@@ -82,8 +83,10 @@ type Raft struct {
 	// kvConfig is the complete key value config.
 	kvConfig *common.KVConfig
 
+	// s is the server
 	s *Server
 
+	// istate is the internal state of raft consisting of channels for communication.
 	istate *internalState
 }
 
@@ -92,7 +95,8 @@ type internalState struct {
 	clientRequests chan interface{}
 
 	// append grpc requests from the leader
-	appendRequests chan interface{}
+	appendEntriesRequests chan *pb.AppendEntriesRequest
+	appendEntriesReponses chan *pb.AppendEntriesResponse
 
 	// grpc requests for requesting votes and responses
 	requestVoteRequests  chan *pb.RequestVoteRequest
@@ -102,10 +106,15 @@ type internalState struct {
 	// to stop the server, set it to false
 	running common.ProtectedBool
 
+	// currentLeader is the current leader of raft according to this node.
+	// could be inaccurate but doesn't affect correctness.
+	currentLeader common.ProtectedUint64
+
 	// lastAppendOrVoteTime is the latest time at which we received an append request from the leader
 	// or we casted a vote to a candidate.
 	lastAppendOrVoteTime time.Time
 
+	// endFollower is the channel on which the follower routine ends
 	endFollower chan bool
 }
 
@@ -115,30 +124,40 @@ type internalState struct {
 
 // RequestVote is used by the raft candidate to request for votes.
 // The current node has received a request to vote by another peer.
-func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
+func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) (resp *pb.RequestVoteResponse, err error) {
 	log.WithFields(log.Fields{"id": r.id, "candidateId": request.CandidateId, "candidateTerm": request.Term}).Info("raft::raft::requestVote; received grpc request to vote;")
 	r.istate.requestVoteRequests <- request
 	t := time.After(getElectionTimeout())
 	voteGranted := false
-	for {
-		tobreak := false
-		select {
-		case granted := <-r.istate.requestVoteResponses:
-			voteGranted = granted
-			tobreak = true
-		case <-t:
-			return nil, fmt.Errorf("request timeout")
-		}
 
-		if tobreak {
-			break
-		}
+	select {
+	case granted := <-r.istate.requestVoteResponses:
+		voteGranted = granted
+	case <-t:
+		err = fmt.Errorf("request timeout")
 	}
+
 	return &pb.RequestVoteResponse{
 		Term:        r.currentTerm.Get(),
 		VoteGranted: voteGranted,
 		VoterId:     r.id,
-	}, nil
+	}, err
+}
+
+// appendEntries is invoked by leader to replicate log entries; also used as heartbeat
+func (r *Raft) appendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (resp *pb.AppendEntriesResponse, err error) {
+	log.WithFields(log.Fields{"id": r.id, "leaderID": req.LeaderId, "leaderTerm": req.Term}).Info("raft::raft::appendEntries; received grpc request to append entries;")
+	r.istate.appendEntriesRequests <- req
+	t := time.After(getElectionTimeout())
+
+	select {
+	case resp = <-r.istate.appendEntriesReponses:
+		break
+	case <-t:
+		err = fmt.Errorf("request timeout")
+	}
+
+	return resp, err
 }
 
 //
@@ -156,6 +175,19 @@ func (r *Raft) sendRequestVote(rl *raftLog, voterID uint64) (*pb.RequestVoteResp
 	return r.s.sendRequestVote(voterID, req)
 }
 
+func (r *Raft) sendAppendEntries(receiverID, prevLogIndex, prevLogTerm uint64) (*pb.AppendEntriesResponse, error) {
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; sending append entries to peer %d", receiverID))
+	// todo: add entries.
+	req := &pb.AppendEntriesRequest{
+		Term:         r.currentTerm.Get(),
+		LeaderId:     r.id,
+		PrevLogIndex: prevLogIndex,
+		PrevLogTerm:  prevLogTerm,
+		LeaderCommit: r.commitIndex.Get(),
+	}
+	return r.s.sendAppendEntries(receiverID, req)
+}
+
 // follower does the role of a raft follower.
 func (r *Raft) follower() {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; became follower;")
@@ -165,16 +197,33 @@ func (r *Raft) follower() {
 			log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; request for vote received")
 			if req.Term >= r.currentTerm.Get() && r.votedFor.Get() == noVote && r.isUpToDate(req) {
 				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote yes")
+				r.istate.lastAppendOrVoteTime = time.Now()
 				r.istate.requestVoteResponses <- true
 			} else {
 				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote no")
 				r.istate.requestVoteResponses <- false
 			}
 
-		case <-r.istate.appendRequests:
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; leader request received")
+		case req := <-r.istate.appendEntriesRequests:
+			log.WithFields(log.Fields{"id": r.id, "leader": req.LeaderId, "leaderTerm": req.Term}).Info("raft::raft::followerroutine; leader append request received")
 			r.istate.lastAppendOrVoteTime = time.Now()
-			// apply it.
+
+			ct := r.currentTerm.Get()
+			success := true
+
+			if len(req.Entries) != 0 {
+				// TODO: check for conflicts and save to raft logs if ok
+			}
+
+			if success {
+				r.istate.currentLeader.Set(req.LeaderId)
+			}
+
+			resp := &pb.AppendEntriesResponse{
+				Term:    ct,
+				Success: success,
+			}
+			r.istate.appendEntriesReponses <- resp
 
 		case <-r.istate.clientRequests: // client requests are ignored if the peer is not the leader
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; server request received")
@@ -268,8 +317,9 @@ func (r *Raft) candidate() {
 
 		for {
 			select {
-			case <-r.istate.appendRequests:
+			case <-r.istate.appendEntriesRequests: // todo: should we process the request as well?
 				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::candidateroutine; received append request from ..; becoming follower again"))
+				r.istate.lastAppendOrVoteTime = time.Now()
 				r.role.Set(follower)
 				goto end
 
@@ -339,11 +389,56 @@ func (r *Raft) heartBeatRoutine() {
 		time.Sleep(MinElectionTimeout / 5)
 
 		if r.role.Get() == leader {
-			// send heartbeats (empty append entries)
+			ch := make(chan *pb.AppendEntriesResponse, len(r.allProgress))
+
+			for i := range r.allProgress {
+				if i != r.id {
+					go func(id uint64) {
+						resp, err := r.sendAppendEntries(id, 0, 0)
+						if err != nil {
+							// handle error
+						}
+
+						ch <- resp
+					}(i)
+				}
+			}
+
+			t := time.After(getElectionTimeout())
+
+			for {
+				select {
+				case _ = <-ch:
+					// update term and move to follower if required.
+				case <-t:
+					// handle timeout
+				}
+			}
 		}
 	}()
 
 	log.Info("raft::raft::heartBeatRoutine; done")
+}
+
+func (r *Raft) applyRoutine() {
+	log.Info("raft::raft::applyRoutine; started")
+
+	go func() {
+		time.Sleep(1 * time.Second) // todo: adjust?
+
+		la := r.lastApplied.Get()
+		ci := r.commitIndex.Get()
+
+		if la < ci {
+			log.Info(fmt.Sprintf("raft::raft::applyRoutine; applying logs to the storage layer from index %d to %d", la+1, ci))
+
+			for idx := la + 1; idx <= ci; idx++ {
+				// todo: call server to apply the log
+			}
+		}
+	}()
+
+	log.Info("raft::raft::applyRoutine; done")
 }
 
 func (r *Raft) init() {
@@ -351,6 +446,7 @@ func (r *Raft) init() {
 
 	r.electionTimerRoutine()
 	r.heartBeatRoutine()
+	r.applyRoutine()
 	go func() {
 		time.Sleep(time.Second) // allow starting grpc server
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
@@ -381,12 +477,13 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 		raftStorage: raftStorage,
 		allProgress: initProgress(kvConfig.ID, kvConfig.Peers),
 		istate: &internalState{
-			clientRequests:       make(chan interface{}), // todo: consider some buffer?
-			appendRequests:       make(chan interface{}),
-			requestVoteRequests:  make(chan *pb.RequestVoteRequest),
-			requestVoteResponses: make(chan bool),
-			endFollower:          make(chan bool),
-			lastAppendOrVoteTime: time.Now(), // todo: any issue with this?
+			clientRequests:        make(chan interface{}), // todo: consider some buffer?
+			appendEntriesRequests: make(chan *pb.AppendEntriesRequest),
+			appendEntriesReponses: make(chan *pb.AppendEntriesResponse),
+			requestVoteRequests:   make(chan *pb.RequestVoteRequest),
+			requestVoteResponses:  make(chan bool),
+			endFollower:           make(chan bool),
+			lastAppendOrVoteTime:  time.Now(), // todo: any issue with this?
 		},
 		kvConfig: kvConfig,
 		s:        s,
@@ -396,6 +493,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 	r.commitIndex.Set(0)
 	r.lastApplied.Set(0)
 	r.currentTerm.Set(0)
+	r.istate.currentLeader.Set(noLeader)
 	r.role.Set(follower)
 
 	r.votedFor.Set(noVote)

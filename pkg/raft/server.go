@@ -11,8 +11,6 @@ import (
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // Server is the icecane kv raft server
@@ -51,8 +49,8 @@ func (s *Server) RequestVote(ctx context.Context, request *pb.RequestVoteRequest
 }
 
 // AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
-func (s *Server) AppendEntries(context.Context, *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AppendEntries not implemented")
+func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
+	return s.raft.appendEntries(ctx, request)
 }
 
 // Close cleanups the underlying resources of the raft server.
@@ -84,6 +82,25 @@ func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest)
 		log.Error(fmt.Sprintf("raft::server::sendRequestVote; error in grpc request: %v", err))
 	} else {
 		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; received resp from peer %d, result: %v", voterID, resp.VoteGranted))
+	}
+	return resp, err
+}
+
+func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendAppendEntries; sending append entries to peer %d", receiverID))
+
+	conn, err := s.getOrCreateClientConnection(receiverID)
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::sendAppendEntries; error in getting conn: %v", err))
+		return nil, err
+	}
+
+	client := pb.NewIcecaneKVClient(conn)
+	resp, err := client.AppendEntries(context.Background(), req) //todo: do we need a different context?
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::sendAppendEntries; error in grpc request: %v", err))
+	} else {
+		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendAppendEntries; received resp from peer %d, result: %v", receiverID, resp.Success))
 	}
 	return resp, err
 }
