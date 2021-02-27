@@ -22,6 +22,7 @@ var (
 	configFilePath     = "/etc/icecanekv.yaml"
 	configFilePathFlag = flag.String("configFilePath", "", "overrides the default config file path")
 	debug              = true
+	logFile            = false
 )
 
 func main() {
@@ -38,7 +39,7 @@ func main() {
 		log.Fatalf("%V", err)
 	}
 
-	if debug {
+	if logFile {
 		f, err := os.OpenFile(fmt.Sprintf("/tmp/logfile-%d", conf.ID), os.O_WRONLY|os.O_CREATE, 0755)
 		if err == nil {
 			log.SetOutput(f)

@@ -13,9 +13,9 @@ import (
 
 const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = 5000 * time.Millisecond
+	MinElectionTimeout = 300 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = 5500 * time.Millisecond
+	MaxElectionTimeout = 400 * time.Millisecond
 )
 
 const (
@@ -53,6 +53,12 @@ type Raft struct {
 
 	// CurrentTerm denotes the latest term node has seen.
 	// VotedFor denotes the candidate id that got the vote from this node. 0 is no one.
+	// places where this is set:
+	// 1. follower
+	// 2. candidate
+	// 3. leader
+	// 4. init
+	// 4 is at the start and only one role out of 1,2,3 are possible. So a lock is fine.
 	currentTerm, votedFor common.ProtectedUint64
 
 	// stores the raft logs
@@ -116,6 +122,8 @@ type internalState struct {
 
 	// endFollower is the channel on which the follower routine ends
 	endFollower chan bool
+
+	followerRunning, candRunning, leaderRunning common.ProtectedBool
 }
 
 //
@@ -191,14 +199,20 @@ func (r *Raft) sendAppendEntries(receiverID, prevLogIndex, prevLogTerm uint64) (
 // follower does the role of a raft follower.
 func (r *Raft) follower() {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; became follower;")
+	r.istate.followerRunning.Set(true)
 	for {
 		select {
+		case <-r.istate.endFollower:
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; received on endFollower chan")
+			goto end
+
 		case req := <-r.istate.requestVoteRequests:
 			log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; request for vote received")
 			if req.Term >= r.currentTerm.Get() && r.votedFor.Get() == noVote && r.isUpToDate(req) {
 				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote yes")
 				r.istate.lastAppendOrVoteTime = time.Now()
 				r.istate.requestVoteResponses <- true
+				r.currentTerm.Set(req.Term)
 			} else {
 				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote no")
 				r.istate.requestVoteResponses <- false
@@ -224,17 +238,17 @@ func (r *Raft) follower() {
 				Success: success,
 			}
 			r.istate.appendEntriesReponses <- resp
+			if r.currentTerm.Get() < req.Term {
+				r.currentTerm.Set(req.Term)
+			}
 
 		case <-r.istate.clientRequests: // client requests are ignored if the peer is not the leader
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; server request received")
 			// TODO: redirect to the leader
-
-		case <-r.istate.endFollower:
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; received on endFollower chan")
-			goto end
 		}
 	}
 end:
+	r.istate.followerRunning.Set(false)
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; follower routine ending;")
 }
 
@@ -268,6 +282,7 @@ func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
 
 func (r *Raft) candidate() {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; became candidate;")
+	r.istate.candRunning.Set(true)
 	for {
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; requesting votes")
 		cnt := 1 // counting self votes
@@ -355,18 +370,66 @@ func (r *Raft) candidate() {
 	}
 
 end:
+	r.istate.candRunning.Set(false)
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; ending;")
 }
 
 func (r *Raft) leader() {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; became leader;")
+	r.istate.leaderRunning.Set(true)
 
+	r.istate.leaderRunning.Set(false)
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; ending;")
+}
+
+// becomeFollower updates the role to follower and blocks untill the cand and leader routines stop.
+func (r *Raft) becomeFollower() {
+	log.Info("raft::raft::becomeFollower; started")
+
+	r.role.Set(follower)
+	for {
+		if !r.istate.candRunning.Get() && !r.istate.leaderRunning.Get() {
+			break
+		}
+	}
+
+	log.Info("raft::raft::becomeFollower; done")
+}
+
+// becomeCandidate updates the role to follower and blocks untill the follower and leader routines stop.
+func (r *Raft) becomeCandidate() {
+	log.Info("raft::raft::becomeCandidate; started")
+
+	r.istate.endFollower <- true
+	r.role.Set(candidate)
+	for {
+		if !r.istate.followerRunning.Get() && !r.istate.leaderRunning.Get() {
+			break
+		}
+	}
+
+	log.Info("raft::raft::becomeCandidate; done")
+}
+
+// becomeLeader updates the role to follower and blocks untill the cand and follower routines stop.
+func (r *Raft) becomeLeader() {
+	log.Info("raft::raft::becomeLeader; started")
+
+	r.istate.endFollower <- true
+	r.role.Set(leader)
+	for {
+		if !r.istate.candRunning.Get() && !r.istate.followerRunning.Get() {
+			break
+		}
+	}
+
+	log.Info("raft::raft::becomeLeader; done")
 }
 
 func (r *Raft) electionTimerRoutine() {
 	log.Info("raft::raft::electionTimerRoutine; started")
 	go func() {
+		time.Sleep(2 * time.Second) // wait for other components to init
 		for {
 			time.Sleep(50 * time.Millisecond)
 
