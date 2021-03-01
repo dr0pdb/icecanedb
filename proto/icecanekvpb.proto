@@ -7,6 +7,11 @@ import "raftpb.proto";
 // IcecaneKV is the key value server.
 service IcecaneKV {
   // KV commands with txn supported.
+  rpc Get(GetRequest) returns (GetResponse) {}
+  rpc Put(PutRequest) returns (PutResponse) {}
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+  rpc BeginTxn(BeginTxnRequest) returns (BeginTxnResponse) {}
+  rpc CommitTxn(CommitTxnRequest) returns (CommitTxnResponse) {} 
 
   // RawKV commands.
   rpc RawGet(RawGetRequest) returns (RawGetResponse) {}

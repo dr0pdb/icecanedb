@@ -35,7 +35,7 @@ type Server struct {
 
 	// clientConnections contains the grpc client connections made with other raft peers.
 	// key: id of the peer.
-	clientConnections map[uint64]*grpc.ClientConn
+	clientConnections *common.ProtectedMapUConn
 }
 
 //
@@ -56,7 +56,7 @@ func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesReq
 // Close cleanups the underlying resources of the raft server.
 func (s *Server) Close() {
 	log.Info("raft::server::Close; started")
-	for _, conn := range s.clientConnections {
+	for _, conn := range s.clientConnections.Iterate() {
 		conn.Close()
 	}
 	log.Info("raft::server::Close; started")
@@ -113,7 +113,7 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 // In the case of creation, it caches it the clientConnections map
 func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::getOrCreateClientConnection; peer %d", voterID))
-	if conn, ok := s.clientConnections[voterID]; ok {
+	if conn, ok := s.clientConnections.Get(voterID); ok {
 		return conn, nil
 	}
 	var p *common.Peer = nil
@@ -136,7 +136,7 @@ func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, 
 	if err != nil {
 		return nil, err
 	}
-	s.clientConnections[voterID] = conn
+	s.clientConnections.Set(voterID, conn)
 	return conn, nil
 }
 
@@ -156,7 +156,7 @@ func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.St
 		commCh:            commCh,
 		maxRaftState:      -1,
 		kvConfig:          kvConfig,
-		clientConnections: make(map[uint64]*grpc.ClientConn),
+		clientConnections: common.NewProtectedMapUConn(),
 	}
 
 	raft := NewRaft(kvConfig, raftStorage, s)

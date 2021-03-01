@@ -1,6 +1,10 @@
 package common
 
-import "sync"
+import (
+	"sync"
+
+	"google.golang.org/grpc"
+)
 
 // could have used reflect package with {}interface as well.
 
@@ -62,6 +66,41 @@ func (b *ProtectedUint64) Get() uint64 {
 	b.m.RLock()
 	defer b.m.RUnlock()
 	return b.value
+}
+
+// ProtectedMapUConn is a RWMutex protected map from uint64 to grpc.ClientConn
+type ProtectedMapUConn struct {
+	mu sync.RWMutex
+	m  map[uint64]*grpc.ClientConn
+}
+
+// NewProtectedMapUConn initializes a new protected map of uint64 to grpc connection.
+func NewProtectedMapUConn() *ProtectedMapUConn {
+	return &ProtectedMapUConn{
+		m: make(map[uint64]*grpc.ClientConn),
+	}
+}
+
+// Set sets the value
+func (pm *ProtectedMapUConn) Set(key uint64, value *grpc.ClientConn) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.m[key] = value
+}
+
+// Get gets the value
+func (pm *ProtectedMapUConn) Get(key uint64) (*grpc.ClientConn, bool) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	val, ok := pm.m[key]
+	return val, ok
+}
+
+// Iterate exposes the underlying map by locking it.
+func (pm *ProtectedMapUConn) Iterate() map[uint64]*grpc.ClientConn {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	return pm.m
 }
 
 // U64ToByte converts a uint64 to []byte

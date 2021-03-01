@@ -13,9 +13,9 @@ import (
 
 const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = 300 * time.Millisecond
+	MinElectionTimeout = 20000 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = 400 * time.Millisecond
+	MaxElectionTimeout = 24000 * time.Millisecond
 )
 
 const (
@@ -443,12 +443,12 @@ func (r *Raft) setTerm(term uint64) {
 func (r *Raft) becomeFollower(src uint64) {
 	log.Info("raft::raft::becomeFollower; started")
 
+	r.role.Set(follower)
 	for {
 		if (src == candidate || !r.istate.candRunning.Get()) && (src == leader || !r.istate.leaderRunning.Get()) {
 			break
 		}
 	}
-	r.role.Set(follower)
 
 	log.Info("raft::raft::becomeFollower; done")
 }
@@ -461,12 +461,12 @@ func (r *Raft) becomeCandidate(src uint64) {
 	if r.istate.followerRunning.Get() {
 		r.istate.endFollower <- true
 	}
+	r.role.Set(candidate)
 	for {
 		if (src == follower || !r.istate.followerRunning.Get()) && (src == leader && !r.istate.leaderRunning.Get()) {
 			break
 		}
 	}
-	r.role.Set(candidate)
 
 	log.Info("raft::raft::becomeCandidate; done")
 }
@@ -479,12 +479,12 @@ func (r *Raft) becomeLeader(src uint64) {
 	if r.istate.followerRunning.Get() {
 		r.istate.endFollower <- true
 	}
+	r.role.Set(leader)
 	for {
 		if (src == candidate || !r.istate.candRunning.Get()) && (src == follower || !r.istate.followerRunning.Get()) {
 			break
 		}
 	}
-	r.role.Set(leader)
 
 	log.Info("raft::raft::becomeLeader; done")
 }
@@ -536,7 +536,9 @@ func (r *Raft) heartBeatRoutine() {
 					}
 				}
 
-				t := time.After(getElectionTimeout())
+				t := time.After(MinElectionTimeout / 3)
+
+				cnt := 0
 
 				for {
 					select {
@@ -546,7 +548,12 @@ func (r *Raft) heartBeatRoutine() {
 							r.becomeFollower(norole)
 							goto out
 						}
-						// update term and move to follower if required.
+						cnt++
+						if cnt+1 == len(r.allProgress) {
+							log.Info("raft::raft::heartBeatRoutine; received heartbeat response from everyone.")
+							goto out
+						}
+
 					case <-t:
 						log.Warn("raft::raft::heartBeatRoutine; timed out in sending heart beats.")
 						close(ch)
