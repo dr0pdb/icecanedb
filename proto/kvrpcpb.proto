@@ -73,5 +73,9 @@ message CommitTxnRequest {}
 
 message CommitTxnResponse {}
 
+message ScanRequest {}
+
+message ScanResponse {}
+
 // Context is the metadata that is present in every request.
 message Context {}

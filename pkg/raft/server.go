@@ -27,10 +27,6 @@ type Server struct {
 	// the mvcc layer for the key-value data
 	kvMvcc *mvcc.MVCC
 
-	// snapshot if log size exceeds it. -1 indicates no snapshotting
-	// todo: consider passing it to raft.Raft
-	maxRaftState int64
-
 	kvConfig *common.KVConfig
 
 	// clientConnections contains the grpc client connections made with other raft peers.
@@ -154,7 +150,6 @@ func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.St
 		kvMvcc:            kvMvcc,
 		applyCh:           applyCh,
 		commCh:            commCh,
-		maxRaftState:      -1,
 		kvConfig:          kvConfig,
 		clientConnections: common.NewProtectedMapUConn(),
 	}

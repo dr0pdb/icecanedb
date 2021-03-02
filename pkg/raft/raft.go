@@ -100,6 +100,9 @@ type Raft struct {
 
 	// istate is the internal state of raft consisting of channels for communication.
 	istate *internalState
+
+	// snapshot if log size exceeds it. -1 indicates no snapshotting
+	maxRaftState int64
 }
 
 type internalState struct {
@@ -639,8 +642,9 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 			endLeader:             make(chan bool),
 			lastAppendOrVoteTime:  time.Now(), // todo: any issue with this?
 		},
-		kvConfig: kvConfig,
-		s:        s,
+		kvConfig:     kvConfig,
+		s:            s,
+		maxRaftState: -1,
 	}
 
 	// TODO: update after persistence
