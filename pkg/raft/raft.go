@@ -15,7 +15,9 @@ const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
 	MinElectionTimeout = 20000 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = 24000 * time.Millisecond
+	MaxElectionTimeout = 21000 * time.Millisecond
+
+	requestTimeoutInterval = 2 * time.Second
 )
 
 const (
@@ -237,6 +239,8 @@ func (r *Raft) follower() {
 				}
 
 				r.istate.currentLeader.Set(req.LeaderId)
+				r.setTerm(req.Term)
+				log.WithFields(log.Fields{"id": r.id, "leader": req.LeaderId}).Info("raft::raft::followerroutine; current leader updated")
 			}
 
 			resp := &pb.AppendEntriesResponse{
@@ -244,9 +248,9 @@ func (r *Raft) follower() {
 				Success: success,
 			}
 			r.istate.appendEntriesReponses <- resp
-			r.setTerm(req.Term)
 		}
 	}
+
 end:
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; follower routine ending;")
 }
@@ -289,7 +293,7 @@ func (r *Raft) candidate() {
 		allcnt := 1
 		voteRecCh := make(chan *pb.RequestVoteResponse, len(r.allProgress))
 
-		r.setTerm(r.currentTerm.Get() + 1)
+		r.currentTerm.Increment()
 		r.votedFor.Set(r.id)
 		rl := r.getLastLogEntryOrDefault()
 
@@ -494,8 +498,6 @@ func (r *Raft) electionTimerRoutine() {
 	go func() {
 		time.Sleep(2 * time.Second) // wait for other components to init
 		for {
-			time.Sleep(100 * time.Millisecond)
-
 			if r.role.Get() == follower {
 				ts := getElectionTimeout()
 				if time.Now().Sub(r.istate.lastAppendOrVoteTime) > ts {
@@ -503,6 +505,8 @@ func (r *Raft) electionTimerRoutine() {
 					r.becomeCandidate(norole)
 				}
 			}
+
+			time.Sleep(500 * time.Millisecond)
 		}
 	}()
 	log.Info("raft::raft::electionTimerRoutine; done")
@@ -536,9 +540,8 @@ func (r *Raft) heartBeatRoutine() {
 					}
 				}
 
-				t := time.After(MinElectionTimeout / 3)
-
-				cnt := 0
+				t := time.After(MinElectionTimeout / 2)
+				cnt := 1
 
 				for {
 					select {
@@ -549,7 +552,7 @@ func (r *Raft) heartBeatRoutine() {
 							goto out
 						}
 						cnt++
-						if cnt+1 == len(r.allProgress) {
+						if cnt == len(r.allProgress) {
 							log.Info("raft::raft::heartBeatRoutine; received heartbeat response from everyone.")
 							goto out
 						}
@@ -563,7 +566,7 @@ func (r *Raft) heartBeatRoutine() {
 			}
 
 		out:
-			time.Sleep(MinElectionTimeout / 5)
+			time.Sleep(MinElectionTimeout / 2)
 		}
 	}()
 
@@ -627,7 +630,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 		raftStorage: raftStorage,
 		allProgress: initProgress(kvConfig.ID, kvConfig.Peers),
 		istate: &internalState{
-			clientRequests:        make(chan interface{}), // todo: consider some buffer?
+			clientRequests:        make(chan interface{}, 100),
 			appendEntriesRequests: make(chan *pb.AppendEntriesRequest),
 			appendEntriesReponses: make(chan *pb.AppendEntriesResponse),
 			requestVoteRequests:   make(chan *pb.RequestVoteRequest),

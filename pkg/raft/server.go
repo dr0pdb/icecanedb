@@ -113,7 +113,7 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 // In the case of creation, it caches it the clientConnections map
 func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::getOrCreateClientConnection; peer %d", voterID))
-	if conn, ok := s.clientConnections.Get(voterID); ok {
+	if conn, ok := s.clientConnections.Get(voterID); ok && conn.GetState().String() == "READY" {
 		return conn, nil
 	}
 	var p *common.Peer = nil
