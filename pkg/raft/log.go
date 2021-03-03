@@ -2,14 +2,25 @@ package raft
 
 import (
 	"fmt"
+	"strings"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
 )
 
+type raftCommandType uint64
+
+const (
+	setCmd raftCommandType = iota
+	deleteCmd
+)
+
+type raftCommand string
+
 // raftLog is serialized and stored into the raft storage
 type raftLog struct {
 	term    uint64
-	command string
+	ct      raftCommandType
+	command raftCommand
 }
 
 func (rl *raftLog) toBytes() []byte {
@@ -38,9 +49,31 @@ func deserializeRaftLog(l []byte) (*raftLog, error) {
 	term |= uint64(l[6]) << 48
 	term |= uint64(l[7]) << 56
 
-	cmd := string(l[8:])
+	cmd := raftCommand(l[8:])
+	ct := setCmd
+	if strings.HasPrefix(string(cmd), "DELETE") {
+		ct = deleteCmd
+	}
+
 	return &raftLog{
 		term:    term,
 		command: cmd,
+		ct:      ct,
 	}, nil
+}
+
+func newSetRaftLog(term uint64, key, value []byte) *raftLog {
+	return &raftLog{
+		term:    term,
+		command: raftCommand(fmt.Sprintf("SET %s %s", string(key), string(value))),
+		ct:      setCmd,
+	}
+}
+
+func newDeleteRaftLog(term uint64, key []byte) *raftLog {
+	return &raftLog{
+		term:    term,
+		command: raftCommand(fmt.Sprintf("DELETE %s", string(key))),
+		ct:      deleteCmd,
+	}
 }

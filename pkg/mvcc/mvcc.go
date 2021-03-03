@@ -35,7 +35,7 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 	if err != nil {
 		return nil, leaderID, err
 	}
-	err = m.rs.SetValue(txnKey, common.U64ToByte(nxtIDUint64+1))
+	_, err = m.rs.SetValue(txnKey, common.U64ToByte(nxtIDUint64+1))
 	if err != nil {
 		return nil, leaderID, err
 	}

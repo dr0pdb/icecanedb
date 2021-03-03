@@ -70,8 +70,13 @@ func (s *Server) GetValue(key []byte) ([]byte, uint64, error) {
 }
 
 // SetValue sets the value of the key and gets it replicated across peers
-func (s *Server) SetValue(key, value []byte) error {
-	return nil
+func (s *Server) SetValue(key, value []byte) (leader uint64, err error) {
+	leader = s.raft.getLeaderID()
+	if leader != s.id {
+		return leader, fmt.Errorf("not a leader")
+	}
+
+	return 0, nil
 }
 
 //
