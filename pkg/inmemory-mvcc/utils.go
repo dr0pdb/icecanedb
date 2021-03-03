@@ -1,4 +1,4 @@
-package mvcc
+package inmemory_mvcc
 
 import "github.com/dr0pdb/icecanedb/pkg/storage"
 

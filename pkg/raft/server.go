@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
-	"github.com/dr0pdb/icecanedb/pkg/mvcc"
+	inmemory_mvcc "github.com/dr0pdb/icecanedb/pkg/inmemory-mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
@@ -25,7 +25,7 @@ type Server struct {
 	kvStorage *storage.Storage
 
 	// the mvcc layer for the key-value data
-	kvMvcc *mvcc.MVCC
+	kvMvcc *inmemory_mvcc.MVCC
 
 	kvConfig *common.KVConfig
 
@@ -137,7 +137,7 @@ func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, 
 }
 
 // NewRaftServer creates a new instance of a Raft server
-func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.Storage, kvMvcc *mvcc.MVCC) *Server {
+func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.Storage, kvMvcc *inmemory_mvcc.MVCC) *Server {
 	log.Info("raft::server::NewRaftServer; started")
 	applyCh := make(chan raftServerApplyMsg)
 	commCh := make(chan raftServerCommunicationMsg)

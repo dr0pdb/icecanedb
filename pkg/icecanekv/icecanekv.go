@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
-	"github.com/dr0pdb/icecanedb/pkg/mvcc"
+	inmemory_mvcc "github.com/dr0pdb/icecanedb/pkg/inmemory-mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
@@ -34,7 +34,7 @@ type KVServer struct {
 	kvPath    string
 
 	// the mvcc layer for the key-value data
-	kvMvcc *mvcc.MVCC
+	kvMvcc *inmemory_mvcc.MVCC
 
 	// kvConfig is the config
 	kvConfig *common.KVConfig
@@ -102,7 +102,7 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 		return nil, err
 	}
 
-	kvMvcc := mvcc.NewMVCC(kvStorage)
+	kvMvcc := inmemory_mvcc.NewMVCC(kvStorage)
 	raftServer := raft.NewRaftServer(kvConfig, raftStorage, kvStorage, kvMvcc)
 
 	log.Info("icecanekv::icecanekv::NewKVServer; done")

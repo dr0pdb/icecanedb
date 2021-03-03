@@ -580,7 +580,7 @@ func (r *Raft) applyRoutine() {
 	log.Info("raft::raft::applyRoutine; started")
 
 	go func() {
-		time.Sleep(1 * time.Second) // todo: adjust?
+		time.Sleep(50 * time.Millisecond)
 
 		la := r.lastApplied.Get()
 		ci := r.commitIndex.Get()
