@@ -126,3 +126,19 @@ func U64ToByte(num uint64) []byte {
 
 	return res
 }
+
+// ByteToU64 converts a byte slice to Uint64. The byte should have been created using U64ToByte
+func ByteToU64(b []byte) uint64 {
+	res := uint64(0)
+
+	res |= uint64(b[0])
+	res |= uint64(b[1]) << 8
+	res |= uint64(b[2]) << 16
+	res |= uint64(b[3]) << 24
+	res |= uint64(b[4]) << 32
+	res |= uint64(b[5]) << 40
+	res |= uint64(b[6]) << 48
+	res |= uint64(b[7]) << 56
+
+	return res
+}

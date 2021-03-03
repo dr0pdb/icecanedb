@@ -9,10 +9,10 @@ service IcecaneKV {
   // KV commands with txn supported.
   rpc Get(GetRequest) returns (GetResponse) {}
   rpc Put(PutRequest) returns (PutResponse) {}
-  rpc Scan(ScanRequest) returns (ScanResponse) {}
   rpc Delete(DeleteRequest) returns (DeleteResponse) {}
   rpc BeginTxn(BeginTxnRequest) returns (BeginTxnResponse) {}
   rpc CommitTxn(CommitTxnRequest) returns (CommitTxnResponse) {}
+  rpc RollbackTxn(RollbackTxnRequest) returns (RollbackTxnResponse) {}
 
   // RawKV commands.
   rpc RawGet(RawGetRequest) returns (RawGetResponse) {}

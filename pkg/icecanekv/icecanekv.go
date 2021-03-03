@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
-	inmemory_mvcc "github.com/dr0pdb/icecanedb/pkg/inmemory-mvcc"
+	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
@@ -34,7 +34,7 @@ type KVServer struct {
 	kvPath    string
 
 	// the mvcc layer for the key-value data
-	kvMvcc *inmemory_mvcc.MVCC
+	kvMvcc *mvcc.MVCC
 
 	// kvConfig is the config
 	kvConfig *common.KVConfig
@@ -67,6 +67,36 @@ func (kvs *KVServer) RequestVote(ctx context.Context, request *pb.RequestVoteReq
 // AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
 func (kvs *KVServer) AppendEntries(ctx context.Context, request *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	return kvs.raftServer.AppendEntries(ctx, request)
+}
+
+// Get gets the value of a key.
+func (kvs *KVServer) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// Put puts the value of a key.
+func (kvs *KVServer) Put(ctx context.Context, req *pb.PutRequest) (*pb.PutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// Delete deletes the value of a key.
+func (kvs *KVServer) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// BeginTxn begins a MVCC transaction providing ACID guarantees.
+func (kvs *KVServer) BeginTxn(ctx context.Context, req *pb.BeginTxnRequest) (*pb.BeginTxnResponse, error) {
+	return kvs.kvMvcc.BeginTxn(ctx, req)
+}
+
+// CommitTxn attempts to commit a MVCC txn
+func (kvs *KVServer) CommitTxn(ctx context.Context, req *pb.CommitTxnRequest) (*pb.CommitTxnResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// RollbackTxn rollsback a MVCC txn
+func (kvs *KVServer) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb.RollbackTxnResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
 }
 
 // Close cleans up the kv server
@@ -102,8 +132,8 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 		return nil, err
 	}
 
-	kvMvcc := inmemory_mvcc.NewMVCC(kvStorage)
-	raftServer := raft.NewRaftServer(kvConfig, raftStorage, kvStorage, kvMvcc)
+	raftServer := raft.NewRaftServer(kvConfig, raftStorage, kvStorage)
+	kvMvcc := mvcc.NewMVCC(raftServer)
 
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{

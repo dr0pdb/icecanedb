@@ -18,6 +18,13 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type IcecaneKVClient interface {
+	// KV commands with txn supported.
+	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
+	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
+	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	BeginTxn(ctx context.Context, in *BeginTxnRequest, opts ...grpc.CallOption) (*BeginTxnResponse, error)
+	CommitTxn(ctx context.Context, in *CommitTxnRequest, opts ...grpc.CallOption) (*CommitTxnResponse, error)
+	RollbackTxn(ctx context.Context, in *RollbackTxnRequest, opts ...grpc.CallOption) (*RollbackTxnResponse, error)
 	// RawKV commands.
 	RawGet(ctx context.Context, in *RawGetRequest, opts ...grpc.CallOption) (*RawGetResponse, error)
 	RawPut(ctx context.Context, in *RawPutRequest, opts ...grpc.CallOption) (*RawPutResponse, error)
@@ -33,6 +40,60 @@ type icecaneKVClient struct {
 
 func NewIcecaneKVClient(cc grpc.ClientConnInterface) IcecaneKVClient {
 	return &icecaneKVClient{cc}
+}
+
+func (c *icecaneKVClient) Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error) {
+	out := new(GetResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/Get", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *icecaneKVClient) Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error) {
+	out := new(PutResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/Put", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *icecaneKVClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
+	out := new(DeleteResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/Delete", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *icecaneKVClient) BeginTxn(ctx context.Context, in *BeginTxnRequest, opts ...grpc.CallOption) (*BeginTxnResponse, error) {
+	out := new(BeginTxnResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/BeginTxn", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *icecaneKVClient) CommitTxn(ctx context.Context, in *CommitTxnRequest, opts ...grpc.CallOption) (*CommitTxnResponse, error) {
+	out := new(CommitTxnResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/CommitTxn", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *icecaneKVClient) RollbackTxn(ctx context.Context, in *RollbackTxnRequest, opts ...grpc.CallOption) (*RollbackTxnResponse, error) {
+	out := new(RollbackTxnResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/RollbackTxn", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *icecaneKVClient) RawGet(ctx context.Context, in *RawGetRequest, opts ...grpc.CallOption) (*RawGetResponse, error) {
@@ -84,6 +145,13 @@ func (c *icecaneKVClient) AppendEntries(ctx context.Context, in *AppendEntriesRe
 // All implementations must embed UnimplementedIcecaneKVServer
 // for forward compatibility
 type IcecaneKVServer interface {
+	// KV commands with txn supported.
+	Get(context.Context, *GetRequest) (*GetResponse, error)
+	Put(context.Context, *PutRequest) (*PutResponse, error)
+	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	BeginTxn(context.Context, *BeginTxnRequest) (*BeginTxnResponse, error)
+	CommitTxn(context.Context, *CommitTxnRequest) (*CommitTxnResponse, error)
+	RollbackTxn(context.Context, *RollbackTxnRequest) (*RollbackTxnResponse, error)
 	// RawKV commands.
 	RawGet(context.Context, *RawGetRequest) (*RawGetResponse, error)
 	RawPut(context.Context, *RawPutRequest) (*RawPutResponse, error)
@@ -98,6 +166,24 @@ type IcecaneKVServer interface {
 type UnimplementedIcecaneKVServer struct {
 }
 
+func (UnimplementedIcecaneKVServer) Get(context.Context, *GetRequest) (*GetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedIcecaneKVServer) Put(context.Context, *PutRequest) (*PutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Put not implemented")
+}
+func (UnimplementedIcecaneKVServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedIcecaneKVServer) BeginTxn(context.Context, *BeginTxnRequest) (*BeginTxnResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BeginTxn not implemented")
+}
+func (UnimplementedIcecaneKVServer) CommitTxn(context.Context, *CommitTxnRequest) (*CommitTxnResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CommitTxn not implemented")
+}
+func (UnimplementedIcecaneKVServer) RollbackTxn(context.Context, *RollbackTxnRequest) (*RollbackTxnResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RollbackTxn not implemented")
+}
 func (UnimplementedIcecaneKVServer) RawGet(context.Context, *RawGetRequest) (*RawGetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
 }
@@ -124,6 +210,114 @@ type UnsafeIcecaneKVServer interface {
 
 func RegisterIcecaneKVServer(s grpc.ServiceRegistrar, srv IcecaneKVServer) {
 	s.RegisterService(&IcecaneKV_ServiceDesc, srv)
+}
+
+func _IcecaneKV_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).Get(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/Get",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).Get(ctx, req.(*GetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IcecaneKV_Put_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).Put(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/Put",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).Put(ctx, req.(*PutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IcecaneKV_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).Delete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/Delete",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).Delete(ctx, req.(*DeleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IcecaneKV_BeginTxn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginTxnRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).BeginTxn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/BeginTxn",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).BeginTxn(ctx, req.(*BeginTxnRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IcecaneKV_CommitTxn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitTxnRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).CommitTxn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/CommitTxn",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).CommitTxn(ctx, req.(*CommitTxnRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IcecaneKV_RollbackTxn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RollbackTxnRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).RollbackTxn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/RollbackTxn",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).RollbackTxn(ctx, req.(*RollbackTxnRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _IcecaneKV_RawGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -223,6 +417,30 @@ var IcecaneKV_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "icecanedbpb.IcecaneKV",
 	HandlerType: (*IcecaneKVServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Get",
+			Handler:    _IcecaneKV_Get_Handler,
+		},
+		{
+			MethodName: "Put",
+			Handler:    _IcecaneKV_Put_Handler,
+		},
+		{
+			MethodName: "Delete",
+			Handler:    _IcecaneKV_Delete_Handler,
+		},
+		{
+			MethodName: "BeginTxn",
+			Handler:    _IcecaneKV_BeginTxn_Handler,
+		},
+		{
+			MethodName: "CommitTxn",
+			Handler:    _IcecaneKV_CommitTxn_Handler,
+		},
+		{
+			MethodName: "RollbackTxn",
+			Handler:    _IcecaneKV_RollbackTxn_Handler,
+		},
 		{
 			MethodName: "RawGet",
 			Handler:    _IcecaneKV_RawGet_Handler,

@@ -1,6 +1,10 @@
 syntax = "proto3";
 package icecanedbpb;
 
+//
+// raw requests
+//
+
 message RawGetRequest {
   Context context = 1;
   bytes key = 2;
@@ -33,9 +37,17 @@ message RawDeleteResponse {
   string error = 2;
 }
 
+//
+// txn requests
+//
+
 message GetRequest {
   Context context = 1;
   bytes key = 2;
+
+  // txn_id indicates whether this request is part of any txn.
+  // optional.
+  uint64 txn_id = 3;
 }
 
 message GetResponse {
@@ -48,6 +60,10 @@ message PutRequest {
   Context context = 1;
   bytes key = 2;
   bytes value = 3;
+
+  // txn_id indicates whether this request is part of any txn.
+  // optional.
+  uint64 txn_id = 4;
 }
 
 message PutResponse {
@@ -58,6 +74,10 @@ message PutResponse {
 message DeleteRequest {
   Context context = 1;
   bytes key = 2;
+
+  // txn_id indicates whether this request is part of any txn.
+  // optional.
+  uint64 txn_id = 3;
 }
 
 message DeleteResponse {
@@ -65,13 +85,31 @@ message DeleteResponse {
   string error = 2;
 }
 
-message BeginTxnRequest {}
+// TxnMode defines the mode of the txn.
+// Default: ReadOnly
+enum TxnMode {
+  ReadOnly = 0;
+  ReadWrite = 1;
+}
 
-message BeginTxnResponse {}
+message BeginTxnRequest {
+  Context ctx = 1;
+  TxnMode mode = 2;
+}
+
+message BeginTxnResponse {
+  bool success = 1;
+  uint64 txn_id = 2;
+  uint64 leader_id = 3;
+}
 
 message CommitTxnRequest {}
 
 message CommitTxnResponse {}
+
+message RollbackTxnRequest {}
+
+message RollbackTxnResponse {}
 
 message ScanRequest {}
 

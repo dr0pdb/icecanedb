@@ -140,6 +140,15 @@ type internalState struct {
 // grpc server calls
 //
 
+// getLeaderID returns the id of the node which this node thinks is the leader.
+func (r *Raft) getLeaderID() uint64 {
+	if r.role.Get() == leader {
+		return r.id
+	}
+
+	return r.istate.currentLeader.Get()
+}
+
 // RequestVote is used by the raft candidate to request for votes.
 // The current node has received a request to vote by another peer.
 func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) (resp *pb.RequestVoteResponse, err error) {

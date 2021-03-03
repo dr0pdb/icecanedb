@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
-	inmemory_mvcc "github.com/dr0pdb/icecanedb/pkg/inmemory-mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
@@ -23,9 +22,6 @@ type Server struct {
 
 	// stores actual key-value data
 	kvStorage *storage.Storage
-
-	// the mvcc layer for the key-value data
-	kvMvcc *inmemory_mvcc.MVCC
 
 	kvConfig *common.KVConfig
 
@@ -56,6 +52,26 @@ func (s *Server) Close() {
 		conn.Close()
 	}
 	log.Info("raft::server::Close; started")
+}
+
+//
+// mvcc layer calls
+//
+//
+
+// GetValue returns the value of the key from storage layer.
+func (s *Server) GetValue(key []byte) ([]byte, uint64, error) {
+	leader := s.raft.getLeaderID()
+	if leader != s.id {
+		return nil, leader, fmt.Errorf("not a leader")
+	}
+
+	return nil, leader, nil
+}
+
+// SetValue sets the value of the key and gets it replicated across peers
+func (s *Server) SetValue(key, value []byte) error {
+	return nil
 }
 
 //
@@ -101,6 +117,11 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 	return resp, err
 }
 
+// applyEntries applies the raft log to the storage engine.
+func (s *Server) applyEntries() {
+
+}
+
 //
 // raft server utility functions
 //
@@ -137,7 +158,7 @@ func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, 
 }
 
 // NewRaftServer creates a new instance of a Raft server
-func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.Storage, kvMvcc *inmemory_mvcc.MVCC) *Server {
+func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.Storage) *Server {
 	log.Info("raft::server::NewRaftServer; started")
 	applyCh := make(chan raftServerApplyMsg)
 	commCh := make(chan raftServerCommunicationMsg)
@@ -147,7 +168,6 @@ func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.St
 		id:                kvConfig.ID,
 		mu:                mu,
 		kvStorage:         kvStorage,
-		kvMvcc:            kvMvcc,
 		applyCh:           applyCh,
 		commCh:            commCh,
 		kvConfig:          kvConfig,
