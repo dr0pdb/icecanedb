@@ -151,6 +151,7 @@ func (s *Server) applyEntry(rl *raftLog) (err error) {
 		}
 	}
 
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::applyEntry; done")
 	return err
 }
 

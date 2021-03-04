@@ -62,4 +62,8 @@ message AppendEntriesResponse {
 }
 
 // a single log entry
-message LogEntry {}
+message LogEntry {
+  // entry contains the serialized term and string representation of the
+  // command.
+  bytes entry = 1;
+}

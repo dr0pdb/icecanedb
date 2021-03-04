@@ -221,15 +221,34 @@ func (r *Raft) sendRequestVote(rl *raftLog, voterID uint64) (*pb.RequestVoteResp
 	return r.s.sendRequestVote(voterID, req)
 }
 
-func (r *Raft) sendAppendEntries(receiverID, prevLogIndex, prevLogTerm uint64) (*pb.AppendEntriesResponse, error) {
+// sendAppendEntries sends append entries to the given receiver using the info stored in r.allProgress
+// also acts as heartbeat.
+func (r *Raft) sendAppendEntries(receiverID uint64) (*pb.AppendEntriesResponse, error) {
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; sending append entries to peer %d", receiverID))
-	// todo: add entries.
+
+	// we have to send entries from index p.Next to r.lastLogIndex
+	p := r.allProgress[receiverID]
+	lastRl := r.getLogEntryOrDefault(p.Next - 1)
+	prevLogIndex := p.Next - 1
+	prevLogTerm := lastRl.term
+
+	var entries []*pb.LogEntry
+	lim := r.lastLogIndex.Get()
+	for i := p.Next; i <= lim; i++ {
+		rl := r.getLogEntryOrDefault(i)
+		entry := &pb.LogEntry{
+			Entry: rl.toBytes(),
+		}
+		entries = append(entries, entry)
+	}
+
 	req := &pb.AppendEntriesRequest{
 		Term:         r.currentTerm.Get(),
 		LeaderId:     r.id,
 		PrevLogIndex: prevLogIndex,
 		PrevLogTerm:  prevLogTerm,
 		LeaderCommit: r.commitIndex.Get(),
+		Entries:      entries,
 	}
 	return r.s.sendAppendEntries(receiverID, req)
 }
@@ -326,7 +345,7 @@ func (r *Raft) candidate() {
 
 		r.currentTerm.Increment()
 		r.votedFor.Set(r.id)
-		rl := r.getLastLogEntryOrDefault()
+		rl := r.getLogEntryOrDefault(r.lastLogIndex.Get())
 
 		for i := range r.allProgress {
 			if i != r.id {
@@ -468,26 +487,26 @@ end:
 func (r *Raft) initializeLeaderVolatileState() {
 	for id, prog := range r.allProgress {
 		if id != r.id {
-			prog.Next = r.lastLogIndex.Get()
+			prog.Next = r.lastLogIndex.Get() + 1
 			prog.Match = 0
 		}
 	}
 }
 
-// getLastLogEntryOrDefault returns the latest raft log or dummy.
-func (r *Raft) getLastLogEntryOrDefault() *raftLog {
+// getLogEntryOrDefault returns the raft log at given index or dummy.
+func (r *Raft) getLogEntryOrDefault(idx uint64) *raftLog {
 	rl := &raftLog{
 		term: 0,
 	}
 
-	if r.lastLogIndex.Get() > 0 {
-		b, err := r.raftStorage.Get(common.U64ToByte(r.lastLogIndex.Get()), &storage.ReadOptions{})
+	if idx > 0 {
+		b, err := r.raftStorage.Get(common.U64ToByte(idx), &storage.ReadOptions{})
 		if err != nil {
-			log.Error(fmt.Sprintf("raft::raft::candidateroutine; error in fetching last log entry: %v", err))
+			log.Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in fetching log entry: %v", err))
 		} else {
 			rl, err = deserializeRaftLog(b)
 			if err != nil {
-				log.Error(fmt.Sprintf("raft::raft::candidateroutine; error in deserializing last log entry: %v", err))
+				log.Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in deserializing log entry: %v", err))
 			}
 		}
 	}
@@ -578,8 +597,10 @@ func (r *Raft) electionTimerRoutine() {
 	log.Info("raft::raft::electionTimerRoutine; done")
 }
 
-func (r *Raft) heartBeatRoutine() {
-	log.Info("raft::raft::heartBeatRoutine; started")
+// appendEntryRoutine sends append entry requests to the followers.
+// If there is nothing to send, it sends heartbeats.
+func (r *Raft) appendEntryRoutine() {
+	log.Info("raft::raft::appendEntryRoutine; started")
 	go func() {
 		for {
 			if r.role.Get() == leader {
@@ -588,16 +609,16 @@ func (r *Raft) heartBeatRoutine() {
 				for i := range r.allProgress {
 					if i != r.id {
 						go func(id uint64) {
-							resp, err := r.sendAppendEntries(id, 0, 0)
+							resp, err := r.sendAppendEntries(id)
 							if err != nil {
-								log.Error(fmt.Sprintf("raft::raft::heartBeatRoutine; error in send append entries %v", err))
+								log.Error(fmt.Sprintf("raft::raft::appendEntryRoutine; error in send append entries %v", err))
 								return
 							}
 							// this is required since the ch channel could be closed due to timeout.
 							// TODO: find a better way if possible?
 							defer func() {
 								if rec := recover(); rec != nil {
-									log.Warn(fmt.Sprintf("raft::raft::heartBeatRoutine; send append entries routine failed with: %v", rec))
+									log.Warn(fmt.Sprintf("raft::raft::appendEntryRoutine; send append entries routine failed with: %v", rec))
 								}
 							}()
 
@@ -619,12 +640,12 @@ func (r *Raft) heartBeatRoutine() {
 						}
 						cnt++
 						if cnt == len(r.allProgress) {
-							log.Info("raft::raft::heartBeatRoutine; received heartbeat response from everyone.")
+							log.Info("raft::raft::appendEntryRoutine; received response from everyone.")
 							goto out
 						}
 
 					case <-t:
-						log.Warn("raft::raft::heartBeatRoutine; timed out in sending heart beats.")
+						log.Warn("raft::raft::appendEntryRoutine; timed out in sending append entries.")
 						close(ch)
 						goto out
 					}
@@ -636,36 +657,14 @@ func (r *Raft) heartBeatRoutine() {
 		}
 	}()
 
-	log.Info("raft::raft::heartBeatRoutine; done")
-}
-
-func (r *Raft) applyRoutine() {
-	log.Info("raft::raft::applyRoutine; started")
-
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-
-		la := r.lastApplied.Get()
-		ci := r.commitIndex.Get()
-
-		if la < ci {
-			log.Info(fmt.Sprintf("raft::raft::applyRoutine; applying logs to the storage layer from index %d to %d", la+1, ci))
-
-			for idx := la + 1; idx <= ci; idx++ {
-				// todo: call server to apply the log
-			}
-		}
-	}()
-
-	log.Info("raft::raft::applyRoutine; done")
+	log.Info("raft::raft::appendEntryRoutine; done")
 }
 
 func (r *Raft) init() {
 	log.Info("raft::raft::init; started")
 
 	r.electionTimerRoutine()
-	r.heartBeatRoutine()
-	r.applyRoutine()
+	r.appendEntryRoutine()
 	go func() {
 		time.Sleep(time.Second) // allow starting grpc server
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
