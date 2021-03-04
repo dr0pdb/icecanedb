@@ -107,7 +107,8 @@ type Raft struct {
 
 type internalState struct {
 	// grpc requests from the client
-	clientRequests chan interface{}
+	clientRequests  chan interface{}
+	clientResponses chan interface{}
 
 	// append grpc requests from the leader
 	appendEntriesRequests chan *pb.AppendEntriesRequest
@@ -149,6 +150,23 @@ func (r *Raft) getLeaderID() uint64 {
 	return r.istate.currentLeader.Get()
 }
 
+func (r *Raft) clientSetRequest(key, value []byte) {
+	sr := &setRequest{
+		key:   key,
+		value: value,
+	}
+
+	r.istate.clientRequests <- sr
+}
+
+func (r *Raft) clientDeleteRequest(key []byte) {
+	dr := &deleteRequest{
+		key: key,
+	}
+
+	r.istate.clientRequests <- dr
+}
+
 // RequestVote is used by the raft candidate to request for votes.
 // The current node has received a request to vote by another peer.
 func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) (resp *pb.RequestVoteResponse, err error) {
@@ -177,6 +195,7 @@ func (r *Raft) appendEntries(ctx context.Context, req *pb.AppendEntriesRequest) 
 	r.istate.appendEntriesRequests <- req
 	t := time.After(getElectionTimeout())
 
+	// TODO: if this request times out, then the follower routine will be blocked forever. Handle the case.
 	select {
 	case resp = <-r.istate.appendEntriesReponses:
 		break
@@ -401,9 +420,44 @@ func (r *Raft) leader() {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; received on endLeader chan")
 			goto end
 
-		case <-r.istate.clientRequests:
-			// process it
+		case req := <-r.istate.clientRequests:
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; received a client request")
+			sr, ok := (req).(setRequest)
+			var rl *raftLog
+			if ok {
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; set request")
+				rl = newSetRaftLog(r.currentTerm.Get(), sr.key, sr.value)
+			}
+			dr, ok := (req).(deleteRequest)
+			if ok {
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; delete request")
+				rl = newDeleteRaftLog(r.currentTerm.Get(), dr.key)
+			} else {
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; invalid request")
+				// handle if req is neither of the two
+			}
 
+			lastIdx := r.lastLogIndex.Get()
+			err := r.raftStorage.Set(common.U64ToByte(lastIdx), rl.toBytes(), nil)
+			if err != nil {
+				// handle error
+			}
+			r.lastLogIndex.Increment()
+
+			// wait for the log to get replicated on a majiority by the append entry routine.
+			for {
+				if r.commitIndex.Get() >= r.lastLogIndex.Get() {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			err = r.s.applyEntry(rl)
+			if err != nil {
+				// handle error in application.
+			}
+
+			r.istate.clientResponses <- true // TODO: change what's returned from here.
 		}
 	}
 
@@ -642,7 +696,8 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 		raftStorage: raftStorage,
 		allProgress: initProgress(kvConfig.ID, kvConfig.Peers),
 		istate: &internalState{
-			clientRequests:        make(chan interface{}, 100),
+			clientRequests:        make(chan interface{}),
+			clientResponses:       make(chan interface{}),
 			appendEntriesRequests: make(chan *pb.AppendEntriesRequest),
 			appendEntriesReponses: make(chan *pb.AppendEntriesResponse),
 			requestVoteRequests:   make(chan *pb.RequestVoteRequest),

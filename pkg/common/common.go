@@ -61,11 +61,12 @@ func (b *ProtectedUint64) Set(nvalue uint64) {
 	b.value = nvalue
 }
 
-// Increment increments the value atomically.
-func (b *ProtectedUint64) Increment() {
+// Increment increments the value atomically and returns the new value.
+func (b *ProtectedUint64) Increment() uint64 {
 	b.m.Lock()
 	defer b.m.Unlock()
 	b.value++
+	return b.value
 }
 
 // Get gets the value

@@ -3,6 +3,7 @@ package raft
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
@@ -14,11 +15,9 @@ import (
 
 // Server is the icecane kv raft server
 type Server struct {
-	mu      *sync.Mutex
-	id      uint64
-	raft    *Raft
-	applyCh chan raftServerApplyMsg
-	commCh  chan raftServerCommunicationMsg
+	mu   *sync.Mutex
+	id   uint64
+	raft *Raft
 
 	// stores actual key-value data
 	kvStorage *storage.Storage
@@ -79,6 +78,16 @@ func (s *Server) SetValue(key, value []byte) (leader uint64, err error) {
 	return 0, nil
 }
 
+// DeleteValue deletes the value of the key and gets it replicated across peers
+func (s *Server) DeleteValue(key []byte) (leader uint64, err error) {
+	leader = s.raft.getLeaderID()
+	if leader != s.id {
+		return leader, fmt.Errorf("not a leader")
+	}
+
+	return 0, nil
+}
+
 //
 // raft callbacks
 // either grpc calls are made or changes are made to the storage layer.
@@ -122,9 +131,27 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 	return resp, err
 }
 
-// applyEntries applies the raft log to the storage engine.
-func (s *Server) applyEntries() {
+// applyEntry applies the raft log to the storage engine.
+func (s *Server) applyEntry(rl *raftLog) (err error) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v cmd: %s", rl.term, rl.ct, rl.command))
 
+	if rl.ct == setCmd {
+		parts := strings.Fields(string(rl.command))
+		if len(parts) == 3 && parts[0] == "SET" {
+			err = s.kvStorage.Set([]byte(parts[1]), []byte(parts[2]), nil)
+		} else {
+			err = fmt.Errorf("invalid set log command")
+		}
+	} else {
+		parts := strings.Fields(string(rl.command))
+		if len(parts) == 2 && parts[0] == "DELETE" {
+			err = s.kvStorage.Delete([]byte(parts[1]), nil)
+		} else {
+			err = fmt.Errorf("invalid delete log command")
+		}
+	}
+
+	return err
 }
 
 //
@@ -165,16 +192,12 @@ func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, 
 // NewRaftServer creates a new instance of a Raft server
 func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.Storage) *Server {
 	log.Info("raft::server::NewRaftServer; started")
-	applyCh := make(chan raftServerApplyMsg)
-	commCh := make(chan raftServerCommunicationMsg)
 	mu := new(sync.Mutex)
 
 	s := &Server{
 		id:                kvConfig.ID,
 		mu:                mu,
 		kvStorage:         kvStorage,
-		applyCh:           applyCh,
-		commCh:            commCh,
 		kvConfig:          kvConfig,
 		clientConnections: common.NewProtectedMapUConn(),
 	}

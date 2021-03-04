@@ -5,13 +5,13 @@ import (
 	"time"
 )
 
-// raftServerApplyMsg is the message sent by raft.Raft to raft.Server.
-// This is used to apply modifications to the storage layer after a log has been committed.
-type raftServerApplyMsg struct{}
+type setRequest struct {
+	key, value []byte
+}
 
-// raftServerApplyMsg is the message sent by raft.Raft to raft.Server.
-// This is used to communicate with other peers.
-type raftServerCommunicationMsg struct{}
+type deleteRequest struct {
+	key []byte
+}
 
 func isMajiority(cnt, allcnt int) bool {
 	return cnt*2 > allcnt
