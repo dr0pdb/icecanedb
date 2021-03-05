@@ -59,6 +59,9 @@ message AppendEntriesResponse {
 
   // true if follower contained entry matching prevLogIndex and prevLogTerm
   bool success = 2;
+
+  // id of the responder
+  uint64 responder_id = 3;
 }
 
 // a single log entry

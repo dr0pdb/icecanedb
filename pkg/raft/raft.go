@@ -284,20 +284,53 @@ func (r *Raft) follower() {
 			success := req.Term >= ct
 
 			if success {
-				if len(req.Entries) != 0 {
-					// TODO: check for conflicts and save to raft logs if ok
+				lrl := r.getLogEntryOrDefault(req.PrevLogIndex)
+				if lrl.term == req.PrevLogTerm {
+					for idx, rlb := range req.Entries {
+						// insert at prevLogIndex + idx (0 based indexing) + 1
+						err := r.raftStorage.Set(common.U64ToByte(uint64(idx+1)+req.PrevLogIndex), rlb.Entry, nil)
+						if err != nil {
+							success = false // ?
+							break
+						}
+						r.lastLogIndex.Set(uint64(idx+1) + req.PrevLogIndex)
+					}
+				} else {
+					success = false
 				}
 
 				r.istate.currentLeader.Set(req.LeaderId)
 				r.setTerm(req.Term)
-				log.WithFields(log.Fields{"id": r.id, "leader": req.LeaderId}).Info("raft::raft::followerroutine; current leader updated")
 			}
 
 			resp := &pb.AppendEntriesResponse{
-				Term:    ct,
-				Success: success,
+				Term:        ct,
+				Success:     success,
+				ResponderId: r.id,
 			}
+
 			r.istate.appendEntriesReponses <- resp
+
+			la := r.lastApplied.Get()
+			lli := r.lastLogIndex.Get()
+
+			// we simply reapply all the entries.
+			// the paper suggests to check the log entries and only apply those
+			// which have a conflicting entry (term) at the same index.
+			for idx := la + 1; idx <= lli; idx++ {
+				rl := r.getLogEntryOrDefault(idx)
+				err := r.s.applyEntry(rl)
+				if err != nil {
+					// log it.
+				}
+
+				r.lastApplied.Set(idx)
+			}
+
+			// update commit index
+			if req.LeaderCommit > r.commitIndex.Get() {
+				r.commitIndex.Set(common.MinU64(req.LeaderCommit, r.lastApplied.Get()))
+			}
 		}
 	}
 
@@ -372,17 +405,17 @@ func (r *Raft) candidate() {
 
 		for {
 			select {
-			case resp := <-r.istate.appendEntriesRequests:
-				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::candidateroutine; received append request from %d", resp.LeaderId))
+			case req := <-r.istate.appendEntriesRequests:
+				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::candidateroutine; received append request from %d", req.LeaderId))
 
-				if resp.Term >= r.currentTerm.Get() {
-					log.Info(fmt.Sprintf("raft::raft::candidateroutine; request from %d is up to date. becoming follower", resp.LeaderId))
+				if req.Term >= r.currentTerm.Get() {
+					log.Info(fmt.Sprintf("raft::raft::candidateroutine; request from %d is up to date. becoming follower", req.LeaderId))
 					r.istate.lastAppendOrVoteTime = time.Now()
-					r.setTerm(resp.Term)
+					r.setTerm(req.Term)
 					r.becomeFollower(candidate)
 					goto end
 				} else {
-					log.Info(fmt.Sprintf("raft::raft::candidateroutine; request from %d is stale. ignoring", resp.LeaderId))
+					log.Info(fmt.Sprintf("raft::raft::candidateroutine; request from %d is stale. ignoring", req.LeaderId))
 				}
 
 			case resp := <-voteRecCh:
@@ -452,12 +485,12 @@ func (r *Raft) leader() {
 				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; delete request")
 				rl = newDeleteRaftLog(r.currentTerm.Get(), dr.key)
 			} else {
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; invalid request")
+				log.WithFields(log.Fields{"id": r.id}).Error("raft::raft::leaderroutine; invalid request")
 				// handle if req is neither of the two
 			}
 
 			lastIdx := r.lastLogIndex.Get()
-			err := r.raftStorage.Set(common.U64ToByte(lastIdx), rl.toBytes(), nil)
+			err := r.raftStorage.Set(common.U64ToByte(lastIdx+1), rl.toBytes(), nil)
 			if err != nil {
 				// handle error
 			}
@@ -476,7 +509,7 @@ func (r *Raft) leader() {
 				// handle error in application.
 			}
 
-			r.istate.clientResponses <- true // TODO: change what's returned from here.
+			r.istate.clientResponses <- true
 		}
 	}
 
@@ -550,6 +583,7 @@ func (r *Raft) becomeCandidate(src uint64) {
 	if r.istate.followerRunning.Get() {
 		r.istate.endFollower <- true
 	}
+	r.votedFor.Set(noVote)
 	r.role.Set(candidate)
 	for {
 		if (src == follower || !r.istate.followerRunning.Get()) && (src == leader && !r.istate.leaderRunning.Get()) {
@@ -636,8 +670,18 @@ func (r *Raft) appendEntryRoutine() {
 						if resp.Term > r.currentTerm.Get() {
 							r.setTerm(resp.Term)
 							r.becomeFollower(norole)
+							r.istate.currentLeader.Set(resp.ResponderId)
 							goto out
 						}
+
+						p := r.allProgress[resp.ResponderId]
+						if resp.Success {
+							p.Next = r.lastLogIndex.Get() + 1
+							p.Match = r.lastLogIndex.Get()
+						} else {
+							p.Next-- // retry with decremented next index
+						}
+
 						cnt++
 						if cnt == len(r.allProgress) {
 							log.Info("raft::raft::appendEntryRoutine; received response from everyone.")
@@ -660,11 +704,45 @@ func (r *Raft) appendEntryRoutine() {
 	log.Info("raft::raft::appendEntryRoutine; done")
 }
 
+func (r *Raft) commitEntryRoutine() {
+	log.Info("raft::raft::commitEntryRoutine; started")
+
+	go func() {
+		for {
+			if r.role.Get() == leader {
+				ci := r.commitIndex.Get()
+				for idx := ci + 1; idx <= r.lastLogIndex.Get(); idx++ {
+					rl := r.getLogEntryOrDefault(idx)
+					if rl.term == r.currentTerm.Get() {
+						cnt := 1
+
+						for id, p := range r.allProgress {
+							if r.id != id && p.Match >= idx {
+								cnt++
+							}
+						}
+
+						if isMajiority(cnt, len(r.allProgress)) {
+							r.commitIndex.Set(idx)
+						}
+					}
+				}
+			}
+
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+
+	log.Info("raft::raft::commitEntryRoutine; done")
+}
+
 func (r *Raft) init() {
 	log.Info("raft::raft::init; started")
 
 	r.electionTimerRoutine()
 	r.appendEntryRoutine()
+	r.commitEntryRoutine()
+
 	go func() {
 		time.Sleep(time.Second) // allow starting grpc server
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
