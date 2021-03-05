@@ -20,7 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 type IcecaneKVClient interface {
 	// KV commands with txn supported.
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
-	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
+	Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	BeginTxn(ctx context.Context, in *BeginTxnRequest, opts ...grpc.CallOption) (*BeginTxnResponse, error)
 	CommitTxn(ctx context.Context, in *CommitTxnRequest, opts ...grpc.CallOption) (*CommitTxnResponse, error)
@@ -51,9 +51,9 @@ func (c *icecaneKVClient) Get(ctx context.Context, in *GetRequest, opts ...grpc.
 	return out, nil
 }
 
-func (c *icecaneKVClient) Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error) {
-	out := new(PutResponse)
-	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/Put", in, out, opts...)
+func (c *icecaneKVClient) Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error) {
+	out := new(SetResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/Set", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (c *icecaneKVClient) AppendEntries(ctx context.Context, in *AppendEntriesRe
 type IcecaneKVServer interface {
 	// KV commands with txn supported.
 	Get(context.Context, *GetRequest) (*GetResponse, error)
-	Put(context.Context, *PutRequest) (*PutResponse, error)
+	Set(context.Context, *SetRequest) (*SetResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	BeginTxn(context.Context, *BeginTxnRequest) (*BeginTxnResponse, error)
 	CommitTxn(context.Context, *CommitTxnRequest) (*CommitTxnResponse, error)
@@ -169,8 +169,8 @@ type UnimplementedIcecaneKVServer struct {
 func (UnimplementedIcecaneKVServer) Get(context.Context, *GetRequest) (*GetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedIcecaneKVServer) Put(context.Context, *PutRequest) (*PutResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Put not implemented")
+func (UnimplementedIcecaneKVServer) Set(context.Context, *SetRequest) (*SetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Set not implemented")
 }
 func (UnimplementedIcecaneKVServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
@@ -230,20 +230,20 @@ func _IcecaneKV_Get_Handler(srv interface{}, ctx context.Context, dec func(inter
 	return interceptor(ctx, in, info, handler)
 }
 
-func _IcecaneKV_Put_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PutRequest)
+func _IcecaneKV_Set_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(IcecaneKVServer).Put(ctx, in)
+		return srv.(IcecaneKVServer).Set(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/icecanedbpb.IcecaneKV/Put",
+		FullMethod: "/icecanedbpb.IcecaneKV/Set",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IcecaneKVServer).Put(ctx, req.(*PutRequest))
+		return srv.(IcecaneKVServer).Set(ctx, req.(*SetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -422,8 +422,8 @@ var IcecaneKV_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _IcecaneKV_Get_Handler,
 		},
 		{
-			MethodName: "Put",
-			Handler:    _IcecaneKV_Put_Handler,
+			MethodName: "Set",
+			Handler:    _IcecaneKV_Set_Handler,
 		},
 		{
 			MethodName: "Delete",

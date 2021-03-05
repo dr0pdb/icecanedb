@@ -547,7 +547,7 @@ func (x *GetResponse) GetNotFound() bool {
 	return false
 }
 
-type PutRequest struct {
+type SetRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -560,8 +560,8 @@ type PutRequest struct {
 	TxnId uint64 `protobuf:"varint,4,opt,name=txn_id,json=txnId,proto3" json:"txn_id,omitempty"`
 }
 
-func (x *PutRequest) Reset() {
-	*x = PutRequest{}
+func (x *SetRequest) Reset() {
+	*x = SetRequest{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_kvrpcpb_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -569,13 +569,13 @@ func (x *PutRequest) Reset() {
 	}
 }
 
-func (x *PutRequest) String() string {
+func (x *SetRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PutRequest) ProtoMessage() {}
+func (*SetRequest) ProtoMessage() {}
 
-func (x *PutRequest) ProtoReflect() protoreflect.Message {
+func (x *SetRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_kvrpcpb_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -587,40 +587,40 @@ func (x *PutRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PutRequest.ProtoReflect.Descriptor instead.
-func (*PutRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SetRequest.ProtoReflect.Descriptor instead.
+func (*SetRequest) Descriptor() ([]byte, []int) {
 	return file_kvrpcpb_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *PutRequest) GetContext() *Context {
+func (x *SetRequest) GetContext() *Context {
 	if x != nil {
 		return x.Context
 	}
 	return nil
 }
 
-func (x *PutRequest) GetKey() []byte {
+func (x *SetRequest) GetKey() []byte {
 	if x != nil {
 		return x.Key
 	}
 	return nil
 }
 
-func (x *PutRequest) GetValue() []byte {
+func (x *SetRequest) GetValue() []byte {
 	if x != nil {
 		return x.Value
 	}
 	return nil
 }
 
-func (x *PutRequest) GetTxnId() uint64 {
+func (x *SetRequest) GetTxnId() uint64 {
 	if x != nil {
 		return x.TxnId
 	}
 	return 0
 }
 
-type PutResponse struct {
+type SetResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -629,8 +629,8 @@ type PutResponse struct {
 	Error   string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 }
 
-func (x *PutResponse) Reset() {
-	*x = PutResponse{}
+func (x *SetResponse) Reset() {
+	*x = SetResponse{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_kvrpcpb_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -638,13 +638,13 @@ func (x *PutResponse) Reset() {
 	}
 }
 
-func (x *PutResponse) String() string {
+func (x *SetResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PutResponse) ProtoMessage() {}
+func (*SetResponse) ProtoMessage() {}
 
-func (x *PutResponse) ProtoReflect() protoreflect.Message {
+func (x *SetResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_kvrpcpb_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -656,19 +656,19 @@ func (x *PutResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PutResponse.ProtoReflect.Descriptor instead.
-func (*PutResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use SetResponse.ProtoReflect.Descriptor instead.
+func (*SetResponse) Descriptor() ([]byte, []int) {
 	return file_kvrpcpb_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *PutResponse) GetSuccess() bool {
+func (x *SetResponse) GetSuccess() bool {
 	if x != nil {
 		return x.Success
 	}
 	return false
 }
 
-func (x *PutResponse) GetError() string {
+func (x *SetResponse) GetError() string {
 	if x != nil {
 		return x.Error
 	}
@@ -1228,7 +1228,7 @@ var file_kvrpcpb_proto_rawDesc = []byte{
 	0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72,
 	0x6f, 0x72, 0x12, 0x1b, 0x0a, 0x09, 0x6e, 0x6f, 0x74, 0x5f, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x18,
 	0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x08, 0x6e, 0x6f, 0x74, 0x46, 0x6f, 0x75, 0x6e, 0x64, 0x22,
-	0x7b, 0x0a, 0x0a, 0x50, 0x75, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a,
+	0x7b, 0x0a, 0x0a, 0x53, 0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a,
 	0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14,
 	0x2e, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e,
 	0x74, 0x65, 0x78, 0x74, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10, 0x0a,
@@ -1236,7 +1236,7 @@ var file_kvrpcpb_proto_rawDesc = []byte{
 	0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05,
 	0x76, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x15, 0x0a, 0x06, 0x74, 0x78, 0x6e, 0x5f, 0x69, 0x64, 0x18,
 	0x04, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x74, 0x78, 0x6e, 0x49, 0x64, 0x22, 0x3d, 0x0a, 0x0b,
-	0x50, 0x75, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73,
+	0x53, 0x65, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73,
 	0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75,
 	0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x02,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x68, 0x0a, 0x0d, 0x44,
@@ -1300,8 +1300,8 @@ var file_kvrpcpb_proto_goTypes = []interface{}{
 	(*RawDeleteResponse)(nil),   // 6: icecanedbpb.RawDeleteResponse
 	(*GetRequest)(nil),          // 7: icecanedbpb.GetRequest
 	(*GetResponse)(nil),         // 8: icecanedbpb.GetResponse
-	(*PutRequest)(nil),          // 9: icecanedbpb.PutRequest
-	(*PutResponse)(nil),         // 10: icecanedbpb.PutResponse
+	(*SetRequest)(nil),          // 9: icecanedbpb.SetRequest
+	(*SetResponse)(nil),         // 10: icecanedbpb.SetResponse
 	(*DeleteRequest)(nil),       // 11: icecanedbpb.DeleteRequest
 	(*DeleteResponse)(nil),      // 12: icecanedbpb.DeleteResponse
 	(*BeginTxnRequest)(nil),     // 13: icecanedbpb.BeginTxnRequest
@@ -1319,7 +1319,7 @@ var file_kvrpcpb_proto_depIdxs = []int32{
 	21, // 1: icecanedbpb.RawPutRequest.context:type_name -> icecanedbpb.Context
 	21, // 2: icecanedbpb.RawDeleteRequest.context:type_name -> icecanedbpb.Context
 	21, // 3: icecanedbpb.GetRequest.context:type_name -> icecanedbpb.Context
-	21, // 4: icecanedbpb.PutRequest.context:type_name -> icecanedbpb.Context
+	21, // 4: icecanedbpb.SetRequest.context:type_name -> icecanedbpb.Context
 	21, // 5: icecanedbpb.DeleteRequest.context:type_name -> icecanedbpb.Context
 	21, // 6: icecanedbpb.BeginTxnRequest.ctx:type_name -> icecanedbpb.Context
 	0,  // 7: icecanedbpb.BeginTxnRequest.mode:type_name -> icecanedbpb.TxnMode
@@ -1433,7 +1433,7 @@ func file_kvrpcpb_proto_init() {
 			}
 		}
 		file_kvrpcpb_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PutRequest); i {
+			switch v := v.(*SetRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1445,7 +1445,7 @@ func file_kvrpcpb_proto_init() {
 			}
 		}
 		file_kvrpcpb_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PutResponse); i {
+			switch v := v.(*SetResponse); i {
 			case 0:
 				return &v.state
 			case 1:

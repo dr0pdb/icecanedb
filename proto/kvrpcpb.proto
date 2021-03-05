@@ -56,7 +56,7 @@ message GetResponse {
   bool not_found = 3;
 }
 
-message PutRequest {
+message SetRequest {
   Context context = 1;
   bytes key = 2;
   bytes value = 3;
@@ -66,7 +66,7 @@ message PutRequest {
   uint64 txn_id = 4;
 }
 
-message PutResponse {
+message SetResponse {
   bool success = 1;
   string error = 2;
 }

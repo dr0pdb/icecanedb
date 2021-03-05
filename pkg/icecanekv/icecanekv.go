@@ -74,8 +74,8 @@ func (kvs *KVServer) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetRespon
 	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
 }
 
-// Put puts the value of a key.
-func (kvs *KVServer) Put(ctx context.Context, req *pb.PutRequest) (*pb.PutResponse, error) {
+// Set sets the value of a key.
+func (kvs *KVServer) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
 }
 

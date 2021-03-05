@@ -8,7 +8,7 @@ import "raftpb.proto";
 service IcecaneKV {
   // KV commands with txn supported.
   rpc Get(GetRequest) returns (GetResponse) {}
-  rpc Put(PutRequest) returns (PutResponse) {}
+  rpc Set(SetRequest) returns (SetResponse) {}
   rpc Delete(DeleteRequest) returns (DeleteResponse) {}
   rpc BeginTxn(BeginTxnRequest) returns (BeginTxnResponse) {}
   rpc CommitTxn(CommitTxnRequest) returns (CommitTxnResponse) {}

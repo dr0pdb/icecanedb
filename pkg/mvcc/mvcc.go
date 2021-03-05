@@ -8,6 +8,8 @@ import (
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // MVCC is the Multi Version Concurrency Control layer for transactions.
@@ -69,6 +71,31 @@ func (m *MVCC) BeginTxn(ctx context.Context, req *pb.BeginTxnRequest) (*pb.Begin
 
 	log.Info("mvcc::mvcc::BeginTxn; done")
 	return resp, nil
+}
+
+// Get gets the value of a key.
+func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// Set sets the value of a key.
+func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// Delete deletes the value of a key.
+func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// CommitTxn attempts to commit a MVCC txn
+func (m *MVCC) CommitTxn(ctx context.Context, req *pb.CommitTxnRequest) (*pb.CommitTxnResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+}
+
+// RollbackTxn rollsback a MVCC txn
+func (m *MVCC) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb.RollbackTxnResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
 }
 
 // NewMVCC creates a new MVCC transactional layer for the storage

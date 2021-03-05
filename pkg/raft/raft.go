@@ -108,7 +108,7 @@ type Raft struct {
 type internalState struct {
 	// grpc requests from the client
 	clientRequests  chan interface{}
-	clientResponses chan interface{}
+	clientResponses chan bool
 
 	// append grpc requests from the leader
 	appendEntriesRequests chan *pb.AppendEntriesRequest
@@ -150,21 +150,40 @@ func (r *Raft) getLeaderID() uint64 {
 	return r.istate.currentLeader.Get()
 }
 
-func (r *Raft) clientSetRequest(key, value []byte) {
+func (r *Raft) clientSetRequest(key, value []byte) error {
+	log.WithFields(log.Fields{"id": r.id, "key": string(key), "value": string(value)}).Info("raft::raft::clientSetRequest; received set request")
 	sr := &setRequest{
 		key:   key,
 		value: value,
 	}
 
 	r.istate.clientRequests <- sr
+	resp := <-r.istate.clientResponses
+
+	if !resp {
+		log.WithFields(log.Fields{"id": r.id}).Error("raft::raft::clientSetRequest; error")
+		return fmt.Errorf("set request failed")
+	}
+
+	return nil
 }
 
-func (r *Raft) clientDeleteRequest(key []byte) {
+func (r *Raft) clientDeleteRequest(key []byte) error {
+	log.WithFields(log.Fields{"id": r.id, "key": string(key)}).Info("raft::raft::clientDeleteRequest; received delete request")
 	dr := &deleteRequest{
 		key: key,
 	}
 
 	r.istate.clientRequests <- dr
+
+	resp := <-r.istate.clientResponses
+
+	if !resp {
+		log.WithFields(log.Fields{"id": r.id}).Error("raft::raft::clientDeleteRequest; error")
+		return fmt.Errorf("delete request failed")
+	}
+
+	return nil
 }
 
 // RequestVote is used by the raft candidate to request for votes.
@@ -774,14 +793,14 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 		allProgress: initProgress(kvConfig.ID, kvConfig.Peers),
 		istate: &internalState{
 			clientRequests:        make(chan interface{}),
-			clientResponses:       make(chan interface{}),
+			clientResponses:       make(chan bool),
 			appendEntriesRequests: make(chan *pb.AppendEntriesRequest),
 			appendEntriesReponses: make(chan *pb.AppendEntriesResponse),
 			requestVoteRequests:   make(chan *pb.RequestVoteRequest),
 			requestVoteResponses:  make(chan bool),
 			endFollower:           make(chan bool),
 			endLeader:             make(chan bool),
-			lastAppendOrVoteTime:  time.Now(), // todo: any issue with this?
+			lastAppendOrVoteTime:  time.Now(),
 		},
 		kvConfig:     kvConfig,
 		s:            s,
