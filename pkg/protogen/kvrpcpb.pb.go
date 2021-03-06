@@ -73,352 +73,6 @@ func (TxnMode) EnumDescriptor() ([]byte, []int) {
 	return file_kvrpcpb_proto_rawDescGZIP(), []int{0}
 }
 
-type RawGetRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Context *Context `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Key     []byte   `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-}
-
-func (x *RawGetRequest) Reset() {
-	*x = RawGetRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[0]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *RawGetRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RawGetRequest) ProtoMessage() {}
-
-func (x *RawGetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[0]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RawGetRequest.ProtoReflect.Descriptor instead.
-func (*RawGetRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *RawGetRequest) GetContext() *Context {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *RawGetRequest) GetKey() []byte {
-	if x != nil {
-		return x.Key
-	}
-	return nil
-}
-
-type RawGetResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Value    []byte `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
-	Error    string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-	NotFound bool   `protobuf:"varint,3,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
-}
-
-func (x *RawGetResponse) Reset() {
-	*x = RawGetResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *RawGetResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RawGetResponse) ProtoMessage() {}
-
-func (x *RawGetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RawGetResponse.ProtoReflect.Descriptor instead.
-func (*RawGetResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *RawGetResponse) GetValue() []byte {
-	if x != nil {
-		return x.Value
-	}
-	return nil
-}
-
-func (x *RawGetResponse) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
-}
-
-func (x *RawGetResponse) GetNotFound() bool {
-	if x != nil {
-		return x.NotFound
-	}
-	return false
-}
-
-type RawPutRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Context *Context `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Key     []byte   `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	Value   []byte   `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
-}
-
-func (x *RawPutRequest) Reset() {
-	*x = RawPutRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[2]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *RawPutRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RawPutRequest) ProtoMessage() {}
-
-func (x *RawPutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[2]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RawPutRequest.ProtoReflect.Descriptor instead.
-func (*RawPutRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *RawPutRequest) GetContext() *Context {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *RawPutRequest) GetKey() []byte {
-	if x != nil {
-		return x.Key
-	}
-	return nil
-}
-
-func (x *RawPutRequest) GetValue() []byte {
-	if x != nil {
-		return x.Value
-	}
-	return nil
-}
-
-type RawPutResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Success bool   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Error   string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-}
-
-func (x *RawPutResponse) Reset() {
-	*x = RawPutResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *RawPutResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RawPutResponse) ProtoMessage() {}
-
-func (x *RawPutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RawPutResponse.ProtoReflect.Descriptor instead.
-func (*RawPutResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *RawPutResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *RawPutResponse) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
-}
-
-type RawDeleteRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Context *Context `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Key     []byte   `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-}
-
-func (x *RawDeleteRequest) Reset() {
-	*x = RawDeleteRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[4]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *RawDeleteRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RawDeleteRequest) ProtoMessage() {}
-
-func (x *RawDeleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[4]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RawDeleteRequest.ProtoReflect.Descriptor instead.
-func (*RawDeleteRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *RawDeleteRequest) GetContext() *Context {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *RawDeleteRequest) GetKey() []byte {
-	if x != nil {
-		return x.Key
-	}
-	return nil
-}
-
-type RawDeleteResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Success bool   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Error   string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-}
-
-func (x *RawDeleteResponse) Reset() {
-	*x = RawDeleteResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[5]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *RawDeleteResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RawDeleteResponse) ProtoMessage() {}
-
-func (x *RawDeleteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[5]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RawDeleteResponse.ProtoReflect.Descriptor instead.
-func (*RawDeleteResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *RawDeleteResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *RawDeleteResponse) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
-}
-
 type GetRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -434,7 +88,7 @@ type GetRequest struct {
 func (x *GetRequest) Reset() {
 	*x = GetRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[6]
+		mi := &file_kvrpcpb_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -447,7 +101,7 @@ func (x *GetRequest) String() string {
 func (*GetRequest) ProtoMessage() {}
 
 func (x *GetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[6]
+	mi := &file_kvrpcpb_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -460,7 +114,7 @@ func (x *GetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRequest.ProtoReflect.Descriptor instead.
 func (*GetRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{6}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GetRequest) GetContext() *Context {
@@ -497,7 +151,7 @@ type GetResponse struct {
 func (x *GetResponse) Reset() {
 	*x = GetResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[7]
+		mi := &file_kvrpcpb_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -510,7 +164,7 @@ func (x *GetResponse) String() string {
 func (*GetResponse) ProtoMessage() {}
 
 func (x *GetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[7]
+	mi := &file_kvrpcpb_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -523,7 +177,7 @@ func (x *GetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetResponse.ProtoReflect.Descriptor instead.
 func (*GetResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{7}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GetResponse) GetValue() []byte {
@@ -563,7 +217,7 @@ type SetRequest struct {
 func (x *SetRequest) Reset() {
 	*x = SetRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[8]
+		mi := &file_kvrpcpb_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -576,7 +230,7 @@ func (x *SetRequest) String() string {
 func (*SetRequest) ProtoMessage() {}
 
 func (x *SetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[8]
+	mi := &file_kvrpcpb_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +243,7 @@ func (x *SetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetRequest.ProtoReflect.Descriptor instead.
 func (*SetRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{8}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SetRequest) GetContext() *Context {
@@ -632,7 +286,7 @@ type SetResponse struct {
 func (x *SetResponse) Reset() {
 	*x = SetResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[9]
+		mi := &file_kvrpcpb_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -645,7 +299,7 @@ func (x *SetResponse) String() string {
 func (*SetResponse) ProtoMessage() {}
 
 func (x *SetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[9]
+	mi := &file_kvrpcpb_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -658,7 +312,7 @@ func (x *SetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetResponse.ProtoReflect.Descriptor instead.
 func (*SetResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{9}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SetResponse) GetSuccess() bool {
@@ -690,7 +344,7 @@ type DeleteRequest struct {
 func (x *DeleteRequest) Reset() {
 	*x = DeleteRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[10]
+		mi := &file_kvrpcpb_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -703,7 +357,7 @@ func (x *DeleteRequest) String() string {
 func (*DeleteRequest) ProtoMessage() {}
 
 func (x *DeleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[10]
+	mi := &file_kvrpcpb_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -716,7 +370,7 @@ func (x *DeleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{10}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DeleteRequest) GetContext() *Context {
@@ -752,7 +406,7 @@ type DeleteResponse struct {
 func (x *DeleteResponse) Reset() {
 	*x = DeleteResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[11]
+		mi := &file_kvrpcpb_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -765,7 +419,7 @@ func (x *DeleteResponse) String() string {
 func (*DeleteResponse) ProtoMessage() {}
 
 func (x *DeleteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[11]
+	mi := &file_kvrpcpb_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -778,7 +432,7 @@ func (x *DeleteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteResponse.ProtoReflect.Descriptor instead.
 func (*DeleteResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{11}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DeleteResponse) GetSuccess() bool {
@@ -807,7 +461,7 @@ type BeginTxnRequest struct {
 func (x *BeginTxnRequest) Reset() {
 	*x = BeginTxnRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[12]
+		mi := &file_kvrpcpb_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -820,7 +474,7 @@ func (x *BeginTxnRequest) String() string {
 func (*BeginTxnRequest) ProtoMessage() {}
 
 func (x *BeginTxnRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[12]
+	mi := &file_kvrpcpb_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -833,7 +487,7 @@ func (x *BeginTxnRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginTxnRequest.ProtoReflect.Descriptor instead.
 func (*BeginTxnRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{12}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *BeginTxnRequest) GetCtx() *Context {
@@ -863,7 +517,7 @@ type BeginTxnResponse struct {
 func (x *BeginTxnResponse) Reset() {
 	*x = BeginTxnResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[13]
+		mi := &file_kvrpcpb_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -876,7 +530,7 @@ func (x *BeginTxnResponse) String() string {
 func (*BeginTxnResponse) ProtoMessage() {}
 
 func (x *BeginTxnResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[13]
+	mi := &file_kvrpcpb_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +543,7 @@ func (x *BeginTxnResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginTxnResponse.ProtoReflect.Descriptor instead.
 func (*BeginTxnResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{13}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *BeginTxnResponse) GetSuccess() bool {
@@ -922,7 +576,7 @@ type CommitTxnRequest struct {
 func (x *CommitTxnRequest) Reset() {
 	*x = CommitTxnRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[14]
+		mi := &file_kvrpcpb_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -935,7 +589,7 @@ func (x *CommitTxnRequest) String() string {
 func (*CommitTxnRequest) ProtoMessage() {}
 
 func (x *CommitTxnRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[14]
+	mi := &file_kvrpcpb_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -948,7 +602,7 @@ func (x *CommitTxnRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitTxnRequest.ProtoReflect.Descriptor instead.
 func (*CommitTxnRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{14}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{8}
 }
 
 type CommitTxnResponse struct {
@@ -960,7 +614,7 @@ type CommitTxnResponse struct {
 func (x *CommitTxnResponse) Reset() {
 	*x = CommitTxnResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[15]
+		mi := &file_kvrpcpb_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -973,7 +627,7 @@ func (x *CommitTxnResponse) String() string {
 func (*CommitTxnResponse) ProtoMessage() {}
 
 func (x *CommitTxnResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[15]
+	mi := &file_kvrpcpb_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -986,7 +640,7 @@ func (x *CommitTxnResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitTxnResponse.ProtoReflect.Descriptor instead.
 func (*CommitTxnResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{15}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{9}
 }
 
 type RollbackTxnRequest struct {
@@ -998,7 +652,7 @@ type RollbackTxnRequest struct {
 func (x *RollbackTxnRequest) Reset() {
 	*x = RollbackTxnRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[16]
+		mi := &file_kvrpcpb_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1011,7 +665,7 @@ func (x *RollbackTxnRequest) String() string {
 func (*RollbackTxnRequest) ProtoMessage() {}
 
 func (x *RollbackTxnRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[16]
+	mi := &file_kvrpcpb_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1024,7 +678,7 @@ func (x *RollbackTxnRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RollbackTxnRequest.ProtoReflect.Descriptor instead.
 func (*RollbackTxnRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{16}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{10}
 }
 
 type RollbackTxnResponse struct {
@@ -1036,7 +690,7 @@ type RollbackTxnResponse struct {
 func (x *RollbackTxnResponse) Reset() {
 	*x = RollbackTxnResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[17]
+		mi := &file_kvrpcpb_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1049,7 +703,7 @@ func (x *RollbackTxnResponse) String() string {
 func (*RollbackTxnResponse) ProtoMessage() {}
 
 func (x *RollbackTxnResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[17]
+	mi := &file_kvrpcpb_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1062,7 +716,7 @@ func (x *RollbackTxnResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RollbackTxnResponse.ProtoReflect.Descriptor instead.
 func (*RollbackTxnResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{17}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{11}
 }
 
 type ScanRequest struct {
@@ -1074,7 +728,7 @@ type ScanRequest struct {
 func (x *ScanRequest) Reset() {
 	*x = ScanRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[18]
+		mi := &file_kvrpcpb_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1087,7 +741,7 @@ func (x *ScanRequest) String() string {
 func (*ScanRequest) ProtoMessage() {}
 
 func (x *ScanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[18]
+	mi := &file_kvrpcpb_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1100,7 +754,7 @@ func (x *ScanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanRequest.ProtoReflect.Descriptor instead.
 func (*ScanRequest) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{18}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{12}
 }
 
 type ScanResponse struct {
@@ -1112,7 +766,7 @@ type ScanResponse struct {
 func (x *ScanResponse) Reset() {
 	*x = ScanResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[19]
+		mi := &file_kvrpcpb_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1125,7 +779,7 @@ func (x *ScanResponse) String() string {
 func (*ScanResponse) ProtoMessage() {}
 
 func (x *ScanResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[19]
+	mi := &file_kvrpcpb_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1138,7 +792,7 @@ func (x *ScanResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanResponse.ProtoReflect.Descriptor instead.
 func (*ScanResponse) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{19}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{13}
 }
 
 // Context is the metadata that is present in every request.
@@ -1151,7 +805,7 @@ type Context struct {
 func (x *Context) Reset() {
 	*x = Context{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_kvrpcpb_proto_msgTypes[20]
+		mi := &file_kvrpcpb_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1164,7 +818,7 @@ func (x *Context) String() string {
 func (*Context) ProtoMessage() {}
 
 func (x *Context) ProtoReflect() protoreflect.Message {
-	mi := &file_kvrpcpb_proto_msgTypes[20]
+	mi := &file_kvrpcpb_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1177,103 +831,72 @@ func (x *Context) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Context.ProtoReflect.Descriptor instead.
 func (*Context) Descriptor() ([]byte, []int) {
-	return file_kvrpcpb_proto_rawDescGZIP(), []int{20}
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{14}
 }
 
 var File_kvrpcpb_proto protoreflect.FileDescriptor
 
 var file_kvrpcpb_proto_rawDesc = []byte{
 	0x0a, 0x0d, 0x6b, 0x76, 0x72, 0x70, 0x63, 0x70, 0x62, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12,
-	0x0b, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x22, 0x51, 0x0a, 0x0d,
-	0x52, 0x61, 0x77, 0x47, 0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a,
-	0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14,
-	0x2e, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e,
-	0x74, 0x65, 0x78, 0x74, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10, 0x0a,
-	0x03, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x22,
-	0x59, 0x0a, 0x0e, 0x52, 0x61, 0x77, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
-	0x65, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c,
-	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72,
-	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x12, 0x1b, 0x0a,
-	0x09, 0x6e, 0x6f, 0x74, 0x5f, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x08,
-	0x52, 0x08, 0x6e, 0x6f, 0x74, 0x46, 0x6f, 0x75, 0x6e, 0x64, 0x22, 0x67, 0x0a, 0x0d, 0x52, 0x61,
-	0x77, 0x50, 0x75, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x07, 0x63,
-	0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x69,
-	0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65,
-	0x78, 0x74, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x6b,
-	0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a,
-	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x76, 0x61,
-	0x6c, 0x75, 0x65, 0x22, 0x40, 0x0a, 0x0e, 0x52, 0x61, 0x77, 0x50, 0x75, 0x74, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12,
-	0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
-	0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x54, 0x0a, 0x10, 0x52, 0x61, 0x77, 0x44, 0x65, 0x6c, 0x65,
-	0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x07, 0x63, 0x6f, 0x6e,
+	0x0b, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x22, 0x65, 0x0a, 0x0a,
+	0x47, 0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x07, 0x63, 0x6f,
+	0x6e, 0x74, 0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x69, 0x63,
+	0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78,
+	0x74, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65,
+	0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x15, 0x0a, 0x06,
+	0x74, 0x78, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x74, 0x78,
+	0x6e, 0x49, 0x64, 0x22, 0x56, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0c, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f,
+	0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x12, 0x1b,
+	0x0a, 0x09, 0x6e, 0x6f, 0x74, 0x5f, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x08, 0x52, 0x08, 0x6e, 0x6f, 0x74, 0x46, 0x6f, 0x75, 0x6e, 0x64, 0x22, 0x7b, 0x0a, 0x0a, 0x53,
+	0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x07, 0x63, 0x6f, 0x6e,
 	0x74, 0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x69, 0x63, 0x65,
 	0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74,
 	0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79,
-	0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x22, 0x43, 0x0a, 0x11, 0x52,
-	0x61, 0x77, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72,
-	0x72, 0x6f, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72,
-	0x22, 0x65, 0x0a, 0x0a, 0x47, 0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e,
-	0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
-	0x14, 0x2e, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f,
-	0x6e, 0x74, 0x65, 0x78, 0x74, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10,
-	0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79,
-	0x12, 0x15, 0x0a, 0x06, 0x74, 0x78, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04,
-	0x52, 0x05, 0x74, 0x78, 0x6e, 0x49, 0x64, 0x22, 0x56, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x14, 0x0a, 0x05,
-	0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72,
-	0x6f, 0x72, 0x12, 0x1b, 0x0a, 0x09, 0x6e, 0x6f, 0x74, 0x5f, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x18,
-	0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x08, 0x6e, 0x6f, 0x74, 0x46, 0x6f, 0x75, 0x6e, 0x64, 0x22,
-	0x7b, 0x0a, 0x0a, 0x53, 0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a,
-	0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14,
-	0x2e, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e,
-	0x74, 0x65, 0x78, 0x74, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10, 0x0a,
-	0x03, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12,
-	0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05,
-	0x76, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x15, 0x0a, 0x06, 0x74, 0x78, 0x6e, 0x5f, 0x69, 0x64, 0x18,
-	0x04, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x74, 0x78, 0x6e, 0x49, 0x64, 0x22, 0x3d, 0x0a, 0x0b,
-	0x53, 0x65, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73,
-	0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75,
-	0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x68, 0x0a, 0x0d, 0x44,
-	0x65, 0x6c, 0x65, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x07,
-	0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e,
-	0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e, 0x74,
-	0x65, 0x78, 0x74, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10, 0x0a, 0x03,
-	0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x15,
-	0x0a, 0x06, 0x74, 0x78, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05,
-	0x74, 0x78, 0x6e, 0x49, 0x64, 0x22, 0x40, 0x0a, 0x0e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x52,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76,
+	0x61, 0x6c, 0x75, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75,
+	0x65, 0x12, 0x15, 0x0a, 0x06, 0x74, 0x78, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x04, 0x52, 0x05, 0x74, 0x78, 0x6e, 0x49, 0x64, 0x22, 0x3d, 0x0a, 0x0b, 0x53, 0x65, 0x74, 0x52,
 	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65,
 	0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73,
 	0x73, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x63, 0x0a, 0x0f, 0x42, 0x65, 0x67, 0x69, 0x6e,
-	0x54, 0x78, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x26, 0x0a, 0x03, 0x63, 0x74,
-	0x78, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e,
-	0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x52, 0x03, 0x63,
-	0x74, 0x78, 0x12, 0x28, 0x0a, 0x04, 0x6d, 0x6f, 0x64, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e,
-	0x32, 0x14, 0x2e, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x54,
-	0x78, 0x6e, 0x4d, 0x6f, 0x64, 0x65, 0x52, 0x04, 0x6d, 0x6f, 0x64, 0x65, 0x22, 0x60, 0x0a, 0x10,
-	0x42, 0x65, 0x67, 0x69, 0x6e, 0x54, 0x78, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x15, 0x0a, 0x06, 0x74, 0x78,
-	0x6e, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x74, 0x78, 0x6e, 0x49,
-	0x64, 0x12, 0x1b, 0x0a, 0x09, 0x6c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x03,
-	0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x6c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x49, 0x64, 0x22, 0x12,
-	0x0a, 0x10, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x54, 0x78, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x22, 0x13, 0x0a, 0x11, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x54, 0x78, 0x6e, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x14, 0x0a, 0x12, 0x52, 0x6f, 0x6c, 0x6c, 0x62,
-	0x61, 0x63, 0x6b, 0x54, 0x78, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x15, 0x0a,
-	0x13, 0x52, 0x6f, 0x6c, 0x6c, 0x62, 0x61, 0x63, 0x6b, 0x54, 0x78, 0x6e, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x0d, 0x0a, 0x0b, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x22, 0x0e, 0x0a, 0x0c, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x22, 0x09, 0x0a, 0x07, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x2a, 0x26,
-	0x0a, 0x07, 0x54, 0x78, 0x6e, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0c, 0x0a, 0x08, 0x52, 0x65, 0x61,
-	0x64, 0x4f, 0x6e, 0x6c, 0x79, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x52, 0x65, 0x61, 0x64, 0x57,
-	0x72, 0x69, 0x74, 0x65, 0x10, 0x01, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x68, 0x0a, 0x0d, 0x44, 0x65, 0x6c, 0x65, 0x74,
+	0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74,
+	0x65, 0x78, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x69, 0x63, 0x65, 0x63,
+	0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x52,
+	0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x15, 0x0a, 0x06, 0x74, 0x78,
+	0x6e, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x74, 0x78, 0x6e, 0x49,
+	0x64, 0x22, 0x40, 0x0a, 0x0e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x14, 0x0a,
+	0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72,
+	0x72, 0x6f, 0x72, 0x22, 0x63, 0x0a, 0x0f, 0x42, 0x65, 0x67, 0x69, 0x6e, 0x54, 0x78, 0x6e, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x26, 0x0a, 0x03, 0x63, 0x74, 0x78, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x69, 0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70,
+	0x62, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x52, 0x03, 0x63, 0x74, 0x78, 0x12, 0x28,
+	0x0a, 0x04, 0x6d, 0x6f, 0x64, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x14, 0x2e, 0x69,
+	0x63, 0x65, 0x63, 0x61, 0x6e, 0x65, 0x64, 0x62, 0x70, 0x62, 0x2e, 0x54, 0x78, 0x6e, 0x4d, 0x6f,
+	0x64, 0x65, 0x52, 0x04, 0x6d, 0x6f, 0x64, 0x65, 0x22, 0x60, 0x0a, 0x10, 0x42, 0x65, 0x67, 0x69,
+	0x6e, 0x54, 0x78, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07,
+	0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73,
+	0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x15, 0x0a, 0x06, 0x74, 0x78, 0x6e, 0x5f, 0x69, 0x64,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x74, 0x78, 0x6e, 0x49, 0x64, 0x12, 0x1b, 0x0a,
+	0x09, 0x6c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04,
+	0x52, 0x08, 0x6c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x49, 0x64, 0x22, 0x12, 0x0a, 0x10, 0x43, 0x6f,
+	0x6d, 0x6d, 0x69, 0x74, 0x54, 0x78, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x13,
+	0x0a, 0x11, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x54, 0x78, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x14, 0x0a, 0x12, 0x52, 0x6f, 0x6c, 0x6c, 0x62, 0x61, 0x63, 0x6b, 0x54,
+	0x78, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x15, 0x0a, 0x13, 0x52, 0x6f, 0x6c,
+	0x6c, 0x62, 0x61, 0x63, 0x6b, 0x54, 0x78, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x22, 0x0d, 0x0a, 0x0b, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22,
+	0x0e, 0x0a, 0x0c, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22,
+	0x09, 0x0a, 0x07, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x2a, 0x26, 0x0a, 0x07, 0x54, 0x78,
+	0x6e, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0c, 0x0a, 0x08, 0x52, 0x65, 0x61, 0x64, 0x4f, 0x6e, 0x6c,
+	0x79, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x52, 0x65, 0x61, 0x64, 0x57, 0x72, 0x69, 0x74, 0x65,
+	0x10, 0x01, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1289,45 +912,36 @@ func file_kvrpcpb_proto_rawDescGZIP() []byte {
 }
 
 var file_kvrpcpb_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_kvrpcpb_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_kvrpcpb_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_kvrpcpb_proto_goTypes = []interface{}{
 	(TxnMode)(0),                // 0: icecanedbpb.TxnMode
-	(*RawGetRequest)(nil),       // 1: icecanedbpb.RawGetRequest
-	(*RawGetResponse)(nil),      // 2: icecanedbpb.RawGetResponse
-	(*RawPutRequest)(nil),       // 3: icecanedbpb.RawPutRequest
-	(*RawPutResponse)(nil),      // 4: icecanedbpb.RawPutResponse
-	(*RawDeleteRequest)(nil),    // 5: icecanedbpb.RawDeleteRequest
-	(*RawDeleteResponse)(nil),   // 6: icecanedbpb.RawDeleteResponse
-	(*GetRequest)(nil),          // 7: icecanedbpb.GetRequest
-	(*GetResponse)(nil),         // 8: icecanedbpb.GetResponse
-	(*SetRequest)(nil),          // 9: icecanedbpb.SetRequest
-	(*SetResponse)(nil),         // 10: icecanedbpb.SetResponse
-	(*DeleteRequest)(nil),       // 11: icecanedbpb.DeleteRequest
-	(*DeleteResponse)(nil),      // 12: icecanedbpb.DeleteResponse
-	(*BeginTxnRequest)(nil),     // 13: icecanedbpb.BeginTxnRequest
-	(*BeginTxnResponse)(nil),    // 14: icecanedbpb.BeginTxnResponse
-	(*CommitTxnRequest)(nil),    // 15: icecanedbpb.CommitTxnRequest
-	(*CommitTxnResponse)(nil),   // 16: icecanedbpb.CommitTxnResponse
-	(*RollbackTxnRequest)(nil),  // 17: icecanedbpb.RollbackTxnRequest
-	(*RollbackTxnResponse)(nil), // 18: icecanedbpb.RollbackTxnResponse
-	(*ScanRequest)(nil),         // 19: icecanedbpb.ScanRequest
-	(*ScanResponse)(nil),        // 20: icecanedbpb.ScanResponse
-	(*Context)(nil),             // 21: icecanedbpb.Context
+	(*GetRequest)(nil),          // 1: icecanedbpb.GetRequest
+	(*GetResponse)(nil),         // 2: icecanedbpb.GetResponse
+	(*SetRequest)(nil),          // 3: icecanedbpb.SetRequest
+	(*SetResponse)(nil),         // 4: icecanedbpb.SetResponse
+	(*DeleteRequest)(nil),       // 5: icecanedbpb.DeleteRequest
+	(*DeleteResponse)(nil),      // 6: icecanedbpb.DeleteResponse
+	(*BeginTxnRequest)(nil),     // 7: icecanedbpb.BeginTxnRequest
+	(*BeginTxnResponse)(nil),    // 8: icecanedbpb.BeginTxnResponse
+	(*CommitTxnRequest)(nil),    // 9: icecanedbpb.CommitTxnRequest
+	(*CommitTxnResponse)(nil),   // 10: icecanedbpb.CommitTxnResponse
+	(*RollbackTxnRequest)(nil),  // 11: icecanedbpb.RollbackTxnRequest
+	(*RollbackTxnResponse)(nil), // 12: icecanedbpb.RollbackTxnResponse
+	(*ScanRequest)(nil),         // 13: icecanedbpb.ScanRequest
+	(*ScanResponse)(nil),        // 14: icecanedbpb.ScanResponse
+	(*Context)(nil),             // 15: icecanedbpb.Context
 }
 var file_kvrpcpb_proto_depIdxs = []int32{
-	21, // 0: icecanedbpb.RawGetRequest.context:type_name -> icecanedbpb.Context
-	21, // 1: icecanedbpb.RawPutRequest.context:type_name -> icecanedbpb.Context
-	21, // 2: icecanedbpb.RawDeleteRequest.context:type_name -> icecanedbpb.Context
-	21, // 3: icecanedbpb.GetRequest.context:type_name -> icecanedbpb.Context
-	21, // 4: icecanedbpb.SetRequest.context:type_name -> icecanedbpb.Context
-	21, // 5: icecanedbpb.DeleteRequest.context:type_name -> icecanedbpb.Context
-	21, // 6: icecanedbpb.BeginTxnRequest.ctx:type_name -> icecanedbpb.Context
-	0,  // 7: icecanedbpb.BeginTxnRequest.mode:type_name -> icecanedbpb.TxnMode
-	8,  // [8:8] is the sub-list for method output_type
-	8,  // [8:8] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	15, // 0: icecanedbpb.GetRequest.context:type_name -> icecanedbpb.Context
+	15, // 1: icecanedbpb.SetRequest.context:type_name -> icecanedbpb.Context
+	15, // 2: icecanedbpb.DeleteRequest.context:type_name -> icecanedbpb.Context
+	15, // 3: icecanedbpb.BeginTxnRequest.ctx:type_name -> icecanedbpb.Context
+	0,  // 4: icecanedbpb.BeginTxnRequest.mode:type_name -> icecanedbpb.TxnMode
+	5,  // [5:5] is the sub-list for method output_type
+	5,  // [5:5] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_kvrpcpb_proto_init() }
@@ -1337,78 +951,6 @@ func file_kvrpcpb_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_kvrpcpb_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RawGetRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_kvrpcpb_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RawGetResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_kvrpcpb_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RawPutRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_kvrpcpb_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RawPutResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_kvrpcpb_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RawDeleteRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_kvrpcpb_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RawDeleteResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_kvrpcpb_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetRequest); i {
 			case 0:
 				return &v.state
@@ -1420,7 +962,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetResponse); i {
 			case 0:
 				return &v.state
@@ -1432,7 +974,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SetRequest); i {
 			case 0:
 				return &v.state
@@ -1444,7 +986,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SetResponse); i {
 			case 0:
 				return &v.state
@@ -1456,7 +998,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DeleteRequest); i {
 			case 0:
 				return &v.state
@@ -1468,7 +1010,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DeleteResponse); i {
 			case 0:
 				return &v.state
@@ -1480,7 +1022,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*BeginTxnRequest); i {
 			case 0:
 				return &v.state
@@ -1492,7 +1034,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*BeginTxnResponse); i {
 			case 0:
 				return &v.state
@@ -1504,7 +1046,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CommitTxnRequest); i {
 			case 0:
 				return &v.state
@@ -1516,7 +1058,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CommitTxnResponse); i {
 			case 0:
 				return &v.state
@@ -1528,7 +1070,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*RollbackTxnRequest); i {
 			case 0:
 				return &v.state
@@ -1540,7 +1082,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*RollbackTxnResponse); i {
 			case 0:
 				return &v.state
@@ -1552,7 +1094,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ScanRequest); i {
 			case 0:
 				return &v.state
@@ -1564,7 +1106,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ScanResponse); i {
 			case 0:
 				return &v.state
@@ -1576,7 +1118,7 @@ func file_kvrpcpb_proto_init() {
 				return nil
 			}
 		}
-		file_kvrpcpb_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+		file_kvrpcpb_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Context); i {
 			case 0:
 				return &v.state
@@ -1595,7 +1137,7 @@ func file_kvrpcpb_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_kvrpcpb_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   21,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

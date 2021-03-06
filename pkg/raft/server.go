@@ -190,11 +190,49 @@ func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, 
 	return conn, nil
 }
 
-// NewRaftServer creates a new instance of a Raft server
-func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.Storage) *Server {
-	log.Info("raft::server::NewRaftServer; started")
-	mu := new(sync.Mutex)
+// createAndOpenRaftStorage creates a storage and opens it.
+func createAndOpenRaftStorage(path string, opts *storage.Options) (*storage.Storage, error) {
+	s, err := storage.NewStorage(path, opts)
+	if err != nil {
+		return nil, err
+	}
+	err = s.Open()
+	return s, err
+}
 
+// createAndOpenKVStorage creates a storage and opens it.
+func createAndOpenKVStorage(path string, txnComp storage.Comparator, opts *storage.Options) (*storage.Storage, error) {
+	s, err := storage.NewStorageWithCustomComparator(path, txnComp, opts)
+	if err != nil {
+		return nil, err
+	}
+	err = s.Open()
+	return s, err
+}
+
+// NewRaftServer creates a new instance of a Raft server
+func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath string, txnComp storage.Comparator) (*Server, error) {
+	log.Info("raft::server::NewRaftServer; started")
+
+	rOpts := &storage.Options{
+		CreateIfNotExist: true,
+	}
+	raftStorage, err := createAndOpenRaftStorage(raftPath, rOpts)
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::NewRaftServer; error in creating raft storage: %v", err))
+		return nil, err
+	}
+
+	sOpts := &storage.Options{
+		CreateIfNotExist: true,
+	}
+	kvStorage, err := createAndOpenKVStorage(kvPath, txnComp, sOpts)
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::NewRaftServer; error in creating kv storage: %v", err))
+		return nil, err
+	}
+
+	mu := new(sync.Mutex)
 	s := &Server{
 		id:                kvConfig.ID,
 		mu:                mu,
@@ -207,5 +245,5 @@ func NewRaftServer(kvConfig *common.KVConfig, raftStorage, kvStorage *storage.St
 	s.raft = raft
 
 	log.Info("raft::server::NewRaftServer; done")
-	return s
+	return s, nil
 }

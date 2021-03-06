@@ -10,7 +10,6 @@ import (
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
-	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,16 +21,14 @@ import (
 type KVServer struct {
 	pb.UnimplementedIcecaneKVServer
 
-	// stores raft logs
-	raftStorage *storage.Storage
-	raftPath    string
+	// raft storage path
+	raftPath string
 
 	// the raft server
 	raftServer *raft.Server
 
-	// stores actual key-value data
-	kvStorage *storage.Storage
-	kvPath    string
+	// the key-value storage path
+	kvPath string
 
 	// the mvcc layer for the key-value data
 	kvMvcc *mvcc.MVCC
@@ -43,21 +40,6 @@ type KVServer struct {
 //
 // grpc server calls - incoming to this server from other peers/client
 //
-
-// RawGet returns the value associated with the given key.
-func (kvs *KVServer) RawGet(context.Context, *pb.RawGetRequest) (*pb.RawGetResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
-}
-
-// RawPut puts the value in the db for the given key.
-func (kvs *KVServer) RawPut(context.Context, *pb.RawPutRequest) (*pb.RawPutResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawPut not implemented")
-}
-
-// RawDelete deletes the value in the db for the given key.
-func (kvs *KVServer) RawDelete(context.Context, *pb.RawDeleteRequest) (*pb.RawDeleteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawDelete not implemented")
-}
 
 // RequestVote is used by the raft candidate to request for votes. The current server has to respond to this req by casting vote or decling.
 func (kvs *KVServer) RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
@@ -114,36 +96,21 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 		return nil, err
 	}
 
-	rOpts := &storage.Options{
-		CreateIfNotExist: true,
-	}
-	raftStorage, err := createAndOpenStorage(raftPath, rOpts)
+	txnComp := mvcc.NewtxnKeyComparator()
+	raftServer, err := raft.NewRaftServer(kvConfig, raftPath, kvPath, txnComp)
 	if err != nil {
-		log.Error(fmt.Sprintf("icecanekv::icecanekv::NewKVServer; error %V in creating raft storage", err))
+		log.Error(fmt.Sprintf("icecanekv::icecanekv::NewKVServer; error in creating raft server: %v", err))
 		return nil, err
 	}
 
-	sOpts := &storage.Options{
-		CreateIfNotExist: true,
-	}
-	kvStorage, err := createAndOpenStorage(kvPath, sOpts)
-	if err != nil {
-		log.Error(fmt.Sprintf("icecanekv::icecanekv::NewKVServer; error %V in creating kv storage", err))
-		return nil, err
-	}
-
-	raftServer := raft.NewRaftServer(kvConfig, raftStorage, kvStorage)
 	kvMvcc := mvcc.NewMVCC(raftServer)
-
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{
-		raftStorage: raftStorage,
-		raftPath:    raftPath,
-		kvStorage:   kvStorage,
-		kvPath:      kvPath,
-		kvMvcc:      kvMvcc,
-		raftServer:  raftServer,
-		kvConfig:    kvConfig,
+		raftPath:   raftPath,
+		kvPath:     kvPath,
+		kvMvcc:     kvMvcc,
+		raftServer: raftServer,
+		kvConfig:   kvConfig,
 	}, nil
 }
 
@@ -169,14 +136,4 @@ func prepareDirectories(kvConfig *common.KVConfig) (string, string, error) {
 
 	log.Info("icecanekv::icecanekv::prepareDirectories; done")
 	return kvPath, raftPath, err
-}
-
-// createAndOpenStorage creates a storage and opens it.
-func createAndOpenStorage(path string, opts *storage.Options) (*storage.Storage, error) {
-	s, err := storage.NewStorage(path, opts)
-	if err != nil {
-		return nil, err
-	}
-	err = s.Open()
-	return s, err
 }

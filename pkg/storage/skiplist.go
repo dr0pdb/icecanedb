@@ -155,7 +155,6 @@ func (s *SkipList) randomLevel() int32 {
 
 // getEqualOrGreater returns the SkipList node with key >= the passed key.
 // nil key denotes -inf i.e. the smallest.
-// obtains a read lock on the skip list internally.
 // return nil if no such node exists.
 func (s *SkipList) getEqualOrGreater(key []byte) *SkipListNode {
 	log.WithFields(log.Fields{

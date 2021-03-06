@@ -1,46 +1,6 @@
 syntax = "proto3";
 package icecanedbpb;
 
-//
-// raw requests
-//
-
-message RawGetRequest {
-  Context context = 1;
-  bytes key = 2;
-}
-
-message RawGetResponse {
-  bytes value = 1;
-  string error = 2;
-  bool not_found = 3;
-}
-
-message RawPutRequest {
-  Context context = 1;
-  bytes key = 2;
-  bytes value = 3;
-}
-
-message RawPutResponse {
-  bool success = 1;
-  string error = 2;
-}
-
-message RawDeleteRequest {
-  Context context = 1;
-  bytes key = 2;
-}
-
-message RawDeleteResponse {
-  bool success = 1;
-  string error = 2;
-}
-
-//
-// txn requests
-//
-
 message GetRequest {
   Context context = 1;
   bytes key = 2;

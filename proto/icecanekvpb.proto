@@ -14,11 +14,6 @@ service IcecaneKV {
   rpc CommitTxn(CommitTxnRequest) returns (CommitTxnResponse) {}
   rpc RollbackTxn(RollbackTxnRequest) returns (RollbackTxnResponse) {}
 
-  // RawKV commands.
-  rpc RawGet(RawGetRequest) returns (RawGetResponse) {}
-  rpc RawPut(RawPutRequest) returns (RawPutResponse) {}
-  rpc RawDelete(RawDeleteRequest) returns (RawDeleteResponse) {}
-
   // Raft commands b/w two kv servers.
   rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse) {}
   rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse) {}
