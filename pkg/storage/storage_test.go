@@ -239,3 +239,39 @@ func TestGetLatestSeqNumberForKey(t *testing.T) {
 	sn2 = s.GetLatestSeqForKey(test.TestKeys[0])
 	assert.Equal(t, sn+1, sn2)
 }
+
+func TestStorageScan(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	options := &Options{
+		CreateIfNotExist: true,
+	}
+
+	s, err := NewStorage(test.TestDirectory, options)
+	assert.Nil(t, err)
+
+	err = s.Open()
+	assert.Nil(t, err)
+
+	for i := range test.TestKeys {
+		err = s.Set(test.TestKeys[i], test.TestValues[i], nil)
+		assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", i))
+	}
+
+	itr := s.Scan(test.TestKeys[2])
+	expectedCnt := 3
+	cnt := 0
+
+	for {
+		if itr.Valid() {
+			assert.Equal(t, test.TestKeys[2+cnt], itr.Key(), fmt.Sprintf("expected key doesn't match the actual key from iterator at idx: %d", cnt+2))
+			cnt++
+			itr.Next()
+		} else {
+			break
+		}
+	}
+
+	assert.Equal(t, expectedCnt, cnt, fmt.Sprintf("Number of entries in iterator doesn't match. Expected: %d, actual %d", expectedCnt, cnt))
+}

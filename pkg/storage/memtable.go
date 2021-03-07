@@ -101,6 +101,18 @@ func (m *Memtable) Set(key, value []byte) error {
 	return nil
 }
 
+// Scan returns an iterator to iterate the key-value pairs whose key >= ikey
+func (m *Memtable) Scan(ikey []byte) *KeyValueIterator {
+	log.WithFields(log.Fields{
+		"ikey": string(ikey),
+	}).Info("memtable: Scan")
+
+	itr := m.skipList.NewSkipListIterator()
+	itr.Seek(ikey)
+	kvitr := &KeyValueIterator{itr: itr}
+	return kvitr
+}
+
 // NewMemtable returns a new instance of the memtable struct
 func NewMemtable(skipList *SkipList, comparator Comparator) *Memtable {
 	return &Memtable{

@@ -159,6 +159,15 @@ func (s *Storage) BatchWrite(wb *WriteBatch) error {
 	return s.apply(wb, nil)
 }
 
+// Scan returns an iterator to iterate the key-value pairs whose key >= target
+func (s *Storage) Scan(target []byte) Iterator {
+	log.WithFields(log.Fields{"target": string(target)}).Info("storage::storage::Scan; started")
+	seqNumber := s.vs.lastSequenceNumber + 1
+	ikey := newInternalKey(target, internalKeyKindSet, seqNumber)
+	itr := s.memtable.Scan(ikey)
+	return itr
+}
+
 // GetSnapshot creates a snapshot and returns it.
 // It is thread safe and can be called concurrently.
 func (s *Storage) GetSnapshot() *Snapshot {
