@@ -1,6 +1,7 @@
 package mvcc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -63,13 +64,60 @@ func (m *MVCC) BeginTxn(ctx context.Context, req *pb.BeginTxnRequest) (*pb.Begin
 func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
 	log.Info("mvcc::mvcc::Get; started")
 
+	resp := &pb.GetResponse{}
+	inlinedTxn := (req.TxnId == 0)
+
 	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadOnly)
 	if err != nil {
 		return nil, err
 	}
 	req.TxnId = txnID
 
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	txn := m.activeTxn[txnID]
+
+	tk := newTxnKey(req.GetKey(), req.GetTxnId())
+	itr, leaderID, err := m.rs.Scan(tk)
+
+	resp.LeaderId = leaderID
+	if err != nil {
+		resp.Error = err.Error()
+		return resp, nil
+	}
+
+	// iterate through the kv pairs sorted (decreasing) by txnID.
+	// skip the ones which were active during the txn init.
+	for {
+		if itr.Valid() {
+			tk := TxnKey(itr.Key())
+			uk := tk.userKey()
+			if bytes.Compare(uk, req.GetKey()) != 0 {
+				break
+			}
+
+			tid := tk.txnID()
+			if _, ok := txn.concTxns[tid]; !ok {
+				log.WithFields(log.Fields{"txnID": req.TxnId, "tid": tid}).Info("mvcc::mvcc::Get; found a value for the key")
+				resp.Value = itr.Value()
+				resp.Found = true
+				break
+			} else {
+				log.WithFields(log.Fields{"txnID": req.TxnId, "tid": tid}).Info("mvcc::mvcc::Get; found a conflicting txn; skipping")
+				itr.Next()
+			}
+		} else {
+			break
+		}
+	}
+
+	if resp.Found {
+		log.WithFields(log.Fields{"txnID": req.TxnId, "value": string(resp.Value)}).Info("mvcc::mvcc::Get; found value")
+	}
+
+	if inlinedTxn {
+		err = m.commitTxn(req.TxnId)
+	}
+
+	return resp, err
 }
 
 // Set sets the value of a key.
@@ -114,12 +162,13 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 		return nil, leaderID, err
 	}
 
-	var cTxns []uint64
+	// snapshot of active txns at the moment of creation.
+	var cTxns map[uint64]bool
 	for k := range m.activeTxn {
-		cTxns = append(cTxns, k)
+		cTxns[k] = true
 	}
 
-	txn := newTransaction(nxtIDUint64, cTxns, mode, m.rs)
+	txn := newTransaction(nxtIDUint64, cTxns, mode)
 	m.activeTxn[txn.id] = txn
 
 	log.Info("mvcc::mvcc::Begin; done")
@@ -146,9 +195,29 @@ func (m *MVCC) ensureTxn(id uint64, mode pb.TxnMode) (uint64, error) {
 	return id, nil
 }
 
+// commitTxn commits a txn with the given id
+func (m *MVCC) commitTxn(id uint64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if txn, ok := m.activeTxn[id]; ok {
+		if txn.mode == pb.TxnMode_ReadOnly {
+			// delete the key activeTxn from storage as well.
+
+			delete(m.activeTxn, id)
+		}
+	} else {
+		return fmt.Errorf("commit on inactive txn")
+	}
+
+	return nil
+}
+
 // NewMVCC creates a new MVCC transactional layer for the storage
 func NewMVCC(rs *raft.Server) *MVCC {
 	// todo: set txnNext to 1 at the first startup
+
+	// todo: abort active txns after crash.
 
 	return &MVCC{
 		mu:        new(sync.RWMutex),

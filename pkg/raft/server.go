@@ -68,6 +68,17 @@ func (s *Server) GetValue(key []byte) ([]byte, uint64, error) {
 	return nil, leader, nil
 }
 
+// Scan returns an iterator to iterate over all the kv pairs whose key >= target
+func (s *Server) Scan(target []byte) (storage.Iterator, uint64, error) {
+	leader := s.raft.getLeaderID()
+	if leader != s.id {
+		return nil, leader, fmt.Errorf("not a leader")
+	}
+
+	itr := s.kvStorage.Scan(target)
+	return itr, leader, nil
+}
+
 // SetValue sets the value of the key and gets it replicated across peers
 func (s *Server) SetValue(key, value []byte) (leader uint64, err error) {
 	leader = s.raft.getLeaderID()
