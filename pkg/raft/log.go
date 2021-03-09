@@ -12,6 +12,8 @@ type raftCommandType uint64
 const (
 	setCmd raftCommandType = iota
 	deleteCmd
+	metaSetCmd
+	metaDeleteCmd
 )
 
 type raftCommand string
@@ -53,6 +55,10 @@ func deserializeRaftLog(l []byte) (*raftLog, error) {
 	ct := setCmd
 	if strings.HasPrefix(string(cmd), "DELETE") {
 		ct = deleteCmd
+	} else if strings.HasPrefix(string(cmd), "METASET") {
+		ct = metaSetCmd
+	} else if strings.HasPrefix(string(cmd), "METADELETE") {
+		ct = metaDeleteCmd
 	}
 
 	return &raftLog{
@@ -75,5 +81,21 @@ func newDeleteRaftLog(term uint64, key []byte) *raftLog {
 		term:    term,
 		command: raftCommand(fmt.Sprintf("DELETE %s", string(key))),
 		ct:      deleteCmd,
+	}
+}
+
+func newMetaSetRaftLog(term uint64, key, value []byte) *raftLog {
+	return &raftLog{
+		term:    term,
+		command: raftCommand(fmt.Sprintf("METASET %s %s", string(key), string(value))),
+		ct:      metaSetCmd,
+	}
+}
+
+func newMetaDeleteRaftLog(term uint64, key []byte) *raftLog {
+	return &raftLog{
+		term:    term,
+		command: raftCommand(fmt.Sprintf("METADELETE %s", string(key))),
+		ct:      metaDeleteCmd,
 	}
 }

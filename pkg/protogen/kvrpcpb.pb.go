@@ -143,6 +143,7 @@ type GetResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// An empty value with found = true indicates deletion.
 	Value    []byte `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	Error    string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	Found    bool   `protobuf:"varint,3,opt,name=found,proto3" json:"found,omitempty"`

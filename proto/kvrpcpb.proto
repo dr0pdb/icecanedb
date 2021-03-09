@@ -11,6 +11,7 @@ message GetRequest {
 }
 
 message GetResponse {
+  // An empty value with found = true indicates deletion.
   bytes value = 1;
   string error = 2;
   bool found = 3;

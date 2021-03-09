@@ -28,7 +28,7 @@ type KVServer struct {
 	raftServer *raft.Server
 
 	// the key-value storage path
-	kvPath string
+	kvPath, kvMetaPath string
 
 	// the mvcc layer for the key-value data
 	kvMvcc *mvcc.MVCC
@@ -91,24 +91,25 @@ func (kvs *KVServer) Close() {
 // NewKVServer creates a new instance of KV Server
 func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 	log.Info("icecanekv::icecanekv::NewKVServer; started")
-	raftPath, kvPath, err := prepareDirectories(kvConfig)
+	kvPath, kvMetaPath, raftPath, err := prepareDirectories(kvConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	txnComp := mvcc.NewtxnKeyComparator()
-	raftServer, err := raft.NewRaftServer(kvConfig, raftPath, kvPath, txnComp)
+	raftServer, err := raft.NewRaftServer(kvConfig, raftPath, kvPath, kvMetaPath, txnComp)
 	if err != nil {
 		log.Error(fmt.Sprintf("icecanekv::icecanekv::NewKVServer; error in creating raft server: %v", err))
 		return nil, err
 	}
 
-	kvMvcc := mvcc.NewMVCC(raftServer)
+	kvMvcc := mvcc.NewMVCC(kvConfig.ID, raftServer)
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{
 		raftPath:   raftPath,
 		kvPath:     kvPath,
 		kvMvcc:     kvMvcc,
+		kvMetaPath: kvMetaPath,
 		raftServer: raftServer,
 		kvConfig:   kvConfig,
 	}, nil
@@ -119,21 +120,22 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 //
 
 // prepareDirectories creates relevant kv server directories inside the db path.
-func prepareDirectories(kvConfig *common.KVConfig) (string, string, error) {
+func prepareDirectories(kvConfig *common.KVConfig) (string, string, string, error) {
 	log.Info("icecanekv::icecanekv::prepareDirectories; started")
 	dbPath := kvConfig.DbPath
 	kvPath := filepath.Join(dbPath, "kv")
+	kvMetaPath := filepath.Join(dbPath, "kvmeta")
 	raftPath := filepath.Join(dbPath, "raft")
 
 	err := os.MkdirAll(kvPath, os.ModePerm)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	err = os.MkdirAll(raftPath, os.ModePerm)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	log.Info("icecanekv::icecanekv::prepareDirectories; done")
-	return kvPath, raftPath, err
+	return kvPath, kvMetaPath, raftPath, err
 }

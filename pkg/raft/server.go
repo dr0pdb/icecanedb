@@ -20,7 +20,7 @@ type Server struct {
 	raft *Raft
 
 	// stores actual key-value data
-	kvStorage *storage.Storage
+	kvStorage, kvMetaStorage *storage.Storage
 
 	kvConfig *common.KVConfig
 
@@ -58,16 +58,6 @@ func (s *Server) Close() {
 //
 //
 
-// GetValue returns the value of the key from storage layer.
-func (s *Server) GetValue(key []byte) ([]byte, uint64, error) {
-	leader := s.raft.getLeaderID()
-	if leader != s.id {
-		return nil, leader, fmt.Errorf("not a leader")
-	}
-
-	return nil, leader, nil
-}
-
 // Scan returns an iterator to iterate over all the kv pairs whose key >= target
 func (s *Server) Scan(target []byte) (storage.Iterator, uint64, error) {
 	leader := s.raft.getLeaderID()
@@ -91,6 +81,37 @@ func (s *Server) SetValue(key, value []byte) (leader uint64, err error) {
 
 // DeleteValue deletes the value of the key and gets it replicated across peers
 func (s *Server) DeleteValue(key []byte) (leader uint64, err error) {
+	leader = s.raft.getLeaderID()
+	if leader != s.id {
+		return leader, fmt.Errorf("not a leader")
+	}
+
+	return 0, nil
+}
+
+// MetaGetValue returns the value of the key from meta storage layer.
+func (s *Server) MetaGetValue(key []byte) ([]byte, uint64, error) {
+	leader := s.raft.getLeaderID()
+	if leader != s.id {
+		return nil, leader, fmt.Errorf("not a leader")
+	}
+
+	val, err := s.kvMetaStorage.Get(key, nil)
+	return val, leader, err
+}
+
+// MetaSetValue sets the value of the key in the meta storage and gets it replicated across peers
+func (s *Server) MetaSetValue(key, value []byte) (leader uint64, err error) {
+	leader = s.raft.getLeaderID()
+	if leader != s.id {
+		return leader, fmt.Errorf("not a leader")
+	}
+
+	return 0, nil
+}
+
+// MetaDeleteValue deletes the value of the key in the meta storage and gets it replicated across peers
+func (s *Server) MetaDeleteValue(key []byte) (leader uint64, err error) {
 	leader = s.raft.getLeaderID()
 	if leader != s.id {
 		return leader, fmt.Errorf("not a leader")
@@ -142,7 +163,7 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 	return resp, err
 }
 
-// applyEntry applies the raft log to the storage engine.
+// applyEntry applies the raft log to the storage and meta engines.
 func (s *Server) applyEntry(rl *raftLog) (err error) {
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v cmd: %s", rl.term, rl.ct, rl.command))
 
@@ -153,12 +174,26 @@ func (s *Server) applyEntry(rl *raftLog) (err error) {
 		} else {
 			err = fmt.Errorf("invalid set log command")
 		}
-	} else {
+	} else if rl.ct == deleteCmd {
 		parts := strings.Fields(string(rl.command))
 		if len(parts) == 2 && parts[0] == "DELETE" {
 			err = s.kvStorage.Delete([]byte(parts[1]), nil)
 		} else {
 			err = fmt.Errorf("invalid delete log command")
+		}
+	} else if rl.ct == metaSetCmd {
+		parts := strings.Fields(string(rl.command))
+		if len(parts) == 3 && parts[0] == "METASET" {
+			err = s.kvMetaStorage.Set([]byte(parts[1]), []byte(parts[2]), nil)
+		} else {
+			err = fmt.Errorf("invalid metaset log command")
+		}
+	} else if rl.ct == metaDeleteCmd {
+		parts := strings.Fields(string(rl.command))
+		if len(parts) == 2 && parts[0] == "METADELETE" {
+			err = s.kvMetaStorage.Delete([]byte(parts[1]), nil)
+		} else {
+			err = fmt.Errorf("invalid metadelete log command")
 		}
 	}
 
@@ -201,8 +236,8 @@ func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, 
 	return conn, nil
 }
 
-// createAndOpenRaftStorage creates a storage and opens it.
-func createAndOpenRaftStorage(path string, opts *storage.Options) (*storage.Storage, error) {
+// createAndOpenStorage creates a storage and opens it.
+func createAndOpenStorage(path string, opts *storage.Options) (*storage.Storage, error) {
 	s, err := storage.NewStorage(path, opts)
 	if err != nil {
 		return nil, err
@@ -222,13 +257,13 @@ func createAndOpenKVStorage(path string, txnComp storage.Comparator, opts *stora
 }
 
 // NewRaftServer creates a new instance of a Raft server
-func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath string, txnComp storage.Comparator) (*Server, error) {
+func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath string, txnComp storage.Comparator) (*Server, error) {
 	log.Info("raft::server::NewRaftServer; started")
 
 	rOpts := &storage.Options{
 		CreateIfNotExist: true,
 	}
-	raftStorage, err := createAndOpenRaftStorage(raftPath, rOpts)
+	raftStorage, err := createAndOpenStorage(raftPath, rOpts)
 	if err != nil {
 		log.Error(fmt.Sprintf("raft::server::NewRaftServer; error in creating raft storage: %v", err))
 		return nil, err
@@ -243,11 +278,18 @@ func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath string, txnComp s
 		return nil, err
 	}
 
+	kvMetaStorage, err := createAndOpenStorage(kvMetaPath, sOpts)
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::NewRaftServer; error in creating kv meta storage: %v", err))
+		return nil, err
+	}
+
 	mu := new(sync.Mutex)
 	s := &Server{
 		id:                kvConfig.ID,
 		mu:                mu,
 		kvStorage:         kvStorage,
+		kvMetaStorage:     kvMetaStorage,
 		kvConfig:          kvConfig,
 		clientConnections: common.NewProtectedMapUConn(),
 	}

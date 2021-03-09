@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	icommon "github.com/dr0pdb/icecanedb/internal/common"
 	"github.com/dr0pdb/icecanedb/pkg/common"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
@@ -27,6 +28,8 @@ import (
 // MVCC is the Multi Version Concurrency Control layer for transactions.
 // Operations on it are thread safe using a RWMutex
 type MVCC struct {
+	id uint64
+
 	mu *sync.RWMutex
 
 	// active transactions at the present moment.
@@ -121,8 +124,55 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 }
 
 // Set sets the value of a key.
+//
+// It first checks if there is a concurrent txn (snapshot taken while creation of txn)
+// that has already written for the key.
+// If yes, we return an error and let the client decide whether it wants to abort the txn or not do the write at all.
+// If no, then the write is done and recorded via (txnId, key) entry.
 func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	log.Info("mvcc::mvcc::Set; started")
+
+	resp := &pb.SetResponse{}
+
+	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadOnly)
+	if err != nil {
+		return nil, err
+	}
+	req.TxnId = txnID
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	txn := m.activeTxn[txnID]
+
+	for id := range txn.concTxns {
+		tkey := newTxnKey(req.Key, id)
+
+		_, leaderID, err := m.rs.MetaGetValue(tkey)
+		if leaderID != m.id {
+			resp.LeaderId = leaderID
+			return resp, nil
+		}
+		if err != nil {
+			_, ok := err.(icommon.NotFoundError)
+
+			if ok {
+				continue
+			} else {
+				resp.Error = "Serialization Error"
+				return resp, err
+			}
+		}
+
+	}
+
+	// no conflicts. do the write now
+	_, err = m.rs.SetValue(req.GetKey(), req.GetValue())
+	if err != nil {
+
+	}
+
+	return resp, err
 }
 
 // Delete deletes the value of a key.
@@ -151,8 +201,8 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	txnKey := []byte(getKey(notUsed, nxtTxnID))
-	nxtID, leaderID, err := m.rs.GetValue(txnKey)
+	txnKey := []byte(getKey(notUsed, nxtTxnID, nil))
+	nxtID, leaderID, err := m.rs.MetaGetValue(txnKey)
 	nxtIDUint64 := common.ByteToU64(nxtID)
 	if err != nil {
 		return nil, leaderID, err
@@ -167,6 +217,8 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 	for k := range m.activeTxn {
 		cTxns[k] = true
 	}
+
+	// TODO: store cTxns and mark as active in storage
 
 	txn := newTransaction(nxtIDUint64, cTxns, mode)
 	m.activeTxn[txn.id] = txn
@@ -214,12 +266,13 @@ func (m *MVCC) commitTxn(id uint64) error {
 }
 
 // NewMVCC creates a new MVCC transactional layer for the storage
-func NewMVCC(rs *raft.Server) *MVCC {
+func NewMVCC(id uint64, rs *raft.Server) *MVCC {
 	// todo: set txnNext to 1 at the first startup
 
 	// todo: abort active txns after crash.
 
 	return &MVCC{
+		id:        id,
 		mu:        new(sync.RWMutex),
 		activeTxn: make(map[uint64]*Transaction),
 		rs:        rs,

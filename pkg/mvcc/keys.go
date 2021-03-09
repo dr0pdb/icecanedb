@@ -14,6 +14,7 @@ const (
 	nxtTxnID keyType = iota
 	activeTxn
 	txnSnapshot
+	txnWrite
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 )
 
 // getKey returns key for the given mvcc key type
-func getKey(txnID uint64, keyType keyType) string {
+func getKey(txnID uint64, keyType keyType, key []byte) string {
 	log.Info("mvcc::key::getKey; start")
 
 	switch keyType {
@@ -31,6 +32,8 @@ func getKey(txnID uint64, keyType keyType) string {
 		return fmt.Sprintf("activeTxn %d", txnID)
 	case txnSnapshot:
 		return fmt.Sprintf("txnSnapshot %d", txnID)
+	case txnWrite:
+		return fmt.Sprintf("txnWrite %d %s", txnID, string(key))
 	}
 
 	panic("invalid key type")
