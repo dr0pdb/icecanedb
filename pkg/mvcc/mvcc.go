@@ -134,7 +134,7 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 
 	resp := &pb.SetResponse{}
 
-	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadOnly)
+	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadWrite)
 	if err != nil {
 		return nil, err
 	}
@@ -145,10 +145,13 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 
 	txn := m.activeTxn[txnID]
 
-	for id := range txn.concTxns {
-		tkey := newTxnKey(req.Key, id)
+	// Iterate over the snapshot of concurrent txns to see if
+	// one of those txns have written a value for the key which we're trying to write.
+	for ctxn := range txn.concTxns {
+		upkey := getKey(ctxn, txnWrite, req.GetKey())
 
-		_, leaderID, err := m.rs.MetaGetValue(tkey)
+		// we don't care about the value. We need to check for existence.
+		_, leaderID, err := m.rs.MetaGetValue(upkey)
 		if leaderID != m.id {
 			resp.LeaderId = leaderID
 			return resp, nil
@@ -167,17 +170,81 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 	}
 
 	// no conflicts. do the write now
-	_, err = m.rs.SetValue(req.GetKey(), req.GetValue())
+	tKey := newTxnKey(req.GetKey(), req.TxnId)
+	_, err = m.rs.SetValue(tKey, req.GetValue())
 	if err != nil {
-
+		// log it
+		return resp, err
+	}
+	upKey := getKey(req.TxnId, txnWrite, req.GetKey())
+	_, err = m.rs.MetaSetValue(upKey, []byte("true"))
+	if err != nil {
+		// TODO: remove the previous write.
+		return resp, err
 	}
 
+	resp.Success = true
 	return resp, err
 }
 
 // Delete deletes the value of a key.
+// TODO: remove excessive code duplication b/w set and delete.
 func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	log.Info("mvcc::mvcc::Delete; started")
+
+	resp := &pb.DeleteResponse{}
+
+	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadWrite)
+	if err != nil {
+		return nil, err
+	}
+	req.TxnId = txnID
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	txn := m.activeTxn[txnID]
+
+	// Iterate over the snapshot of concurrent txns to see if
+	// one of those txns have written a value for the key which we're trying to write.
+	for ctxn := range txn.concTxns {
+		upkey := getKey(ctxn, txnWrite, req.GetKey())
+
+		// we don't care about the value. We need to check for existence.
+		_, leaderID, err := m.rs.MetaGetValue(upkey)
+		if leaderID != m.id {
+			resp.LeaderId = leaderID
+			return resp, nil
+		}
+		if err != nil {
+			_, ok := err.(icommon.NotFoundError)
+
+			if ok {
+				continue
+			} else {
+				resp.Error = "Serialization Error"
+				return resp, err
+			}
+		}
+
+	}
+
+	// no conflicts. do the write now
+	tKey := newTxnKey(req.GetKey(), req.TxnId)
+	_, err = m.rs.DeleteValue(tKey)
+	if err != nil {
+		// log it
+		return resp, err
+	}
+	upKey := getKey(req.TxnId, txnWrite, req.GetKey())
+	_, err = m.rs.MetaSetValue(upKey, []byte("true"))
+	if err != nil {
+		// TODO: remove the previous write.
+		return resp, err
+	}
+
+	resp.Success = true
+	return resp, err
 }
 
 // CommitTxn attempts to commit a MVCC txn
@@ -214,11 +281,23 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 
 	// snapshot of active txns at the moment of creation.
 	var cTxns map[uint64]bool
+	var cTxnsS []uint64
 	for k := range m.activeTxn {
 		cTxns[k] = true
+		cTxnsS = append(cTxnsS, k)
 	}
 
-	// TODO: store cTxns and mark as active in storage
+	// persist snapshot and mark txn as active.
+	snapkey := getKey(nxtIDUint64, txnSnapshot, nil)
+	_, err = m.rs.MetaSetValue([]byte(snapkey), common.U64SliceToByteSlice(cTxnsS))
+	if err != nil {
+		return nil, leaderID, err
+	}
+	markKey := getKey(nxtIDUint64, activeTxn, nil)
+	_, err = m.rs.MetaSetValue([]byte(markKey), []byte("true"))
+	if err != nil {
+		return nil, leaderID, err
+	}
 
 	txn := newTransaction(nxtIDUint64, cTxns, mode)
 	m.activeTxn[txn.id] = txn
@@ -230,6 +309,7 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 // ensureTxn ensures a txn exists.
 // if id = 0, it creates a new txn with the given mode.
 // if id != 0, it ensures that the txn is active.
+// IMP: Don't hold locks while calling this function.
 func (m *MVCC) ensureTxn(id uint64, mode pb.TxnMode) (uint64, error) {
 	if id == 0 {
 		txnID, _, err := m.begin(mode)
@@ -239,6 +319,9 @@ func (m *MVCC) ensureTxn(id uint64, mode pb.TxnMode) (uint64, error) {
 
 		id = txnID.id
 	} else {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+
 		if _, ok := m.activeTxn[id]; !ok {
 			return id, fmt.Errorf("error: inactive transaction")
 		}
@@ -265,16 +348,22 @@ func (m *MVCC) commitTxn(id uint64) error {
 	return nil
 }
 
-// NewMVCC creates a new MVCC transactional layer for the storage
-func NewMVCC(id uint64, rs *raft.Server) *MVCC {
+func (m *MVCC) init() {
 	// todo: set txnNext to 1 at the first startup
 
 	// todo: abort active txns after crash.
+}
 
-	return &MVCC{
+// NewMVCC creates a new MVCC transactional layer for the storage
+func NewMVCC(id uint64, rs *raft.Server) *MVCC {
+	m := &MVCC{
 		id:        id,
 		mu:        new(sync.RWMutex),
 		activeTxn: make(map[uint64]*Transaction),
 		rs:        rs,
 	}
+
+	m.init()
+
+	return m
 }

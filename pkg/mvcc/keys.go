@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -22,18 +23,25 @@ const (
 )
 
 // getKey returns key for the given mvcc key type
-func getKey(txnID uint64, keyType keyType, key []byte) string {
+func getKey(txnID uint64, keyType keyType, key []byte) []byte {
 	log.Info("mvcc::key::getKey; start")
 
 	switch keyType {
 	case nxtTxnID:
-		return fmt.Sprintf("nxtTxnID")
+		return []byte(fmt.Sprintf("nxtTxnID"))
 	case activeTxn:
-		return fmt.Sprintf("activeTxn %d", txnID)
+		res := []byte("activeTxn")
+		res = append(res, common.U64ToByte(txnID)...)
+		return res
 	case txnSnapshot:
-		return fmt.Sprintf("txnSnapshot %d", txnID)
+		res := []byte("txnSnapshot")
+		res = append(res, common.U64ToByte(txnID)...)
+		return res
 	case txnWrite:
-		return fmt.Sprintf("txnWrite %d %s", txnID, string(key))
+		res := []byte("txnWrite")
+		res = append(res, common.U64ToByte(txnID)...)
+		res = append(res, key...)
+		return res
 	}
 
 	panic("invalid key type")

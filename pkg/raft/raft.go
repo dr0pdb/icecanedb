@@ -150,11 +150,12 @@ func (r *Raft) getLeaderID() uint64 {
 	return r.istate.currentLeader.Get()
 }
 
-func (r *Raft) clientSetRequest(key, value []byte) error {
+func (r *Raft) clientSetRequest(key, value []byte, meta bool) error {
 	log.WithFields(log.Fields{"id": r.id, "key": string(key), "value": string(value)}).Info("raft::raft::clientSetRequest; received set request")
 	sr := &setRequest{
 		key:   key,
 		value: value,
+		meta:  meta,
 	}
 
 	r.istate.clientRequests <- sr
@@ -168,14 +169,14 @@ func (r *Raft) clientSetRequest(key, value []byte) error {
 	return nil
 }
 
-func (r *Raft) clientDeleteRequest(key []byte) error {
+func (r *Raft) clientDeleteRequest(key []byte, meta bool) error {
 	log.WithFields(log.Fields{"id": r.id, "key": string(key)}).Info("raft::raft::clientDeleteRequest; received delete request")
 	dr := &deleteRequest{
-		key: key,
+		key:  key,
+		meta: meta,
 	}
 
 	r.istate.clientRequests <- dr
-
 	resp := <-r.istate.clientResponses
 
 	if !resp {
@@ -493,17 +494,29 @@ func (r *Raft) leader() {
 
 		case req := <-r.istate.clientRequests:
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; received a client request")
-			sr, ok := (req).(setRequest)
 			var rl *raftLog
+
+			sr, ok := (req).(setRequest)
 			if ok {
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; set request")
-				rl = newSetRaftLog(r.currentTerm.Get(), sr.key, sr.value)
+				if !sr.meta {
+					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; set request")
+					rl = newSetRaftLog(r.currentTerm.Get(), sr.key, sr.value)
+				} else {
+					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; metaset request")
+					rl = newMetaSetRaftLog(r.currentTerm.Get(), sr.key, sr.value)
+				}
 			}
+
 			dr, ok := (req).(deleteRequest)
 			if ok {
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; delete request")
-				rl = newDeleteRaftLog(r.currentTerm.Get(), dr.key)
-			} else {
+				if !dr.meta {
+					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; delete request")
+					rl = newDeleteRaftLog(r.currentTerm.Get(), dr.key)
+				} else {
+					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine;metadelete request")
+					rl = newMetaDeleteRaftLog(r.currentTerm.Get(), dr.key)
+				}
+			} else if rl == nil {
 				log.WithFields(log.Fields{"id": r.id}).Error("raft::raft::leaderroutine; invalid request")
 				// handle if req is neither of the two
 			}

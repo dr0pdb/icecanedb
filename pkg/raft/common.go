@@ -7,10 +7,12 @@ import (
 
 type setRequest struct {
 	key, value []byte
+	meta       bool
 }
 
 type deleteRequest struct {
-	key []byte
+	key  []byte
+	meta bool
 }
 
 func isMajiority(cnt, allcnt int) bool {
