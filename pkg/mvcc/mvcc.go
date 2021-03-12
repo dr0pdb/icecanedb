@@ -128,13 +128,14 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 // If yes, we return an error and let the client decide whether it wants to abort the txn or not do the write at all.
 // If no, then the write is done and recorded via (txnId, key) entry.
 func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
-	log.Info("mvcc::mvcc::Set; started")
+	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; started")
 
 	resp := &pb.SetResponse{}
 
 	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadWrite)
 	if err != nil {
-		return nil, err
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Error("mvcc::mvcc::Set; unable to ensure txn")
+		return resp, err
 	}
 	req.TxnId = txnID
 
@@ -267,9 +268,9 @@ func (m *MVCC) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb
 	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::RollbackTxn; started")
 
 	resp := &pb.RollbackTxnResponse{}
-	leaderID, err := m.commitTxn(req.TxnId)
+	leaderID, err := m.rollbackTxn(req.TxnId)
 	if err != nil {
-		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::RollbackTxn; error in committing txn")
+		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Error("mvcc::mvcc::RollbackTxn; error in rolling back txn")
 		resp.Error = err.Error()
 		return resp, err
 	}
@@ -285,19 +286,23 @@ func (m *MVCC) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb
 
 // begin begins a new Transaction
 func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
-	log.Info("mvcc::mvcc::Begin; started")
+	log.Info("mvcc::mvcc::begin; started")
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// get next txn id
 	txnKey := []byte(getKey(notUsed, nxtTxnID, nil))
-	nxtID, leaderID, err := m.rs.MetaGetValue(txnKey)
-	nxtIDUint64 := common.ByteToU64(nxtID)
+	nxtIDUint64, leaderID, err := m.getNextTxnID()
 	if err != nil {
+		log.Error(fmt.Sprintf("mvcc::mvcc::begin; error in getting next txnKey. err: %v", err.Error()))
 		return nil, leaderID, err
 	}
+
+	// set next txn id
 	_, err = m.rs.SetValue(txnKey, common.U64ToByte(nxtIDUint64+1))
 	if err != nil {
+		log.Error(fmt.Sprintf("mvcc::mvcc::begin; error in setting next txnKey. err: %v", err.Error()))
 		return nil, leaderID, err
 	}
 
@@ -313,18 +318,20 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 	snapkey := getKey(nxtIDUint64, txnSnapshot, nil)
 	_, err = m.rs.MetaSetValue([]byte(snapkey), common.U64SliceToByteSlice(cTxnsS))
 	if err != nil {
+		log.WithFields(log.Fields{"id": nxtIDUint64}).Error(fmt.Sprintf("mvcc::mvcc::begin; error in setting snapshot. err: %v", err.Error()))
 		return nil, leaderID, err
 	}
 	markKey := getKey(nxtIDUint64, activeTxn, nil)
 	_, err = m.rs.MetaSetValue([]byte(markKey), []byte("true"))
 	if err != nil {
+		log.WithFields(log.Fields{"id": nxtIDUint64}).Error(fmt.Sprintf("mvcc::mvcc::begin; error in setting mark key. err: %v", err.Error()))
 		return nil, leaderID, err
 	}
 
 	txn := newTransaction(nxtIDUint64, cTxns, mode)
 	m.activeTxn[txn.id] = txn
 
-	log.Info("mvcc::mvcc::Begin; done")
+	log.Info("mvcc::mvcc::begin; done")
 	return txn, leaderID, nil
 }
 
@@ -333,6 +340,7 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 // if id != 0, it ensures that the txn is active.
 // IMP: Don't hold locks while calling this function.
 func (m *MVCC) ensureTxn(id uint64, mode pb.TxnMode) (uint64, error) {
+	log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::ensureTxn; starting")
 	if id == 0 {
 		txnID, _, err := m.begin(mode)
 		if err != nil {
@@ -349,6 +357,7 @@ func (m *MVCC) ensureTxn(id uint64, mode pb.TxnMode) (uint64, error) {
 		}
 	}
 
+	log.Info("mvcc::mvcc::ensureTxn; done")
 	return id, nil
 }
 
@@ -368,7 +377,7 @@ func (m *MVCC) commitTxn(id uint64) (leaderID uint64, err error) {
 		markKey := getKey(id, activeTxn, nil)
 		leaderID, err = m.rs.MetaDeleteValue([]byte(markKey))
 		if err != nil {
-			log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::commitTxn; error in deleting mark key for txn.")
+			log.WithFields(log.Fields{"id": id}).Error("mvcc::mvcc::commitTxn; error in deleting mark key for txn.")
 			return leaderID, err
 		}
 
@@ -398,7 +407,12 @@ func (m *MVCC) rollbackTxn(id uint64) (leaderID uint64, err error) {
 		// we can with key = "id" + nil. since nil is the smallest,
 		// all the keys with prefix "id" can be scanned with the iterator.
 		// we stop when the value of id doesn't match.
-		itr, _, err := m.rs.MetaScan(common.U64ToByte(id))
+		itr, lid, err := m.rs.MetaScan(common.U64ToByte(id))
+		leaderID = lid
+		if err != nil {
+			log.WithFields(log.Fields{"id": id}).Error("mvcc::mvcc::rollbackTxn; error in scan for written keys")
+			return leaderID, err
+		}
 		var toDelete [][]byte
 
 		for {
@@ -411,7 +425,8 @@ func (m *MVCC) rollbackTxn(id uint64) (leaderID uint64, err error) {
 				// delete in the main storage.
 				_, err := m.rs.DeleteValue(newTxnKey(uk, id))
 				if err != nil {
-					// handle it.
+					log.WithFields(log.Fields{"id": id}).Error("mvcc::mvcc::rollbackTxn; error while deleting the written value")
+					return leaderID, err
 				}
 
 				toDelete = append(toDelete, uk)
@@ -424,7 +439,8 @@ func (m *MVCC) rollbackTxn(id uint64) (leaderID uint64, err error) {
 		for _, k := range toDelete {
 			_, err = m.rs.MetaDeleteValue(getKey(id, txnWrite, k))
 			if err != nil {
-				// handle?
+				log.WithFields(log.Fields{"id": id}).Error("mvcc::mvcc::rollbackTxn; error while deleting the written key in meta")
+				return leaderID, err
 			}
 		}
 
@@ -446,9 +462,29 @@ func (m *MVCC) rollbackTxn(id uint64) (leaderID uint64, err error) {
 	return leaderID, nil
 }
 
-func (m *MVCC) init() {
-	// todo: set txnNext to 1 at the first startup
+// getNextTxnID returns the next available txn id.
+// IMP: Hold mu before calling this. Also update the nxt id after wards
+func (m *MVCC) getNextTxnID() (nxtIDUint64, leaderID uint64, err error) {
+	log.Info("mvcc::mvcc::getNextTxnID; start")
 
+	txnKey := []byte(getKey(notUsed, nxtTxnID, nil))
+	nxtID, leaderID, err := m.rs.MetaGetValue(txnKey)
+	if err != nil {
+		if _, ok := err.(icommon.NotFoundError); ok {
+			nxtIDUint64 = 1
+		} else {
+			log.Error(fmt.Sprintf("mvcc::mvcc::getNextTxnID; error in getting txnKey. err: %v", err.Error()))
+			return 0, leaderID, err
+		}
+	} else {
+		nxtIDUint64 = common.ByteToU64(nxtID)
+	}
+
+	log.Info("mvcc::mvcc::getNextTxnID; done")
+	return nxtIDUint64, leaderID, err
+}
+
+func (m *MVCC) init() {
 	// todo: abort active txns after crash.
 }
 

@@ -1,5 +1,6 @@
-# MVCC
+# In Memory MVCC
 
-Multi Version Concurrency Control(MVCC).
+Not Used!
+In Memory Multi Version Concurrency Control(MVCC).
 
 TODO: Add more info
