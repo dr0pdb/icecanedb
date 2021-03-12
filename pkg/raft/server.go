@@ -124,6 +124,17 @@ func (s *Server) MetaDeleteValue(key []byte) (leader uint64, err error) {
 	return 0, err
 }
 
+// MetaScan returns an iterator to iterate over all the kv pairs whose key >= target
+func (s *Server) MetaScan(target []byte) (storage.Iterator, uint64, error) {
+	leader := s.raft.getLeaderID()
+	if leader != s.id {
+		return nil, leader, fmt.Errorf("not a leader")
+	}
+
+	itr := s.kvMetaStorage.Scan(target)
+	return itr, leader, nil
+}
+
 //
 // raft callbacks
 // either grpc calls are made or changes are made to the storage layer.

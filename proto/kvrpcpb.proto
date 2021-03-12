@@ -67,13 +67,27 @@ message BeginTxnResponse {
   uint64 leader_id = 3;
 }
 
-message CommitTxnRequest {}
+message CommitTxnRequest {
+  Context ctx = 1;
+  uint64 txn_id = 2;
+}
 
-message CommitTxnResponse {}
+message CommitTxnResponse {
+  bool success = 1;
+  uint64 leader_id = 2;
+  string error = 3;
+}
 
-message RollbackTxnRequest {}
+message RollbackTxnRequest {
+  Context ctx = 1;
+  uint64 txn_id = 2;
+}
 
-message RollbackTxnResponse {}
+message RollbackTxnResponse {
+  bool success = 1;
+  uint64 leader_id = 2;
+  string error = 3;
+}
 
 message ScanRequest {}
 

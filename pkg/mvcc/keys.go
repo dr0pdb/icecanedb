@@ -47,6 +47,13 @@ func getKey(txnID uint64, keyType keyType, key []byte) []byte {
 	panic("invalid key type")
 }
 
+func getTxnWrite(b []byte) (uint64, []byte) {
+	idb := b[:1]
+	k := b[1:]
+	id := common.ByteToU64(idb)
+	return id, k
+}
+
 // TxnKey contains the key and 8 byte txnID
 type TxnKey []byte
 

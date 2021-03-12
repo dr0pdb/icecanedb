@@ -11,8 +11,6 @@ import (
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 /*
@@ -117,7 +115,7 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 	}
 
 	if inlinedTxn {
-		err = m.commitTxn(req.TxnId)
+		_, err = m.commitTxn(req.TxnId)
 	}
 
 	return resp, err
@@ -190,7 +188,7 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 // Delete deletes the value of a key.
 // TODO: remove excessive code duplication b/w set and delete.
 func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
-	log.Info("mvcc::mvcc::Delete; started")
+	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::Delete; started")
 
 	resp := &pb.DeleteResponse{}
 
@@ -249,12 +247,36 @@ func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteRes
 
 // CommitTxn attempts to commit a MVCC txn
 func (m *MVCC) CommitTxn(ctx context.Context, req *pb.CommitTxnRequest) (*pb.CommitTxnResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::CommitTxn; started")
+
+	resp := &pb.CommitTxnResponse{}
+	leaderID, err := m.commitTxn(req.TxnId)
+	if err != nil {
+		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::CommitTxn; error in committing txn")
+		resp.Error = err.Error()
+		return resp, err
+	}
+	resp.LeaderId = leaderID
+	resp.Success = true
+	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::CommitTxn; ending successfully")
+	return resp, nil
 }
 
 // RollbackTxn rollsback a MVCC txn
 func (m *MVCC) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb.RollbackTxnResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::RollbackTxn; started")
+
+	resp := &pb.RollbackTxnResponse{}
+	leaderID, err := m.commitTxn(req.TxnId)
+	if err != nil {
+		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::RollbackTxn; error in committing txn")
+		resp.Error = err.Error()
+		return resp, err
+	}
+	resp.LeaderId = leaderID
+	resp.Success = true
+	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::RollbackTxn; ending successfully")
+	return resp, nil
 }
 
 //
@@ -331,21 +353,97 @@ func (m *MVCC) ensureTxn(id uint64, mode pb.TxnMode) (uint64, error) {
 }
 
 // commitTxn commits a txn with the given id
-func (m *MVCC) commitTxn(id uint64) error {
+// aquires an exclusive lock on mvcc.
+func (m *MVCC) commitTxn(id uint64) (leaderID uint64, err error) {
+	log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::commitTxn; start")
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if txn, ok := m.activeTxn[id]; ok {
-		if txn.mode == pb.TxnMode_ReadOnly {
-			// delete the key activeTxn from storage as well.
+	// default to this node
+	leaderID = m.id
 
-			delete(m.activeTxn, id)
+	if _, ok := m.activeTxn[id]; ok {
+		// delete the key activeTxn from storage.
+		markKey := getKey(id, activeTxn, nil)
+		leaderID, err = m.rs.MetaDeleteValue([]byte(markKey))
+		if err != nil {
+			log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::commitTxn; error in deleting mark key for txn.")
+			return leaderID, err
 		}
+
+		delete(m.activeTxn, id)
 	} else {
-		return fmt.Errorf("commit on inactive txn")
+		log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::commitTxn; commit on inactive txn.")
+		return leaderID, fmt.Errorf("commit on inactive txn")
 	}
 
-	return nil
+	log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::commitTxn; committed successfully.")
+	return leaderID, nil
+}
+
+// rollbackTxn rolls back a txn with the given id
+// acquires an exclusive lock on mvcc
+func (m *MVCC) rollbackTxn(id uint64) (leaderID uint64, err error) {
+	log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::rollbackTxn; start")
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// default to this node
+	leaderID = m.id
+
+	if _, ok := m.activeTxn[id]; ok {
+		// delete the entries written by this txn.
+		// we can with key = "id" + nil. since nil is the smallest,
+		// all the keys with prefix "id" can be scanned with the iterator.
+		// we stop when the value of id doesn't match.
+		itr, _, err := m.rs.MetaScan(common.U64ToByte(id))
+		var toDelete [][]byte
+
+		for {
+			if itr.Valid() {
+				tid, uk := getTxnWrite(itr.Key())
+				if tid != id {
+					break
+				}
+
+				// delete in the main storage.
+				_, err := m.rs.DeleteValue(newTxnKey(uk, id))
+				if err != nil {
+					// handle it.
+				}
+
+				toDelete = append(toDelete, uk)
+			} else {
+				break
+			}
+		}
+
+		// delete the keys from meta storage
+		for _, k := range toDelete {
+			_, err = m.rs.MetaDeleteValue(getKey(id, txnWrite, k))
+			if err != nil {
+				// handle?
+			}
+		}
+
+		// delete the key activeTxn from storage.
+		markKey := getKey(id, activeTxn, nil)
+		leaderID, err = m.rs.MetaDeleteValue([]byte(markKey))
+		if err != nil {
+			log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::rollbackTxn; error in deleting mark key for txn.")
+			return leaderID, err
+		}
+
+		delete(m.activeTxn, id)
+	} else {
+		log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::rollbackTxn; rollback on inactive txn.")
+		return leaderID, fmt.Errorf("rollback on inactive txn")
+	}
+
+	log.WithFields(log.Fields{"id": id}).Info("mvcc::mvcc::rollbackTxn; rolled back successfully.")
+	return leaderID, nil
 }
 
 func (m *MVCC) init() {
