@@ -131,6 +131,10 @@ func prepareDirectories(kvConfig *common.KVConfig) (string, string, string, erro
 	if err != nil {
 		return "", "", "", err
 	}
+	err = os.MkdirAll(kvMetaPath, os.ModePerm)
+	if err != nil {
+		return "", "", "", err
+	}
 	err = os.MkdirAll(raftPath, os.ModePerm)
 	if err != nil {
 		return "", "", "", err

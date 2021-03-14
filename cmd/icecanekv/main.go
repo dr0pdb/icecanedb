@@ -14,6 +14,7 @@ import (
 	icecanedbpb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/reflection"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -67,6 +68,7 @@ func main() {
 	)
 
 	icecanedbpb.RegisterIcecaneKVServer(grpcServer, server)
+	reflection.Register(grpcServer) // Register reflection service on gRPC server.
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%s", conf.Port))
 	if err != nil {
 		log.Fatalf("%V", err)
