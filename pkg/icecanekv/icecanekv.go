@@ -11,8 +11,6 @@ import (
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	log "github.com/sirupsen/logrus"
-	codes "google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // KVServer is the Key-value server that receives and processes requests from clients.
@@ -53,17 +51,17 @@ func (kvs *KVServer) AppendEntries(ctx context.Context, request *pb.AppendEntrie
 
 // Get gets the value of a key.
 func (kvs *KVServer) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	return kvs.kvMvcc.Get(ctx, req)
 }
 
 // Set sets the value of a key.
 func (kvs *KVServer) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	return kvs.kvMvcc.Set(ctx, req)
 }
 
 // Delete deletes the value of a key.
 func (kvs *KVServer) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	return kvs.kvMvcc.Delete(ctx, req)
 }
 
 // BeginTxn begins a MVCC transaction providing ACID guarantees.
@@ -73,12 +71,12 @@ func (kvs *KVServer) BeginTxn(ctx context.Context, req *pb.BeginTxnRequest) (*pb
 
 // CommitTxn attempts to commit a MVCC txn
 func (kvs *KVServer) CommitTxn(ctx context.Context, req *pb.CommitTxnRequest) (*pb.CommitTxnResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	return kvs.kvMvcc.CommitTxn(ctx, req)
 }
 
 // RollbackTxn rollsback a MVCC txn
 func (kvs *KVServer) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb.RollbackTxnResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RawGet not implemented")
+	return kvs.kvMvcc.RollbackTxn(ctx, req)
 }
 
 // Close cleans up the kv server

@@ -13,9 +13,9 @@ import (
 
 const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = 20000 * time.Millisecond
+	MinElectionTimeout = 5000 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = 21000 * time.Millisecond
+	MaxElectionTimeout = 5100 * time.Millisecond
 
 	requestTimeoutInterval = 2 * time.Second
 )
@@ -496,29 +496,27 @@ func (r *Raft) leader() {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; received a client request")
 			var rl *raftLog
 
-			sr, ok := (req).(setRequest)
-			if ok {
-				if !sr.meta {
+			switch request := req.(type) {
+			case *setRequest:
+				if !request.meta {
 					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; set request")
-					rl = newSetRaftLog(r.currentTerm.Get(), sr.key, sr.value)
+					rl = newSetRaftLog(r.currentTerm.Get(), request.key, request.value)
 				} else {
 					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; metaset request")
-					rl = newMetaSetRaftLog(r.currentTerm.Get(), sr.key, sr.value)
+					rl = newMetaSetRaftLog(r.currentTerm.Get(), request.key, request.value)
 				}
-			}
-
-			dr, ok := (req).(deleteRequest)
-			if ok {
-				if !dr.meta {
+			case *deleteRequest:
+				if !request.meta {
 					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; delete request")
-					rl = newDeleteRaftLog(r.currentTerm.Get(), dr.key)
+					rl = newDeleteRaftLog(r.currentTerm.Get(), request.key)
 				} else {
 					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine;metadelete request")
-					rl = newMetaDeleteRaftLog(r.currentTerm.Get(), dr.key)
+					rl = newMetaDeleteRaftLog(r.currentTerm.Get(), request.key)
 				}
-			} else if rl == nil {
+			default:
 				log.WithFields(log.Fields{"id": r.id}).Error("raft::raft::leaderroutine; invalid request")
-				// handle if req is neither of the two
+
+				// TODO: handle
 			}
 
 			lastIdx := r.lastLogIndex.Get()

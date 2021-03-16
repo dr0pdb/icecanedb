@@ -292,7 +292,6 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 	defer m.mu.Unlock()
 
 	// get next txn id
-	txnKey := []byte(getKey(notUsed, nxtTxnID, nil))
 	nxtIDUint64, leaderID, err := m.getNextTxnID()
 	if err != nil {
 		log.Error(fmt.Sprintf("mvcc::mvcc::begin; error in getting next txnKey. err: %v", err.Error()))
@@ -300,6 +299,7 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 	}
 
 	// set next txn id
+	txnKey := []byte(getKey(notUsed, nxtTxnID, nil))
 	_, err = m.rs.SetValue(txnKey, common.U64ToByte(nxtIDUint64+1))
 	if err != nil {
 		log.Error(fmt.Sprintf("mvcc::mvcc::begin; error in setting next txnKey. err: %v", err.Error()))
@@ -471,6 +471,7 @@ func (m *MVCC) getNextTxnID() (nxtIDUint64, leaderID uint64, err error) {
 	nxtID, leaderID, err := m.rs.MetaGetValue(txnKey)
 	if err != nil {
 		if _, ok := err.(icommon.NotFoundError); ok {
+			log.Error(fmt.Sprintf("mvcc::mvcc::getNextTxnID; txnKey not found. choosing default as 1"))
 			nxtIDUint64 = 1
 		} else {
 			log.Error(fmt.Sprintf("mvcc::mvcc::getNextTxnID; error in getting txnKey. err: %v", err.Error()))
@@ -481,7 +482,7 @@ func (m *MVCC) getNextTxnID() (nxtIDUint64, leaderID uint64, err error) {
 	}
 
 	log.Info("mvcc::mvcc::getNextTxnID; done")
-	return nxtIDUint64, leaderID, err
+	return nxtIDUint64, leaderID, nil
 }
 
 func (m *MVCC) init() {

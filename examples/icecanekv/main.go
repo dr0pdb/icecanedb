@@ -14,22 +14,11 @@ import (
 )
 
 var (
-	key1   = []byte("Key1")
-	key2   = []byte("Key2")
-	key3   = []byte("Key3")
-	key4   = []byte("Key4")
-	key5   = []byte("Key5")
-	value1 = []byte("Value 1")
-	value2 = []byte("Value 2")
-	value3 = []byte("Value 3")
-	value4 = []byte("Value 4")
-	value5 = []byte("Value 5")
-
 	// cache of grpc connections
-	clientConnections map[uint64]*grpc.ClientConn
+	clientConnections map[uint64]*grpc.ClientConn = make(map[uint64]*grpc.ClientConn)
 
 	// cluster nodes
-	cluster map[uint64]*common.Peer
+	cluster map[uint64]*common.Peer = make(map[uint64]*common.Peer)
 
 	// cached leaderID
 	leaderID uint64
