@@ -37,13 +37,13 @@ const (
 // This is only used in the leader.
 // Refer Fig 2, State (Volatile state on leaders) section of the Raft extended paper
 type Progress struct {
-	// Match is the index of the next log entry to send to that server
+	// Next is the index of the next log entry to send to that server
 	// init to leader last log index + 1
-	Match uint64
-
-	// Next is the index of the highest log entry known to be replicated on server
-	// init to 0, increase monotonically.
 	Next uint64
+
+	// Match is the index of the highest log entry known to be replicated on server
+	// init to 0, increase monotonically.
+	Match uint64
 }
 
 // Raft is the replicated state machine.
@@ -66,6 +66,7 @@ type Raft struct {
 
 	// stores the raft logs
 	// key: index and value: serialized form of the command.
+	// IMP: index starts from 1.
 	raftStorage *storage.Storage
 
 	// lastLogIndex contains the index of the highest log entry stored in raftStorage.
@@ -191,16 +192,9 @@ func (r *Raft) clientDeleteRequest(key []byte, meta bool) error {
 // The current node has received a request to vote by another peer.
 func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) (resp *pb.RequestVoteResponse, err error) {
 	log.WithFields(log.Fields{"id": r.id, "candidateId": request.CandidateId, "candidateTerm": request.Term}).Info("raft::raft::requestVote; received grpc request to vote;")
-	r.istate.requestVoteRequests <- request
-	t := time.After(getElectionTimeout())
-	voteGranted := false
 
-	select {
-	case granted := <-r.istate.requestVoteResponses:
-		voteGranted = granted
-	case <-t:
-		err = fmt.Errorf("request timeout")
-	}
+	r.istate.requestVoteRequests <- request
+	voteGranted := <-r.istate.requestVoteResponses
 
 	return &pb.RequestVoteResponse{
 		Term:        r.currentTerm.Get(),
@@ -212,16 +206,9 @@ func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) 
 // appendEntries is invoked by leader to replicate log entries; also used as heartbeat
 func (r *Raft) appendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (resp *pb.AppendEntriesResponse, err error) {
 	log.WithFields(log.Fields{"id": r.id, "leaderID": req.LeaderId, "leaderTerm": req.Term}).Info("raft::raft::appendEntries; received grpc request to append entries;")
-	r.istate.appendEntriesRequests <- req
-	t := time.After(getElectionTimeout())
 
-	// TODO: if this request times out, then the follower routine will be blocked forever. Handle the case.
-	select {
-	case resp = <-r.istate.appendEntriesReponses:
-		break
-	case <-t:
-		err = fmt.Errorf("request timeout")
-	}
+	r.istate.appendEntriesRequests <- req
+	resp = <-r.istate.appendEntriesReponses
 
 	return resp, err
 }
@@ -276,8 +263,10 @@ func (r *Raft) sendAppendEntries(receiverID uint64) (*pb.AppendEntriesResponse, 
 // follower does the role of a raft follower.
 func (r *Raft) follower() {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; became follower;")
+
 	r.istate.followerRunning.Set(true)
 	defer r.istate.followerRunning.Set(false)
+
 	for {
 		select {
 		case <-r.istate.endFollower:
@@ -331,25 +320,14 @@ func (r *Raft) follower() {
 
 			r.istate.appendEntriesReponses <- resp
 
-			la := r.lastApplied.Get()
-			lli := r.lastLogIndex.Get()
-
-			// we simply reapply all the entries.
-			// the paper suggests to check the log entries and only apply those
-			// which have a conflicting entry (term) at the same index.
-			for idx := la + 1; idx <= lli; idx++ {
-				rl := r.getLogEntryOrDefault(idx)
-				err := r.s.applyEntry(rl)
-				if err != nil {
-					// log it.
-				}
-
-				r.lastApplied.Set(idx)
-			}
-
 			// update commit index
 			if req.LeaderCommit > r.commitIndex.Get() {
-				r.commitIndex.Set(common.MinU64(req.LeaderCommit, r.lastApplied.Get()))
+				r.commitIndex.Set(common.MinU64(req.LeaderCommit, r.lastLogIndex.Get()))
+			}
+
+			err := r.applyCommittedEntries()
+			if err != nil {
+				log.WithFields(log.Fields{"id": r.id, "leader": req.LeaderId, "leaderTerm": req.Term}).Error("raft::raft::followerroutine; error in applying log entry")
 			}
 		}
 	}
@@ -534,7 +512,7 @@ func (r *Raft) leader() {
 				time.Sleep(100 * time.Millisecond)
 			}
 
-			err = r.s.applyEntry(rl)
+			err = r.applyCommittedEntries()
 			if err != nil {
 				// handle error in application.
 			}
@@ -577,14 +555,35 @@ func (r *Raft) getLogEntryOrDefault(idx uint64) *raftLog {
 	return rl
 }
 
+// applyCommittedEntries applies the already committed entries that haven't been applied yet.
+func (r *Raft) applyCommittedEntries() error {
+	log.Info("raft::raft::applyCommittedEntries; started")
+
+	la := r.lastApplied.Get()
+	lli := r.commitIndex.Get()
+
+	// we simply reapply all the entries.
+	// the paper suggests to check the log entries and only apply those
+	// which have a conflicting entry (term) at the same index.
+	for idx := la + 1; idx <= lli; idx++ {
+		rl := r.getLogEntryOrDefault(idx)
+		err := r.s.applyEntry(rl)
+		if err != nil {
+			log.Error(fmt.Sprintf("raft::raft::applyCommittedEntries; error in applying entry. Err: %v", err.Error()))
+			return err
+		}
+
+		r.lastApplied.Set(idx)
+	}
+
+	log.Info("raft::raft::applyCommittedEntries; done")
+	return nil
+}
+
 // setTerm sets the current term.
 // every update to the current term should be done via this function.
-// this is fine, since there is only one routine that is doing the write on the current term at a time.
-// If we had multiple writers, we would need an atomic int and do compare and swap.
 func (r *Raft) setTerm(term uint64) {
-	if r.currentTerm.Get() < term {
-		r.currentTerm.Set(term)
-	}
+	r.currentTerm.SetIfGreater(term)
 }
 
 // becomeFollower updates the role to follower and blocks untill the cand and leader routines stop.
@@ -644,6 +643,7 @@ func (r *Raft) becomeLeader(src uint64) {
 
 func (r *Raft) electionTimerRoutine() {
 	log.Info("raft::raft::electionTimerRoutine; started")
+
 	go func() {
 		time.Sleep(2 * time.Second) // wait for other components to init
 		for {
@@ -655,9 +655,10 @@ func (r *Raft) electionTimerRoutine() {
 				}
 			}
 
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
+
 	log.Info("raft::raft::electionTimerRoutine; done")
 }
 
@@ -665,6 +666,7 @@ func (r *Raft) electionTimerRoutine() {
 // If there is nothing to send, it sends heartbeats.
 func (r *Raft) appendEntryRoutine() {
 	log.Info("raft::raft::appendEntryRoutine; started")
+
 	go func() {
 		for {
 			if r.role.Get() == leader {
@@ -678,6 +680,7 @@ func (r *Raft) appendEntryRoutine() {
 								log.Error(fmt.Sprintf("raft::raft::appendEntryRoutine; error in send append entries %v", err))
 								return
 							}
+
 							// this is required since the ch channel could be closed due to timeout.
 							// TODO: find a better way if possible?
 							defer func() {
@@ -691,7 +694,7 @@ func (r *Raft) appendEntryRoutine() {
 					}
 				}
 
-				t := time.After(MinElectionTimeout / 2)
+				t := time.After(MinElectionTimeout / 3)
 				cnt := 1
 
 				for {
@@ -699,8 +702,8 @@ func (r *Raft) appendEntryRoutine() {
 					case resp := <-ch:
 						if resp.Term > r.currentTerm.Get() {
 							r.setTerm(resp.Term)
-							r.becomeFollower(norole)
 							r.istate.currentLeader.Set(resp.ResponderId)
+							r.becomeFollower(norole)
 							goto out
 						}
 
@@ -759,7 +762,7 @@ func (r *Raft) commitEntryRoutine() {
 				}
 			}
 
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 
@@ -776,9 +779,11 @@ func (r *Raft) init() {
 	go func() {
 		time.Sleep(time.Second) // allow starting grpc server
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
+
 		r.istate.running.Set(true)
 		for {
 			role := r.role.Get()
+
 			if role == follower {
 				r.follower()
 			} else if role == candidate {
@@ -793,6 +798,10 @@ func (r *Raft) init() {
 	}()
 
 	log.Info("raft::raft::init; done")
+}
+
+func (r *Raft) close() {
+	// TODO
 }
 
 // NewRaft initializes a new raft state machine.
@@ -838,14 +847,14 @@ func initProgress(id uint64, peers []common.Peer) map[uint64]*Progress {
 	m := make(map[uint64]*Progress)
 
 	m[id] = &Progress{
-		Match: 1,
-		Next:  0,
+		Match: 0,
+		Next:  1,
 	}
 
 	for _, p := range peers {
 		m[p.ID] = &Progress{
-			Match: 1, // todo: handle persistence later.
-			Next:  0,
+			Match: 0, // todo: handle persistence later.
+			Next:  1,
 		}
 	}
 

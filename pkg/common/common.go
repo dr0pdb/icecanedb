@@ -61,6 +61,16 @@ func (b *ProtectedUint64) Set(nvalue uint64) {
 	b.value = nvalue
 }
 
+// SetIfGreater sets the nvalue if the old value < nvalue.
+func (b *ProtectedUint64) SetIfGreater(nvalue uint64) {
+	b.m.Lock()
+	defer b.m.Unlock()
+
+	if b.value < nvalue {
+		b.value = nvalue
+	}
+}
+
 // Increment increments the value atomically and returns the new value.
 func (b *ProtectedUint64) Increment() uint64 {
 	b.m.Lock()
