@@ -2,7 +2,6 @@ package raft
 
 import (
 	"fmt"
-	"strings"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
 )
@@ -16,86 +15,84 @@ const (
 	metaDeleteCmd
 )
 
-type raftCommand string
-
 // raftLog is serialized and stored into the raft storage
+//
+// In the serialized form, the raft log has the following format
+//
+// |                    |             |                 |                       |                                     |                                                |
+// | command type [0:7] | term [8:15] | len_key [16:23] | key [24:24+len_key-1] | len_value [24+len_key:32+len_key-1] | value [32+len_key: 32 + len_key+len_value - 1] |
+// |                    |             |                 |                       |                                     |                                                |
 type raftLog struct {
-	term    uint64
-	ct      raftCommandType
-	command raftCommand
+	ct    raftCommandType
+	term  uint64
+	key   []byte
+	value []byte
 }
 
 func (rl *raftLog) toBytes() []byte {
-	res := common.U64ToByte(rl.term)
-
-	b := []byte(rl.command)
-	for _, sb := range b {
-		res = append(res, sb)
-	}
-
+	res := common.U64ToByte(uint64(rl.ct))
+	res = append(res, common.U64ToByte(rl.term)...)
+	res = append(res, common.U64ToByte(uint64(len(rl.key)))...)
+	res = append(res, rl.key...)
+	res = append(res, common.U64ToByte(uint64(len(rl.value)))...)
+	res = append(res, rl.value...)
 	return res
 }
 
 func deserializeRaftLog(l []byte) (*raftLog, error) {
-	if len(l) < 8 {
+	if len(l) < 32 {
 		return nil, fmt.Errorf("invalid log bytes")
 	}
-	var term uint64 = 0
+	ct := raftCommandType(common.ByteToU64(l[:8]))
+	term := common.ByteToU64(l[8:16])
 
-	term |= uint64(l[0])
-	term |= uint64(l[1]) << 8
-	term |= uint64(l[2]) << 16
-	term |= uint64(l[3]) << 24
-	term |= uint64(l[4]) << 32
-	term |= uint64(l[5]) << 40
-	term |= uint64(l[6]) << 48
-	term |= uint64(l[7]) << 56
+	keylen := common.ByteToU64(l[16:24])
+	key := l[24 : 24+keylen]
 
-	cmd := raftCommand(l[8:])
-	ct := setCmd
-	if strings.HasPrefix(string(cmd), "DELETE") {
-		ct = deleteCmd
-	} else if strings.HasPrefix(string(cmd), "METASET") {
-		ct = metaSetCmd
-	} else if strings.HasPrefix(string(cmd), "METADELETE") {
-		ct = metaDeleteCmd
+	valueLen := common.ByteToU64(l[24+keylen : 32+keylen])
+	var value []byte
+	if valueLen > 0 {
+		value = l[32+keylen:]
 	}
 
 	return &raftLog{
-		term:    term,
-		command: cmd,
-		ct:      ct,
+		ct:    ct,
+		term:  term,
+		key:   key,
+		value: value,
 	}, nil
 }
 
 func newSetRaftLog(term uint64, key, value []byte) *raftLog {
 	return &raftLog{
-		term:    term,
-		command: raftCommand(fmt.Sprintf("SET %s %s", string(key), string(value))),
-		ct:      setCmd,
+		term:  term,
+		key:   key,
+		value: value,
+		ct:    setCmd,
 	}
 }
 
 func newDeleteRaftLog(term uint64, key []byte) *raftLog {
 	return &raftLog{
-		term:    term,
-		command: raftCommand(fmt.Sprintf("DELETE %s", string(key))),
-		ct:      deleteCmd,
+		term: term,
+		key:  key,
+		ct:   deleteCmd,
 	}
 }
 
 func newMetaSetRaftLog(term uint64, key, value []byte) *raftLog {
 	return &raftLog{
-		term:    term,
-		command: raftCommand(fmt.Sprintf("METASET %s %s", string(key), string(value))),
-		ct:      metaSetCmd,
+		term:  term,
+		key:   key,
+		value: value,
+		ct:    metaSetCmd,
 	}
 }
 
 func newMetaDeleteRaftLog(term uint64, key []byte) *raftLog {
 	return &raftLog{
-		term:    term,
-		command: raftCommand(fmt.Sprintf("METADELETE %s", string(key))),
-		ct:      metaDeleteCmd,
+		term: term,
+		key:  key,
+		ct:   metaDeleteCmd,
 	}
 }

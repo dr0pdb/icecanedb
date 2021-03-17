@@ -188,7 +188,7 @@ func getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, error) {
 }
 
 func main() {
-	leaderID = 1
+	leaderID = 5
 	setup()
 
 	simpleCRUD()

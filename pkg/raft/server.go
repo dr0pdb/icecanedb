@@ -3,7 +3,6 @@ package raft
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
@@ -194,39 +193,24 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 
 // applyEntry applies the raft log to the storage and meta engines.
 func (s *Server) applyEntry(rl *raftLog) (err error) {
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v cmd: %s", rl.term, rl.ct, rl.command))
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v", rl.term, rl.ct))
 
 	if rl.ct == setCmd {
-		parts := strings.Fields(string(rl.command))
-		if len(parts) == 3 && parts[0] == "SET" {
-			err = s.kvStorage.Set([]byte(parts[1]), []byte(parts[2]), nil)
-		} else {
-			err = fmt.Errorf("invalid set log command")
-		}
+		err = s.kvStorage.Set(rl.key, rl.value, nil)
 	} else if rl.ct == deleteCmd {
-		parts := strings.Fields(string(rl.command))
-		if len(parts) == 2 && parts[0] == "DELETE" {
-			err = s.kvStorage.Delete([]byte(parts[1]), nil)
-		} else {
-			err = fmt.Errorf("invalid delete log command")
-		}
+		err = s.kvStorage.Delete(rl.key, nil)
 	} else if rl.ct == metaSetCmd {
-		parts := strings.Fields(string(rl.command))
-		if len(parts) == 3 && parts[0] == "METASET" {
-			err = s.kvMetaStorage.Set([]byte(parts[1]), []byte(parts[2]), nil)
-		} else {
-			err = fmt.Errorf("invalid metaset log command")
-		}
+		err = s.kvMetaStorage.Set(rl.key, rl.value, nil)
 	} else if rl.ct == metaDeleteCmd {
-		parts := strings.Fields(string(rl.command))
-		if len(parts) == 2 && parts[0] == "METADELETE" {
-			err = s.kvMetaStorage.Delete([]byte(parts[1]), nil)
-		} else {
-			err = fmt.Errorf("invalid metadelete log command")
-		}
+		err = s.kvMetaStorage.Delete(rl.key, nil)
 	}
 
-	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::applyEntry; done")
+	if err != nil {
+		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::applyEntry; error while applying entry. err: %v", err.Error()))
+	} else {
+		log.WithFields(log.Fields{"id": s.id}).Info("raft::server::applyEntry; done")
+	}
+
 	return err
 }
 

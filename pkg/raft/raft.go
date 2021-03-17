@@ -249,6 +249,8 @@ func (r *Raft) sendAppendEntries(receiverID uint64) (*pb.AppendEntriesResponse, 
 		entries = append(entries, entry)
 	}
 
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
+
 	req := &pb.AppendEntriesRequest{
 		Term:         r.currentTerm.Get(),
 		LeaderId:     r.id,
