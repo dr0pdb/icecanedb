@@ -155,7 +155,7 @@ func (s *Server) MetaScan(target []byte) (storage.Iterator, uint64, error) {
 //
 
 func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; sending vote to %d peer", voterID))
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; sending vote request to %d peer", voterID))
 
 	conn, err := s.getOrCreateClientConnection(voterID)
 	if err != nil {

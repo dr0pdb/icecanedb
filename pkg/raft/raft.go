@@ -13,9 +13,9 @@ import (
 
 const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = 5000 * time.Millisecond
+	MinElectionTimeout = 10000 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = 5100 * time.Millisecond
+	MaxElectionTimeout = 12000 * time.Millisecond
 
 	requestTimeoutInterval = 2 * time.Second
 )
@@ -218,7 +218,7 @@ func (r *Raft) appendEntries(ctx context.Context, req *pb.AppendEntriesRequest) 
 //
 
 func (r *Raft) sendRequestVote(rl *raftLog, voterID uint64) (*pb.RequestVoteResponse, error) {
-	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote to peer %d", voterID))
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote request to peer %d", voterID))
 	req := &pb.RequestVoteRequest{
 		Term:         r.currentTerm.Get(),
 		CandidateId:  r.id,
@@ -274,12 +274,15 @@ func (r *Raft) follower() {
 			goto end
 
 		case req := <-r.istate.requestVoteRequests:
-			log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; request for vote received")
-			if req.Term >= r.currentTerm.Get() && r.votedFor.Get() == noVote && r.isUpToDate(req) {
+			log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId, "candidateTerm": req.Term, "currentTerm": r.currentTerm.Get(), "votedFor": r.votedFor.Get()}).Info("raft::raft::followerroutine; request for vote received")
+			ct := r.currentTerm.Get()
+
+			if (req.Term > ct || (req.Term == ct && r.votedFor.Get() == noVote)) && r.isUpToDate(req) {
 				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote yes")
 				r.istate.lastAppendOrVoteTime = time.Now()
-				r.istate.requestVoteResponses <- true
 				r.setTerm(req.Term)
+				r.votedFor.Set(req.CandidateId)
+				r.istate.requestVoteResponses <- true
 			} else {
 				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote no")
 				r.istate.requestVoteResponses <- false
@@ -343,24 +346,30 @@ end:
 // in case of tie, we favour the index of the last term.
 // for more info check section 5.4.1 last paragraph of the paper.
 func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; starting")
+
 	// commit Index is 0 when the server just starts.
 	// In this case, the candidate will always be at least up to date as us.
 	if r.commitIndex.Get() > 0 {
 		b, err := r.raftStorage.Get(common.U64ToByte(r.commitIndex.Get()), &storage.ReadOptions{})
 		if err != nil {
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; return false due to error in getting raft log from storage")
 			return false
 		}
 		rl, err := deserializeRaftLog(b)
 		if err != nil {
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; returning false due to error in deserializing raft log")
 			return false
 		}
 
 		// we decline if the candidate log is not at least up to date as us.
 		if rl.term > req.LastLogTerm || r.commitIndex.Get() > req.LastLogIndex {
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; returning false since candidate log is not up to date.")
 			return false
 		}
 	}
 
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; done. returning true")
 	return true
 }
 
@@ -371,7 +380,6 @@ func (r *Raft) candidate() {
 	for {
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; requesting votes")
 		cnt := 1 // counting self votes
-		allcnt := 1
 		voteRecCh := make(chan *pb.RequestVoteResponse, len(r.allProgress))
 
 		r.currentTerm.Increment()
@@ -430,27 +438,22 @@ func (r *Raft) candidate() {
 					cnt++
 				}
 
-				allcnt++
-				if allcnt == len(r.allProgress) {
-					goto majiorityCheck
+				// become a leader as soon as you get majiority
+				if isMajiority(cnt, len(r.allProgress)) {
+					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; received majiority of votes. becoming leader")
+					r.becomeLeader(candidate)
+					goto end
 				}
-				break
 
 			case <-t:
 				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; leader election timed out.")
 				close(voteRecCh)
-				goto majiorityCheck
+				goto restart
 			}
 		}
 
-	majiorityCheck:
-		if isMajiority(cnt, len(r.allProgress)) {
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; received majiority of votes. becoming leader")
-			r.becomeLeader(candidate)
-			goto end
-		} else {
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; didn't receive majiority votes; restarting...")
-		}
+	restart:
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; didn't receive majiority votes; restarting...")
 	}
 
 end:
@@ -655,7 +658,7 @@ func (r *Raft) electionTimerRoutine() {
 				}
 			}
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(1000 * time.Millisecond)
 		}
 	}()
 
