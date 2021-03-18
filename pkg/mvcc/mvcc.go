@@ -150,6 +150,7 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 	defer m.mu.Unlock()
 
 	txn := m.activeTxn[txnID]
+	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; check for conflicting sets")
 
 	// Iterate over the snapshot of concurrent txns to see if
 	// one of those txns have written a value for the key which we're trying to write.
@@ -169,6 +170,7 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 				continue
 			} else {
 				resp.Error = "Serialization Error"
+				log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Error("mvcc::mvcc::Set; found conflicting set")
 				return resp, err
 			}
 		}
