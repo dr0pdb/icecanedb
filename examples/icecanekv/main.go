@@ -150,7 +150,7 @@ func deleteNoTxn(key []byte) (*pb.DeleteResponse, error) {
 }
 
 func simpleCRUD() {
-	for i := 1; i <= 5; i++ {
+	for i := 0; i < 5; i++ {
 		setNoTxn(test.TestKeys[i], test.TestValues[i])
 		resp, err := getNoTxn(test.TestKeys[i])
 		log.Info(fmt.Sprintf("resp: %v, err: %v", resp, err))

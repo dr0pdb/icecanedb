@@ -146,9 +146,6 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 	}
 	req.TxnId = txnID
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	txn := m.activeTxn[txnID]
 	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; check for conflicting sets")
 
@@ -178,20 +175,27 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 
 	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; no conflicts. writing now")
 
+	m.mu.Lock()
+
 	// no conflicts. do the write now
 	tKey := newTxnKey(req.GetKey(), req.TxnId)
 	_, err = m.rs.SetValue(tKey, req.GetValue())
 	if err != nil {
 		// log it
+
+		m.mu.Unlock()
 		return resp, err
 	}
 	upKey := getKey(req.TxnId, txnWrite, req.GetKey())
 	_, err = m.rs.MetaSetValue(upKey, []byte("true"))
 	if err != nil {
 		// TODO: remove the previous write.
+
+		m.mu.Unlock()
 		return resp, err
 	}
 
+	m.mu.Unlock() // commitTxn aquires the lock
 	if inlinedTxn {
 		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; inlined txn. committing..")
 		_, err := m.commitTxn(req.TxnId)
