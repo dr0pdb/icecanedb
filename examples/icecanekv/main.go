@@ -151,8 +151,8 @@ func deleteNoTxn(key []byte) (*pb.DeleteResponse, error) {
 
 func simpleCRUD() {
 	for i := 1; i <= 5; i++ {
-		setNoTxn(test.TestKeys[0], test.TestValues[1])
-		resp, err := getNoTxn(test.TestKeys[0])
+		setNoTxn(test.TestKeys[i], test.TestValues[i])
+		resp, err := getNoTxn(test.TestKeys[i])
 		log.Info(fmt.Sprintf("resp: %v, err: %v", resp, err))
 	}
 }
@@ -188,7 +188,7 @@ func getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, error) {
 }
 
 func main() {
-	leaderID = 5
+	leaderID = 1
 	setup()
 
 	simpleCRUD()

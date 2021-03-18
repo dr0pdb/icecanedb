@@ -13,11 +13,11 @@ import (
 
 const (
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = 10000 * time.Millisecond
+	MinElectionTimeout = 2000 * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = 12000 * time.Millisecond
+	MaxElectionTimeout = 3000 * time.Millisecond
 
-	requestTimeoutInterval = 2 * time.Second
+	requestTimeoutInterval = 1 * time.Second
 )
 
 const (
@@ -249,7 +249,7 @@ func (r *Raft) sendAppendEntries(receiverID uint64) (*pb.AppendEntriesResponse, 
 		entries = append(entries, entry)
 	}
 
-	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
+	log.WithFields(log.Fields{"id": r.id, "p.Next": p.Next, "lim": lim}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
 
 	req := &pb.AppendEntriesRequest{
 		Term:         r.currentTerm.Get(),
@@ -514,15 +514,16 @@ func (r *Raft) leader() {
 				if r.commitIndex.Get() >= r.lastLogIndex.Get() {
 					break
 				}
-				time.Sleep(100 * time.Millisecond)
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; waiting for log to get replicated...")
+				time.Sleep(MinElectionTimeout / 5)
 			}
+
+			r.istate.clientResponses <- true
 
 			err = r.applyCommittedEntries()
 			if err != nil {
 				// handle error in application.
 			}
-
-			r.istate.clientResponses <- true
 		}
 	}
 
@@ -541,6 +542,7 @@ func (r *Raft) initializeLeaderVolatileState() {
 
 // getLogEntryOrDefault returns the raft log at given index or dummy.
 func (r *Raft) getLogEntryOrDefault(idx uint64) *raftLog {
+	log.Info(fmt.Sprintf("raft::raft::getLogEntryOrDefault; getting log entry with idx: %d", idx))
 	rl := &raftLog{
 		term: 0,
 	}
@@ -751,6 +753,7 @@ func (r *Raft) commitEntryRoutine() {
 				ci := r.commitIndex.Get()
 				for idx := ci + 1; idx <= r.lastLogIndex.Get(); idx++ {
 					rl := r.getLogEntryOrDefault(idx)
+					log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; trying to commit idx: %d", idx))
 					if rl.term == r.currentTerm.Get() {
 						cnt := 1
 
@@ -762,12 +765,13 @@ func (r *Raft) commitEntryRoutine() {
 
 						if isMajiority(cnt, len(r.allProgress)) {
 							r.commitIndex.Set(idx)
+							log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; committed idx: %d", idx))
 						}
 					}
 				}
 			}
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(MinElectionTimeout)
 		}
 	}()
 

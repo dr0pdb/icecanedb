@@ -82,6 +82,7 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 	resp.LeaderId = leaderID
 	if err != nil {
 		resp.Error = err.Error()
+		log.WithFields(log.Fields{"txnID": req.TxnId}).Error(fmt.Sprintf("mvcc::mvcc::Get; error in scan: %v", err.Error()))
 		return resp, nil
 	}
 
@@ -89,6 +90,7 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 	// skip the ones which were active during the txn init.
 	for {
 		if itr.Valid() {
+			log.WithFields(log.Fields{"txnID": req.TxnId}).Info("mvcc::mvcc::Get; valid node on the iterator")
 			tk := TxnKey(itr.Key())
 			uk := tk.userKey()
 			if bytes.Compare(uk, req.GetKey()) != 0 {
@@ -115,7 +117,11 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 	}
 
 	if inlinedTxn {
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Get; inlined txn. committing..")
 		_, err = m.commitTxn(req.TxnId)
+		if err != nil {
+			// todo: handle
+		}
 	}
 
 	return resp, err
@@ -131,6 +137,7 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; started")
 
 	resp := &pb.SetResponse{}
+	inlinedTxn := (req.TxnId == 0)
 
 	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadWrite)
 	if err != nil {
@@ -165,8 +172,9 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 				return resp, err
 			}
 		}
-
 	}
+
+	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; no conflicts. writing now")
 
 	// no conflicts. do the write now
 	tKey := newTxnKey(req.GetKey(), req.TxnId)
@@ -182,7 +190,16 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 		return resp, err
 	}
 
+	if inlinedTxn {
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; inlined txn. committing..")
+		_, err := m.commitTxn(req.TxnId)
+		if err != nil {
+			// TODO: handle
+		}
+	}
+
 	resp.Success = true
+	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; done")
 	return resp, err
 }
 
@@ -300,14 +317,14 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, uint64, error) {
 
 	// set next txn id
 	txnKey := []byte(getKey(notUsed, nxtTxnID, nil))
-	_, err = m.rs.SetValue(txnKey, common.U64ToByte(nxtIDUint64+1))
+	_, err = m.rs.MetaSetValue(txnKey, common.U64ToByte(nxtIDUint64+1))
 	if err != nil {
 		log.Error(fmt.Sprintf("mvcc::mvcc::begin; error in setting next txnKey. err: %v", err.Error()))
 		return nil, leaderID, err
 	}
 
 	// snapshot of active txns at the moment of creation.
-	var cTxns map[uint64]bool
+	cTxns := make(map[uint64]bool)
 	var cTxnsS []uint64
 	for k := range m.activeTxn {
 		cTxns[k] = true
