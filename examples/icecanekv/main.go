@@ -155,6 +155,13 @@ func simpleCRUD() {
 		resp, err := getNoTxn(test.TestKeys[i])
 		log.Info(fmt.Sprintf("resp: %v, err: %v", resp, err))
 	}
+
+	for i := 0; i < 5; i++ {
+		dresp, err := deleteNoTxn(test.TestKeys[i])
+		log.Info(fmt.Sprintf("dresp: %v, err: %v", dresp, err))
+		resp, err := getNoTxn(test.TestKeys[i])
+		log.Info(fmt.Sprintf("resp after deleting. found: %v, err: %v", resp.Found, err))
+	}
 }
 
 // getOrCreateClientConnection gets or creates a grpc client connection for talking to peer with given id.

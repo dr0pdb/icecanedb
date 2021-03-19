@@ -80,7 +80,7 @@ func (s *Server) SetValue(key, value []byte) (leader uint64, err error) {
 
 	err = s.raft.clientSetRequest(key, value, false)
 	log.Info("raft::server::SetValue; done")
-	return 0, err
+	return leader, err
 }
 
 // DeleteValue deletes the value of the key and gets it replicated across peers
@@ -93,7 +93,7 @@ func (s *Server) DeleteValue(key []byte) (leader uint64, err error) {
 
 	err = s.raft.clientDeleteRequest(key, false)
 	log.Info("raft::server::DeleteValue; done")
-	return 0, err
+	return leader, err
 }
 
 // MetaGetValue returns the value of the key from meta storage layer.
@@ -119,7 +119,7 @@ func (s *Server) MetaSetValue(key, value []byte) (leader uint64, err error) {
 
 	err = s.raft.clientSetRequest(key, value, true)
 	log.Info("raft::server::MetaSetValue; done")
-	return 0, err
+	return leader, err
 }
 
 // MetaDeleteValue deletes the value of the key in the meta storage and gets it replicated across peers
@@ -132,7 +132,7 @@ func (s *Server) MetaDeleteValue(key []byte) (leader uint64, err error) {
 
 	err = s.raft.clientDeleteRequest(key, true)
 	log.Info("raft::server::MetaDeleteValue; done")
-	return 0, err
+	return leader, err
 }
 
 // MetaScan returns an iterator to iterate over all the kv pairs whose key >= target

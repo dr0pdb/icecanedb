@@ -737,7 +737,7 @@ func (r *Raft) appendEntryRoutine() {
 			}
 
 		out:
-			time.Sleep(MinElectionTimeout / 2)
+			time.Sleep(MinElectionTimeout / 4)
 		}
 	}()
 

@@ -65,7 +65,9 @@ func (m *MVCC) BeginTxn(ctx context.Context, req *pb.BeginTxnRequest) (*pb.Begin
 func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
 	log.Info("mvcc::mvcc::Get; started")
 
-	resp := &pb.GetResponse{}
+	resp := &pb.GetResponse{
+		LeaderId: m.id,
+	}
 	inlinedTxn := (req.TxnId == 0)
 
 	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadOnly)
@@ -100,8 +102,13 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 			tid := tk.txnID()
 			if _, ok := txn.concTxns[tid]; !ok {
 				log.WithFields(log.Fields{"txnID": req.TxnId, "tid": tid}).Info("mvcc::mvcc::Get; found a value for the key")
-				resp.Value = itr.Value()
-				resp.Found = true
+				if len(itr.Value()) > 0 {
+					resp.Value = itr.Value()
+					resp.Found = true
+				} else {
+					resp.Found = false
+				}
+
 				break
 			} else {
 				log.WithFields(log.Fields{"txnID": req.TxnId, "tid": tid}).Info("mvcc::mvcc::Get; found a conflicting txn; skipping")
@@ -124,7 +131,10 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 		}
 	}
 
-	return resp, err
+	if err != nil {
+		resp.Error = err.Error()
+	}
+	return resp, nil
 }
 
 // Set sets the value of a key.
@@ -136,7 +146,9 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
 	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; started")
 
-	resp := &pb.SetResponse{}
+	resp := &pb.SetResponse{
+		LeaderId: m.id,
+	}
 	inlinedTxn := (req.TxnId == 0)
 
 	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadWrite)
@@ -214,16 +226,16 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
 	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::Delete; started")
 
-	resp := &pb.DeleteResponse{}
+	resp := &pb.DeleteResponse{
+		LeaderId: m.id,
+	}
+	inlinedTxn := (req.TxnId == 0)
 
 	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadWrite)
 	if err != nil {
 		return nil, err
 	}
 	req.TxnId = txnID
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	txn := m.activeTxn[txnID]
 
@@ -248,21 +260,34 @@ func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteRes
 				return resp, err
 			}
 		}
-
 	}
+
+	m.mu.Lock()
+	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Delete; no conflicts. writing now")
 
 	// no conflicts. do the write now
 	tKey := newTxnKey(req.GetKey(), req.TxnId)
 	_, err = m.rs.DeleteValue(tKey)
 	if err != nil {
 		// log it
+		m.mu.Unlock()
 		return resp, err
 	}
 	upKey := getKey(req.TxnId, txnWrite, req.GetKey())
 	_, err = m.rs.MetaSetValue(upKey, []byte("true"))
 	if err != nil {
 		// TODO: remove the previous write.
+		m.mu.Unlock()
 		return resp, err
+	}
+
+	m.mu.Unlock() // commitTxn aquires the lock
+	if inlinedTxn {
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Delete; inlined txn. committing..")
+		_, err := m.commitTxn(req.TxnId)
+		if err != nil {
+			// TODO: handle
+		}
 	}
 
 	resp.Success = true
@@ -273,7 +298,9 @@ func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteRes
 func (m *MVCC) CommitTxn(ctx context.Context, req *pb.CommitTxnRequest) (*pb.CommitTxnResponse, error) {
 	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::CommitTxn; started")
 
-	resp := &pb.CommitTxnResponse{}
+	resp := &pb.CommitTxnResponse{
+		LeaderId: m.id,
+	}
 	leaderID, err := m.commitTxn(req.TxnId)
 	if err != nil {
 		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::CommitTxn; error in committing txn")
@@ -290,7 +317,10 @@ func (m *MVCC) CommitTxn(ctx context.Context, req *pb.CommitTxnRequest) (*pb.Com
 func (m *MVCC) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb.RollbackTxnResponse, error) {
 	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::RollbackTxn; started")
 
-	resp := &pb.RollbackTxnResponse{}
+	resp := &pb.RollbackTxnResponse{
+		LeaderId: m.id,
+	}
+
 	leaderID, err := m.rollbackTxn(req.TxnId)
 	if err != nil {
 		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Error("mvcc::mvcc::RollbackTxn; error in rolling back txn")
