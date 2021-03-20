@@ -32,7 +32,7 @@ func main() {
 	opts := &storage.Options{
 		CreateIfNotExist: true,
 	}
-	s, err := storage.NewStorage(path.Join(dir, "../../example-directory/"), opts)
+	s, err := storage.NewStorage(path.Join(dir, "../../_output/"), opts)
 	if err != nil {
 		fmt.Print(err.Error())
 		return
@@ -44,7 +44,7 @@ func main() {
 	}
 
 	wopts := &storage.WriteOptions{
-		Sync: false,
+		Sync: true,
 	}
 	s.Set(key1, value1, wopts)
 	s.Set(key2, value2, wopts)

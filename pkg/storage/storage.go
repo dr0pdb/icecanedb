@@ -89,10 +89,6 @@ func (s *Storage) Open() error {
 	s.logWriter = newLogRecordWriter(logFile)
 	s.logFile, logFile = logFile, nil
 
-	// TODO: apply version edit and write new manifest.
-
-	// TODO: recovery and cleanup
-
 	log.Info("storage::storage::Open; done")
 	return nil
 }
@@ -290,6 +286,7 @@ func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 // makeRoomForWrite ensures that there is enough room in the current log file for the batch.
 // If not, it converts the log file to sst and creates a new log file as the current.
 func (s *Storage) makeRoomForWrite(force bool) error {
+	// TODO: implement when working on compaction.
 	return nil
 }
 

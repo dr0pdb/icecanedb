@@ -18,8 +18,6 @@ type versionSet struct {
 	dirname string
 	options *Options
 
-	tableCache *tableCache
-
 	ikComparator, ukComparator Comparator
 
 	// The head of the circular linked list containing all the versions.
@@ -197,6 +195,5 @@ func newVersionSet(dirname string, ukComparator, ikComparator Comparator, option
 		options:      options,
 		ukComparator: ukComparator,
 		ikComparator: ikComparator,
-		tableCache:   newTableCache(dirname, options.Fs, options.Cachesz),
 	}
 }
