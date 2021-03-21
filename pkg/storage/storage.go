@@ -56,7 +56,7 @@ func (s *Storage) Open() error {
 		}
 	}
 
-	logFile, err := s.options.Fs.open(getDbFileName(s.dirname, s.dbName, dbFileType))
+	logFile, err := s.options.Fs.openFile(getDbFileName(s.dirname, s.dbName, dbFileType), os.O_RDWR, 0)
 	if err != nil {
 		log.WithFields(log.Fields{"err": err.Error()}).Error("storage::storage::Open; error in opening db file")
 		return err
@@ -172,9 +172,9 @@ func (s *Storage) Delete(key []byte, opts *WriteOptions) error {
 }
 
 // BatchWrite writes a batch of Set/Delete entries to the storage atomically.
-func (s *Storage) BatchWrite(wb *WriteBatch) error {
+func (s *Storage) BatchWrite(wb *WriteBatch, opts *WriteOptions) error {
 	log.Info("storage::storage::BatchWrite; started")
-	return s.apply(wb, nil)
+	return s.apply(wb, opts)
 }
 
 // Scan returns an iterator to iterate the key-value pairs whose key >= target

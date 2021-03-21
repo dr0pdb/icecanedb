@@ -91,7 +91,7 @@ func (m *MVCC) commitTxn(t *Transaction) (err error) {
 	for key, value := range t.sets {
 		batch.Set([]byte(key), []byte(value))
 	}
-	err = t.storage.BatchWrite(&batch)
+	err = t.storage.BatchWrite(&batch, nil)
 	if err == nil {
 		t.committed = true
 		log.WithFields(log.Fields{

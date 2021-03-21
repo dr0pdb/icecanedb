@@ -28,6 +28,10 @@ type FileSystem interface {
 	// returns error if the file is not found.
 	open(name string) (file, error)
 
+	// openFile opens the file with the given flags and mode.
+	// returns error if the file is not found.
+	openFile(name string, flag int, perm os.FileMode) (file, error)
+
 	// remove removes the file.
 	// returns error if the file isn't found.
 	remove(name string) error
@@ -64,6 +68,12 @@ func (dfs defaultFileSystem) create(name string) (file, error) {
 // returns error if the file is not found.
 func (dfs defaultFileSystem) open(name string) (file, error) {
 	return os.Open(name)
+}
+
+// openFile opens the file with the given flags and mode.
+// returns error if the file is not found.
+func (dfs defaultFileSystem) openFile(name string, flag int, perm os.FileMode) (file, error) {
+	return os.OpenFile(name, flag, perm)
 }
 
 // remove removes the file.

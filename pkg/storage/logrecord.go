@@ -243,7 +243,7 @@ func (lrw *logRecordWriter) writePending() {
 	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: writePending; writePending called.")
 
 	if lrw.err != nil {
-		log.Info("storage::logrecord: writePending; found existing error.")
+		log.Error("storage::logrecord: writePending; found existing error.")
 		return
 	}
 	if lrw.pending {
@@ -252,6 +252,10 @@ func (lrw *logRecordWriter) writePending() {
 	}
 
 	_, lrw.err = lrw.w.Write(lrw.buf[lrw.sofar:lrw.hi])
+	if lrw.err != nil {
+		log.WithFields(log.Fields{"err": lrw.err.Error()}).Error("storage::logrecord: writePending; error while writing..")
+		return
+	}
 	lrw.sofar = lrw.hi
 
 	log.Info("storage::logrecord: writePending; done.")

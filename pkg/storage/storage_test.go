@@ -66,12 +66,15 @@ func TestOpenDBWithCustomComparator(t *testing.T) {
 	assert.Equal(t, customComparator, s.ukComparator, "Custom comparator is not set properly in the storage")
 }
 
-func TestBasicSingleGetSet(t *testing.T) {
+func TestBasicSingleCRUD(t *testing.T) {
 	test.CreateTestDirectory(test.TestDirectory)
 	defer test.CleanupTestDirectory(test.TestDirectory)
 
 	options := &Options{
 		CreateIfNotExist: true,
+	}
+	writeOpts := &WriteOptions{
+		Sync: true,
 	}
 
 	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
@@ -82,12 +85,18 @@ func TestBasicSingleGetSet(t *testing.T) {
 
 	assert.Nil(t, err, "Unexpected error in opening database")
 
-	err = s.Set(test.TestKeys[0], test.TestValues[0], nil)
+	err = s.Set(test.TestKeys[0], test.TestValues[0], writeOpts)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
 	val, err := s.Get(test.TestKeys[0], nil)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in getting value for key%d", 0))
 	assert.Equal(t, test.TestValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, test.TestValues[0], val))
+
+	err = s.Delete(test.TestKeys[0], writeOpts)
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 0))
+
+	_, err = s.Get(test.TestKeys[0], nil)
+	assert.NotNil(t, err, fmt.Sprintf("Found entry for key%d when it was deleted", 0))
 }
 
 func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
@@ -96,6 +105,9 @@ func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
 
 	options := &Options{
 		CreateIfNotExist: true,
+	}
+	writeOpts := &WriteOptions{
+		Sync: true,
 	}
 
 	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
@@ -109,7 +121,7 @@ func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
 	oldValue := test.TestValues[0]
 	latestValue := test.TestValues[1]
 
-	err = s.Set(test.TestKeys[0], oldValue, nil)
+	err = s.Set(test.TestKeys[0], oldValue, writeOpts)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
 	val, err := s.Get(test.TestKeys[0], nil)
@@ -117,7 +129,7 @@ func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
 	assert.Equal(t, oldValue, val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, oldValue, val))
 
 	// update value for key
-	err = s.Set(test.TestKeys[0], latestValue, nil)
+	err = s.Set(test.TestKeys[0], latestValue, writeOpts)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
 
 	// get should return latest value
@@ -133,6 +145,9 @@ func TestBasicMultipleGetSetDelete(t *testing.T) {
 	options := &Options{
 		CreateIfNotExist: true,
 	}
+	writeOpts := &WriteOptions{
+		Sync: true,
+	}
 
 	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
@@ -143,7 +158,7 @@ func TestBasicMultipleGetSetDelete(t *testing.T) {
 	assert.Nil(t, err, "Unexpected error in opening database")
 
 	for i := range test.TestKeys {
-		err = s.Set(test.TestKeys[i], test.TestValues[i], nil)
+		err = s.Set(test.TestKeys[i], test.TestValues[i], writeOpts)
 		assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", i))
 	}
 
@@ -153,16 +168,16 @@ func TestBasicMultipleGetSetDelete(t *testing.T) {
 		assert.Equal(t, test.TestValues[i], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", i, test.TestValues[i], val))
 	}
 
-	err = s.Delete(test.TestKeys[0], nil)
+	err = s.Delete(test.TestKeys[0], writeOpts)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 0))
 
-	err = s.Delete(test.TestKeys[1], nil)
+	err = s.Delete(test.TestKeys[1], writeOpts)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 1))
 
 	_, err = s.Get(test.TestKeys[0], nil)
 	assert.NotNil(t, err, fmt.Sprintf("Found entry for key%d when it was deleted", 0))
 
-	err = s.Delete(test.TestKeys[1], nil)
+	err = s.Delete(test.TestKeys[1], writeOpts)
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key%d", 1))
 
 	val, err := s.Get(test.TestKeys[3], nil)
@@ -177,6 +192,9 @@ func TestConcurrentFunctionality(t *testing.T) {
 
 	options := &Options{
 		CreateIfNotExist: true,
+	}
+	writeOpts := &WriteOptions{
+		Sync: true,
 	}
 
 	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
@@ -198,14 +216,14 @@ func TestConcurrentFunctionality(t *testing.T) {
 
 			key := []byte(strconv.Itoa(idx))
 
-			err = s.Set(key, test.TestValues[tidx], nil)
+			err = s.Set(key, test.TestValues[tidx], writeOpts)
 			assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key %v", key))
 
 			val, err := s.Get(key, nil)
 			assert.Nil(t, err)
 			assert.Equal(t, test.TestValues[tidx], val, fmt.Sprintf("Unexpected value for key %v. Expected %v, found %v", key, test.TestValues[tidx], val))
 
-			err = s.Delete(key, nil)
+			err = s.Delete(key, writeOpts)
 			assert.Nil(t, err, fmt.Sprintf("Unexpected error in deleting value for key %v", key))
 
 			_, err = s.Get(key, nil)
@@ -223,6 +241,9 @@ func TestGetLatestSeqNumberForKey(t *testing.T) {
 	options := &Options{
 		CreateIfNotExist: true,
 	}
+	writeOpts := &WriteOptions{
+		Sync: true,
+	}
 
 	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err)
@@ -232,18 +253,18 @@ func TestGetLatestSeqNumberForKey(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	err = s.Set(test.TestKeys[0], test.TestValues[0], nil)
+	err = s.Set(test.TestKeys[0], test.TestValues[0], writeOpts)
 	assert.Nil(t, err)
 
 	sn := s.GetLatestSeqForKey(test.TestKeys[0])
 
-	err = s.Set(test.TestKeys[0], test.TestUpdatedValues[0], nil)
+	err = s.Set(test.TestKeys[0], test.TestUpdatedValues[0], writeOpts)
 	assert.Nil(t, err)
 
 	sn2 := s.GetLatestSeqForKey(test.TestKeys[0])
 	assert.Equal(t, sn+1, sn2)
 
-	err = s.Set(test.TestKeys[1], test.TestUpdatedValues[1], nil)
+	err = s.Set(test.TestKeys[1], test.TestUpdatedValues[1], writeOpts)
 	assert.Nil(t, err)
 
 	sn3 := s.GetLatestSeqForKey(test.TestKeys[1])
@@ -261,6 +282,9 @@ func TestStorageScan(t *testing.T) {
 	options := &Options{
 		CreateIfNotExist: true,
 	}
+	writeOpts := &WriteOptions{
+		Sync: true,
+	}
 
 	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err)
@@ -271,7 +295,7 @@ func TestStorageScan(t *testing.T) {
 	assert.Nil(t, err)
 
 	for i := range test.TestKeys {
-		err = s.Set(test.TestKeys[i], test.TestValues[i], nil)
+		err = s.Set(test.TestKeys[i], test.TestValues[i], writeOpts)
 		assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", i))
 	}
 
