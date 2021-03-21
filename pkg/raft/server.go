@@ -250,8 +250,8 @@ func (s *Server) getOrCreateClientConnection(voterID uint64) (*grpc.ClientConn, 
 }
 
 // createAndOpenStorage creates a storage and opens it.
-func createAndOpenStorage(path string, opts *storage.Options) (*storage.Storage, error) {
-	s, err := storage.NewStorage(path, opts)
+func createAndOpenStorage(path, name string, opts *storage.Options) (*storage.Storage, error) {
+	s, err := storage.NewStorage(path, name, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -260,8 +260,8 @@ func createAndOpenStorage(path string, opts *storage.Options) (*storage.Storage,
 }
 
 // createAndOpenKVStorage creates a storage and opens it.
-func createAndOpenKVStorage(path string, txnComp storage.Comparator, opts *storage.Options) (*storage.Storage, error) {
-	s, err := storage.NewStorageWithCustomComparator(path, txnComp, opts)
+func createAndOpenKVStorage(path, name string, txnComp storage.Comparator, opts *storage.Options) (*storage.Storage, error) {
+	s, err := storage.NewStorageWithCustomComparator(path, name, txnComp, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +276,7 @@ func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath strin
 	rOpts := &storage.Options{
 		CreateIfNotExist: true,
 	}
-	raftStorage, err := createAndOpenStorage(raftPath, rOpts)
+	raftStorage, err := createAndOpenStorage(raftPath, "raft", rOpts)
 	if err != nil {
 		log.Error(fmt.Sprintf("raft::server::NewRaftServer; error in creating raft storage: %v", err))
 		return nil, err
@@ -285,13 +285,13 @@ func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath strin
 	sOpts := &storage.Options{
 		CreateIfNotExist: true,
 	}
-	kvStorage, err := createAndOpenKVStorage(kvPath, txnComp, sOpts)
+	kvStorage, err := createAndOpenKVStorage(kvPath, "kv", txnComp, sOpts)
 	if err != nil {
 		log.Error(fmt.Sprintf("raft::server::NewRaftServer; error in creating kv storage: %v", err))
 		return nil, err
 	}
 
-	kvMetaStorage, err := createAndOpenStorage(kvMetaPath, sOpts)
+	kvMetaStorage, err := createAndOpenStorage(kvMetaPath, "kvmeta", sOpts)
 	if err != nil {
 		log.Error(fmt.Sprintf("raft::server::NewRaftServer; error in creating kv meta storage: %v", err))
 		return nil, err

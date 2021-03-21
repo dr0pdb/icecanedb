@@ -32,7 +32,7 @@ func setupStorage() (*storage.Storage, error) {
 		CreateIfNotExist: true,
 	}
 
-	s, err := storage.NewStorage(test.TestDirectory, options)
+	s, err := storage.NewStorage(test.TestDirectory, test.TestDbName, options)
 	if err != nil {
 		return nil, err
 	}

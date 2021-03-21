@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/dr0pdb/icecanedb/pkg/storage"
+	"github.com/dr0pdb/icecanedb/test"
 )
 
 var (
@@ -32,7 +33,7 @@ func main() {
 	opts := &storage.Options{
 		CreateIfNotExist: true,
 	}
-	s, err := storage.NewStorage(path.Join(dir, "../../_output/"), opts)
+	s, err := storage.NewStorage(path.Join(dir, "../../_output/"), test.TestDbName, opts)
 	if err != nil {
 		fmt.Print(err.Error())
 		return
