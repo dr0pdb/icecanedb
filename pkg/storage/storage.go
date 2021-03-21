@@ -2,9 +2,11 @@ package storage
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
 	"sync"
 
-	"github.com/dr0pdb/icecanedb/internal/common"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -16,22 +18,17 @@ const (
 // Storage is the persistent key-value storage struct
 // It contains all the necessary information for the storage
 type Storage struct {
-	dirname string
+	dirname, dbName string
+
 	options *Options
 
 	mu *sync.Mutex
 
-	// memtable is the current memtable.
-	//
-	// immMemtable is the memtable that is being compacted right now.
-	// it could be nil right now.
-	memtable, immMemtable *Memtable
+	// memtable contains the kv pairs in memory.
+	memtable *Memtable
 
-	logNumber uint64
-	logFile   file
+	logFile   file // the db file where the kv data is stored.
 	logWriter *logRecordWriter
-
-	vs *versionSet
 
 	ukComparator, ikComparator Comparator
 
@@ -39,6 +36,10 @@ type Storage struct {
 	// note that as of the current state of the project, storing this is redundant.
 	// If and when we write to disk, this would be required to ensure that we don't delete sst files that are being referenced by a snapshot.
 	snapshotDummy Snapshot
+
+	// lastSequenceNumber is the sequence number of the last entry that was inserted in the db.
+	// Init to 0 and monotonically increasing.
+	lastSequenceNumber uint64
 }
 
 // Open opens a storage.
@@ -48,36 +49,16 @@ type Storage struct {
 func (s *Storage) Open() error {
 	log.WithFields(log.Fields{"storage": s}).Info("storage::storage::Open; started")
 
-	err := s.vs.load()
-	if err != nil {
-		log.WithFields(log.Fields{"storage": s, "err": err.Error()}).Error("storage::storage::Open")
-
-		// create db since CURRENT doesn't exist.
-		if _, ok := err.(common.NotFoundError); ok && s.options.CreateIfNotExist {
-			log.Info("storage::storage::Open; db not found. creating it.")
-			err = s.createNewDB()
-			if err != nil {
-				log.WithFields(log.Fields{"storage": s, "err": err.Error()}).Error("storage: Open; error while creating the db")
-				return err
-			}
-			log.Info("storage::storage::Open; db created. loading version set")
-			err = s.vs.load()
-			if err != nil {
-				return err
-			}
-		} else {
+	if _, err := s.options.Fs.stat(getDbFileName(s.dirname, s.dbName, dbFileType)); os.IsNotExist(err) {
+		// Create the DB if it did not already exist.
+		if err := s.createNewDB(); err != nil {
 			return err
 		}
 	}
 
-	log.Info("storage::storage::Open; version set loaded.")
-
-	// TODO: replay any log files that aren't in the manifest.
-	var ve versionEdit
-	ve.logNumber = s.vs.nextFileNum()
-
-	logFile, err := s.options.Fs.create(getDbFileName(s.dirname, logFileType, ve.logNumber))
+	logFile, err := s.options.Fs.open(getDbFileName(s.dirname, s.dbName, dbFileType))
 	if err != nil {
+		log.WithFields(log.Fields{"err": err.Error()}).Error("storage::storage::Open; error in opening db file")
 		return err
 	}
 	defer func() {
@@ -85,6 +66,46 @@ func (s *Storage) Open() error {
 			logFile.Close()
 		}
 	}()
+
+	log.WithFields(log.Fields{"storage": s}).Info("storage::storage::Open; reading db file")
+
+	// read log file, populate data in memtable
+	lgr := newLogRecordReader(logFile)
+	for {
+		slgr, err := lgr.next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		data, err := ioutil.ReadAll(slgr)
+		if err != nil {
+			return err
+		}
+
+		wb := WriteBatch{data: data}
+		seqNum := wb.getSeqNum()
+
+		// write/update in memtable
+		for itr := wb.getIterator(); ; seqNum++ {
+			kind, ukey, value, ok := itr.next()
+			if !ok {
+				break
+			}
+
+			// update sequence number
+			if seqNum > s.lastSequenceNumber {
+				s.lastSequenceNumber = seqNum
+			}
+
+			ikey := newInternalKey(ukey, kind, seqNum)
+			s.memtable.Set(ikey, value)
+		}
+	}
+
+	log.WithFields(log.Fields{"storage": s}).Info("storage::storage::Open; done reading db file")
 
 	s.logWriter = newLogRecordWriter(logFile)
 	s.logFile, logFile = logFile, nil
@@ -101,7 +122,7 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	log.Info("storage::storage::Get; looking in memtable")
 
-	seqNumber := s.vs.lastSequenceNumber + 1
+	seqNumber := s.lastSequenceNumber + 1
 
 	if opts != nil {
 		if opts.Snapshot != nil {
@@ -159,7 +180,7 @@ func (s *Storage) BatchWrite(wb *WriteBatch) error {
 // Scan returns an iterator to iterate the key-value pairs whose key >= target
 func (s *Storage) Scan(target []byte) Iterator {
 	log.WithFields(log.Fields{"target": string(target)}).Info("storage::storage::Scan; started")
-	seqNumber := s.vs.lastSequenceNumber + 1
+	seqNumber := s.lastSequenceNumber + 1
 	ikey := newInternalKey(target, internalKeyKindSet, seqNumber)
 	itr := s.memtable.Scan(ikey)
 	return itr
@@ -169,7 +190,7 @@ func (s *Storage) Scan(target []byte) Iterator {
 // It is thread safe and can be called concurrently.
 func (s *Storage) GetSnapshot() *Snapshot {
 	snap := &Snapshot{
-		SeqNum: s.vs.lastSequenceNumber,
+		SeqNum: s.lastSequenceNumber,
 	}
 	s.appendSnapshot(snap)
 	return snap
@@ -185,7 +206,7 @@ func (s *Storage) GetLatestSeqForKey(key []byte) uint64 {
 
 	log.Info("storage::storage::GetLatestSeqForKey; looking in memtable")
 
-	seqNumber := s.vs.lastSequenceNumber + 1
+	seqNumber := s.lastSequenceNumber + 1
 	ikey := newInternalKey(key, internalKeyKindSet, seqNumber)
 
 	value, conclusive, err := s.memtable.GetLatestSeqForKey(ikey)
@@ -201,9 +222,34 @@ func (s *Storage) GetLatestSeqForKey(key []byte) uint64 {
 	return 0
 }
 
-// Close todo
-func (s *Storage) Close() error {
-	panic("not implemented")
+// Close closes the DB after flushing to disk.
+func (s *Storage) Close() (err error) {
+	log.Info("storage::storage::Close; started")
+
+	if s.logWriter != nil {
+		err = s.logWriter.flush()
+		if err != nil {
+			log.WithFields(log.Fields{"err": err.Error()}).Error("storage::storage::Close; error in flushing")
+			return err
+		}
+	}
+
+	if s.logFile != nil {
+		err = s.logFile.Sync()
+		if err != nil {
+			log.WithFields(log.Fields{"err": err.Error()}).Error("storage::storage::Close; error in syncing log file")
+			return err
+		}
+
+		err = s.logFile.Close()
+		if err != nil {
+			log.WithFields(log.Fields{"err": err.Error()}).Error("storage::storage::Close; error in closing log file")
+			return err
+		}
+	}
+
+	log.Info("storage::storage::Close; done")
+	return nil
 }
 
 // append appends a snapshot to the storage.
@@ -233,15 +279,9 @@ func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Info("storage::storage: apply; making room for write")
-	if err := s.makeRoomForWrite(false); err != nil {
-		log.Error(fmt.Errorf("storage::storage::apply; error in making room for write. err: %V", err))
-		return err
-	}
-
-	seqNum := s.vs.lastSequenceNumber + 1
+	seqNum := s.lastSequenceNumber + 1
 	wb.setSeqNum(seqNum)
-	s.vs.lastSequenceNumber += uint64(cnt)
+	s.lastSequenceNumber += uint64(cnt)
 
 	log.Info("storage::storage::apply; writing batch to log file")
 
@@ -275,7 +315,7 @@ func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 		s.memtable.Set(ikey, value)
 	}
 
-	if seqNum != s.vs.lastSequenceNumber+1 {
+	if seqNum != s.lastSequenceNumber+1 {
 		panic("storage: inconsistent batch count in write batch")
 	}
 
@@ -283,76 +323,33 @@ func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 	return nil
 }
 
-// makeRoomForWrite ensures that there is enough room in the current log file for the batch.
-// If not, it converts the log file to sst and creates a new log file as the current.
-func (s *Storage) makeRoomForWrite(force bool) error {
-	// TODO: implement when working on compaction.
-	return nil
-}
-
 // createNewDB creates all the files necessary for creating a db in the given directory.
 //
 // It also populates the version set in the struct.
-func (s *Storage) createNewDB() (ret error) {
+func (s *Storage) createNewDB() error {
 	log.WithFields(log.Fields{"storage": s}).Info("storage::storage: createNewDB")
 
-	log.Info("storage::storage::createNewDB; creating manifest file")
-	const mno = 1
-	mfName := getDbFileName(s.dirname, manifestFileType, mno)
-	mf, err := s.options.Fs.create(mfName)
+	// create the db file
+	logFile, err := s.options.Fs.create(getDbFileName(s.dirname, s.dbName, dbFileType))
 	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage: createNewDB; failure in creating manifest file")
-		return fmt.Errorf("") // TODO: return suitable error message.
+		return err
 	}
 	defer func() {
-		if ret != nil {
-			log.Error("storage::storage::createNewDB; failure in creating db. Deleting created manifest")
-			s.options.Fs.remove(mfName)
+		if logFile != nil {
+			logFile.Close()
 		}
 	}()
-	defer mf.Close()
 
-	log.Info("storage::storage::createNewDB; adding contents in the manifest file..")
-	ve := versionEdit{
-		comparatorName: s.ukComparator.Name(),
-		nextFileNumber: mno + 1,
-	}
-	lrw := newLogRecordWriter(mf)
-	lrww, err := lrw.next()
-	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage::createNewDB; error in calling next on log record writer.")
-		return err
-	}
-	err = ve.encode(lrww)
-	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage::createNewDB; error in encoding the vedit to log file.")
-		return err
-	}
-	err = lrw.close()
-	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage::createNewDB; error in closing the log record writer.")
-		return err
-	}
-	log.Info("storage::storage: createNewDB; done adding contents in the manifest file.")
-
-	log.Info("storage::storage: createNewDB; setting current file..")
-	err = setCurrentFile(s.dirname, s.options.Fs, mno)
-	if err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("storage::storage::createNewDB; failure in setting current file")
-		return err
-	}
-
+	s.logFile, logFile = logFile, nil
 	log.Info("storage::storage::createNewDB; successfully created db.")
 	return nil
 }
 
 // newStorage creates a new persistent storage according to the given parameters.
-func newStorage(dirname string, ukComparator, ikComparator Comparator, options *Options) (*Storage, error) {
+func newStorage(dirname, dbName string, ukComparator, ikComparator Comparator, options *Options) (*Storage, error) {
 	log.WithFields(log.Fields{
 		"dirname": dirname,
 	}).Info("storage: newStorage")
-
-	var logNumber uint64 = 1
 
 	if options != nil {
 		if options.Fs == nil {
@@ -365,11 +362,10 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options *
 
 	strg := &Storage{
 		dirname:      dirname,
+		dbName:       dbName,
 		options:      options,
-		immMemtable:  nil,
 		ukComparator: ukComparator,
 		ikComparator: ikComparator,
-		logNumber:    logNumber,
 	}
 
 	strg.mu = new(sync.Mutex)
@@ -379,9 +375,6 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options *
 
 	strg.memtable = memtable
 	strg.options = options
-
-	versions := newVersionSet(dirname, ukComparator, ikComparator, strg.options)
-	strg.vs = versions
 
 	// init snapshot list.
 	strg.snapshotDummy.prev = &strg.snapshotDummy
@@ -396,10 +389,10 @@ func newStorage(dirname string, ukComparator, ikComparator Comparator, options *
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // Keys are ordered using the given custom comparator.
 // returns a Storage interface implementation.
-func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator, options *Options) (*Storage, error) {
+func NewStorageWithCustomComparator(dirname, dbName string, userKeyComparator Comparator, options *Options) (*Storage, error) {
 	internalKeyComparator := newInternalKeyComparator(userKeyComparator)
 
-	return newStorage(dirname, userKeyComparator, internalKeyComparator, options)
+	return newStorage(dirname, dbName, userKeyComparator, internalKeyComparator, options)
 }
 
 // NewStorage creates a new persistent storage in the given directory.
@@ -407,7 +400,7 @@ func NewStorageWithCustomComparator(dirname string, userKeyComparator Comparator
 // The directory should already exist. The library won't create the directory.
 // It obtains a lock on the passed in directory hence two processes can't access this directory simultaneously.
 // returns a Storage interface implementation.
-func NewStorage(dirname string, options *Options) (*Storage, error) {
+func NewStorage(dirname, dbName string, options *Options) (*Storage, error) {
 	userKeyComparator := DefaultComparator
-	return NewStorageWithCustomComparator(dirname, userKeyComparator, options)
+	return NewStorageWithCustomComparator(dirname, dbName, userKeyComparator, options)
 }

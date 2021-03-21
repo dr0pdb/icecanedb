@@ -288,11 +288,12 @@ func (lrw *logRecordWriter) flush() error {
 }
 
 // newLogRecordWriter creates a new log record writer.
+// IMP: It seeks to the end of the writer for appending new entries.
 func newLogRecordWriter(w io.Writer) *logRecordWriter {
 	var offset int64
 	if s, ok := w.(io.Seeker); ok {
 		var err error
-		if offset, err = s.Seek(0, io.SeekCurrent); err != nil {
+		if offset, err = s.Seek(0, io.SeekEnd); err != nil {
 			offset = 0
 		}
 	}

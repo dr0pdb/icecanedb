@@ -34,10 +34,12 @@ func TestOpenDBWithDefaultComparator(t *testing.T) {
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(test.TestDirectory, options)
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
+	defer s.Close()
+
 	assert.Nil(t, err, "Unexpected error in opening database")
 
 	assert.Equal(t, DefaultComparator, s.ukComparator, "Default comparator not set when not passing any custom comparator")
@@ -53,10 +55,12 @@ func TestOpenDBWithCustomComparator(t *testing.T) {
 
 	customComparator := NewTestCustomComparator()
 
-	s, err := NewStorageWithCustomComparator(test.TestDirectory, customComparator, options)
+	s, err := NewStorageWithCustomComparator(test.TestDirectory, test.TestDbName, customComparator, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
+	defer s.Close()
+
 	assert.Nil(t, err, "Unexpected error in opening database")
 
 	assert.Equal(t, customComparator, s.ukComparator, "Custom comparator is not set properly in the storage")
@@ -70,10 +74,12 @@ func TestBasicSingleGetSet(t *testing.T) {
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(test.TestDirectory, options)
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
+	defer s.Close()
+
 	assert.Nil(t, err, "Unexpected error in opening database")
 
 	err = s.Set(test.TestKeys[0], test.TestValues[0], nil)
@@ -92,10 +98,12 @@ func TestBasicMultiplePutReturnsLatestValue(t *testing.T) {
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(test.TestDirectory, options)
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
+	defer s.Close()
+
 	assert.Nil(t, err, "Unexpected error in opening database")
 
 	oldValue := test.TestValues[0]
@@ -126,10 +134,12 @@ func TestBasicMultipleGetSetDelete(t *testing.T) {
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(test.TestDirectory, options)
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err, "Unexpected error in creating new storage")
 
 	err = s.Open()
+	defer s.Close()
+
 	assert.Nil(t, err, "Unexpected error in opening database")
 
 	for i := range test.TestKeys {
@@ -169,10 +179,12 @@ func TestConcurrentFunctionality(t *testing.T) {
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(test.TestDirectory, options)
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err)
 
 	err = s.Open()
+	defer s.Close()
+
 	assert.Nil(t, err)
 
 	num := 1000
@@ -212,10 +224,12 @@ func TestGetLatestSeqNumberForKey(t *testing.T) {
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(test.TestDirectory, options)
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err)
 
 	err = s.Open()
+	defer s.Close()
+
 	assert.Nil(t, err)
 
 	err = s.Set(test.TestKeys[0], test.TestValues[0], nil)
@@ -248,10 +262,12 @@ func TestStorageScan(t *testing.T) {
 		CreateIfNotExist: true,
 	}
 
-	s, err := NewStorage(test.TestDirectory, options)
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
 	assert.Nil(t, err)
 
 	err = s.Open()
+	defer s.Close()
+
 	assert.Nil(t, err)
 
 	for i := range test.TestKeys {
