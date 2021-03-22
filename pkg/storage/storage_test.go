@@ -315,3 +315,53 @@ func TestStorageScan(t *testing.T) {
 
 	assert.Equal(t, expectedCnt, cnt, fmt.Sprintf("Number of entries in iterator doesn't match. Expected: %d, actual %d", expectedCnt, cnt))
 }
+
+func TestBasicSingleCRUDWithClose(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	options := &Options{
+		CreateIfNotExist: true,
+	}
+	writeOpts := &WriteOptions{
+		Sync: true,
+	}
+
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
+	assert.Nil(t, err, "Unexpected error in creating new storage")
+
+	err = s.Open()
+	assert.Nil(t, err, "Unexpected error in opening database")
+
+	err = s.Set(test.TestKeys[0], test.TestValues[0], writeOpts)
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in setting value for key%d", 0))
+
+	val, err := s.Get(test.TestKeys[0], nil)
+	assert.Nil(t, err, fmt.Sprintf("Unexpected error in getting value for key%d", 0))
+	assert.Equal(t, test.TestValues[0], val, fmt.Sprintf("Unexpected value for key%d. Expected %v, found %v", 0, test.TestValues[0], val))
+
+	err = s.Close()
+	assert.Nil(t, err, "Unexpected error in closing the database")
+
+	err = s.Open()
+	assert.Nil(t, err, "Unexpected error in opening database again after closing")
+
+	val, err = s.Get(test.TestKeys[0], nil)
+	assert.Nil(t, err, fmt.Sprintf("After reopening: Unexpected error in getting value for key%d", 0))
+	assert.Equal(t, test.TestValues[0], val, fmt.Sprintf("After reopening: Unexpected value for key%d. Expected %v, found %v", 0, test.TestValues[0], val))
+
+	err = s.Delete(test.TestKeys[0], writeOpts)
+	assert.Nil(t, err, fmt.Sprintf("After reopening: Unexpected error in deleting value for key%d", 0))
+
+	_, err = s.Get(test.TestKeys[0], nil)
+	assert.NotNil(t, err, fmt.Sprintf("After reopening: Found entry for key%d when it was deleted", 0))
+
+	err = s.Close()
+	assert.Nil(t, err, "Unexpected error in closing the database for the second time")
+
+	err = s.Open()
+	assert.Nil(t, err, "Unexpected error in opening database again after closing the second time")
+
+	_, err = s.Get(test.TestKeys[0], nil)
+	assert.NotNil(t, err, fmt.Sprintf("After reopening2: Found entry for key%d when it was deleted", 0))
+}
