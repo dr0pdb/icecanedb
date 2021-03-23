@@ -46,9 +46,19 @@ func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesReq
 // Close cleanups the underlying resources of the raft server.
 func (s *Server) Close() {
 	log.Info("raft::server::Close; started")
+
+	// shutdown raft
+	s.raft.close()
+
+	// close grpc conns
 	for _, conn := range s.clientConnections.Iterate() {
 		conn.Close()
 	}
+
+	// close storage layers
+	s.kvMetaStorage.Close()
+	s.kvStorage.Close()
+
 	log.Info("raft::server::Close; started")
 }
 

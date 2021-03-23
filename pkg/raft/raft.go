@@ -48,7 +48,6 @@ type Progress struct {
 
 // Raft is the replicated state machine.
 // See Fig 2 of the Raft Extended paper.
-// TODO: think about the need of a mutex.
 type Raft struct {
 	// id of the raft node.
 	// IMPORTANT: starts from 1 so that votedFor = 0 indicates no vote.
@@ -810,7 +809,10 @@ func (r *Raft) init() {
 }
 
 func (r *Raft) close() {
-	// TODO
+	// close channels etc.
+
+	// close raft storage
+	r.raftStorage.Close()
 }
 
 // NewRaft initializes a new raft state machine.
@@ -851,6 +853,9 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 	return r
 }
 
+// initProgress inits the progress map.
+// This is temporary and in case this node becomes the leader, it'll be
+// reupdated in the initializeLeaderVolatileState function
 func initProgress(id uint64, peers []common.Peer) map[uint64]*Progress {
 	log.Info("raft::raft::initProgress; started")
 	m := make(map[uint64]*Progress)
@@ -862,7 +867,7 @@ func initProgress(id uint64, peers []common.Peer) map[uint64]*Progress {
 
 	for _, p := range peers {
 		m[p.ID] = &Progress{
-			Match: 0, // todo: handle persistence later.
+			Match: 0,
 			Next:  1,
 		}
 	}

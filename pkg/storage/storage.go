@@ -140,7 +140,7 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	if !conclusive {
 		log.Info("storage::storage::Get; memtable data unconclusive")
-		// TODO: read from sst files.
+		// TODO: read from sst files if and when they're implemented.
 	}
 
 	return nil, err
