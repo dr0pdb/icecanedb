@@ -292,7 +292,7 @@ func (r *Raft) follower() {
 				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote yes")
 				r.istate.lastAppendOrVoteTime = time.Now()
 				r.setTerm(req.Term)
-				r.votedFor.Set(req.CandidateId)
+				r.setVotedFor(req.CandidateId)
 				r.istate.requestVoteResponses <- true
 			} else {
 				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote no")
@@ -316,7 +316,7 @@ func (r *Raft) follower() {
 							success = false // ?
 							break
 						}
-						r.lastLogIndex.Set(uint64(idx+1) + req.PrevLogIndex)
+						r.setLastLogIndex(uint64(idx+1) + req.PrevLogIndex)
 					}
 				} else {
 					success = false
@@ -394,7 +394,7 @@ func (r *Raft) candidate() {
 		voteRecCh := make(chan *pb.RequestVoteResponse, len(r.allProgress))
 
 		r.currentTerm.Increment()
-		r.votedFor.Set(r.id)
+		r.setVotedFor(r.id)
 		rl := r.getLogEntryOrDefault(r.lastLogIndex.Get())
 
 		for i := range r.allProgress {
@@ -606,7 +606,36 @@ func (r *Raft) setTerm(term uint64) {
 
 	// term was updated successfully, so persist it.
 	if old < term {
-		r.raftStorage.Set(termKey, common.U64ToByte(term), &storage.WriteOptions{Sync: true})
+		err := r.raftStorage.Set(termKey, common.U64ToByte(term), &storage.WriteOptions{Sync: true})
+		if err != nil {
+			log.Error(fmt.Sprintf("raft::raft::setTerm; error during persisting current term %v", err.Error()))
+		}
+	}
+}
+
+// setTerm sets the current term.
+// every update to the current term should be done via this function.
+func (r *Raft) setVotedFor(id uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.votedFor.Set(id)
+	err := r.raftStorage.Set(votedForKey, common.U64ToByte(id), &storage.WriteOptions{Sync: true})
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::raft::setVotedFor; error during persisting votedFor %v", err.Error()))
+	}
+}
+
+// setTerm sets the current term.
+// every update to the current term should be done via this function.
+func (r *Raft) setLastLogIndex(index uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.lastLogIndex.Set(index)
+	err := r.raftStorage.Set(lastLogIndexKey, common.U64ToByte(index), &storage.WriteOptions{Sync: true})
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::raft::setLastLogIndex; error during persisting last log index %v", err.Error()))
 	}
 }
 
@@ -650,7 +679,7 @@ func (r *Raft) becomeCandidate(src uint64) {
 	if r.istate.followerRunning.Get() {
 		r.istate.endFollower <- true
 	}
-	r.votedFor.Set(noVote)
+	r.setVotedFor(noVote)
 	r.role.Set(candidate)
 	for {
 		if (src == follower || !r.istate.followerRunning.Get()) && (src == leader && !r.istate.leaderRunning.Get()) {
