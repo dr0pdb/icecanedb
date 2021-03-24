@@ -3,6 +3,7 @@ package icecanesql
 import (
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -23,6 +24,8 @@ func (i item) String() string {
 		return i.val
 	case itemEOF:
 		return "EOF"
+	case itemWhitespace:
+		return "WHITESPACE"
 	}
 
 	// limit to 10 characters if it's too long
@@ -39,18 +42,35 @@ type itemType int
 const (
 	itemError itemType = iota
 	itemEOF
+	itemWhitespace
+	itemSingleLineComment // --
 
 	// literals
-	itemIdent // field name, table name
+	itemIdentifier // field name, table name
+	itemNumber
+	itemString  // "hello"
+	itemKeyword // SELECT, INSERT, ..
 
-	// misc
-	itemAsterisk
-	itemComma
-
-	// keywords
-	itemSelect
-	itemFrom
-	itemWhere
+	// operators and symbols
+	itemPeriod             // '.'
+	itemEqual              // '='
+	itemGreaterThan        // '>'
+	itemGreaterThanEqualTo // ">="
+	itemLessThan           // '<'
+	itemLessThanEqualTo    // "<="
+	itemPlus               // '+'
+	itemMinus              // '-'
+	itemAsterisk           // '*'
+	itemComma              // ','
+	itemSlash              // '/'
+	itemCaret              // '^'
+	itemPercent            // '%'
+	itemExclamation        // '!'
+	itemNotEqual           // "!="
+	itemSemicolon          // ';'
+	itemLeftParen          // '('
+	itemRightParen         // ')'
+	itemQuestionMark       // '?'
 )
 
 const eof = -1
@@ -67,6 +87,9 @@ type lexer struct {
 
 // stateFn is a function that takes a lexer and returns the new stateFn
 type stateFn func(*lexer) stateFn
+
+// predFn is a function to do predicate based filtering/traversal
+type predFn func(rune) bool
 
 //
 // Helper functions
@@ -95,12 +118,39 @@ func (l *lexer) backup() {
 	l.pos -= l.width
 }
 
+func (l *lexer) backupBy(length int) {
+	if l.pos < length {
+		panic(fmt.Errorf("icecanesql::lexer::backupBy: tried to backup by more than pos length"))
+	}
+
+	l.pos -= length
+}
+
 // peek returns but does not consume
 // the next rune in the input.
 func (l *lexer) peek() rune {
 	r := l.next()
 	l.backup()
 	return r
+}
+
+// peekBy returns but does not consume
+// the next 'length' runes in the input.
+func (l *lexer) peekBy(length int) (res string) {
+	width := 0
+	var buf []rune
+
+	for i := 0; i < length; i++ {
+		r := l.next()
+		buf = append(buf, r)
+		width += l.width
+	}
+
+	// backup by total width
+	l.backupBy(width)
+
+	res = string(buf[:])
+	return res
 }
 
 // accept consumes the next rune
@@ -114,10 +164,32 @@ func (l *lexer) accept(valid string) bool {
 }
 
 // acceptRun consumes a run of runes from the valid set.
-func (l *lexer) acceptRun(valid string) {
+func (l *lexer) acceptRun(valid string) (count int) {
 	for strings.ContainsRune(valid, l.next()) {
+		count++
 	}
 	l.backup()
+	return count
+}
+
+// acceptWhile consumes runes while the predFn returns true
+// it returns the number of runes accepted
+func (l *lexer) acceptWhile(p predFn) (count int) {
+	for p(l.next()) {
+		count++
+	}
+	l.backup()
+	return count
+}
+
+func (l *lexer) acceptUntil(p predFn) (count int) {
+	ch := l.next()
+	for ch != eof && !p(ch) {
+		count++
+		ch = l.next()
+	}
+	l.backup()
+	return count
 }
 
 // errorf returns an error token and terminates the scan by passing
@@ -135,11 +207,28 @@ func (l *lexer) emit(t itemType) {
 
 // run starts executing the state machine.
 func (l *lexer) run() {
-	for state := lexStart; state != nil; {
+	for state := lexWhitespace; state != nil; {
 		state = state(l)
 	}
 
 	close(l.items) // no more tokens
+}
+
+// isWhitespace checks if a rune is a whitespace
+func isWhitespace(ch rune) bool { return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' }
+
+// isAlphaNumeric checks if the rune is a letter, digit or underscore.
+func isAlphaNumeric(ch rune) bool { return unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_' }
+
+// isDigit checks if the rune is a digit.
+func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
+
+// isEndOfLine checks if the char represents the end of line.
+func isEndOfLine(ch rune) bool { return ch == '\n' || ch == eof || ch == '\r' }
+
+// isOperator checks if the rune is an operator.
+func isOperator(ch rune) bool {
+	return ch == '+' || ch == '-' || ch == '*' || ch == '/' || ch == '=' || ch == '>' || ch == '<' || ch == '~' || ch == '|' || ch == '^' || ch == '&' || ch == '%'
 }
 
 //
@@ -164,9 +253,80 @@ func newLexer(name, input string) (*lexer, chan item) {
 }
 
 //
-// State functions
+// State functions - Internal
 //
 
-func lexStart(l *lexer) stateFn {
+func lexWhitespace(l *lexer) stateFn {
+	wcount := l.acceptWhile(isWhitespace)
+	if wcount > 0 {
+		l.emit(itemWhitespace)
+	}
+
+	next := l.peek()
+	tNext := l.peekBy(2)
+
+	switch {
+	case next == eof:
+		l.emit(itemEOF)
+		return nil
+
+	case tNext == "--":
+		return lexSingleLineComment
+
+	case next == '(':
+		l.next()
+		l.emit(itemLeftParen)
+		return lexWhitespace
+
+	case next == ')':
+		l.next()
+		l.emit(itemRightParen)
+		return lexWhitespace
+
+	case next == ',':
+		l.next()
+		l.emit(itemComma)
+		return lexWhitespace
+
+	case next == ';':
+		l.next()
+		l.emit(itemSemicolon)
+		return lexWhitespace
+
+	case isOperator(next):
+		return lexOperator
+
+	case next == '"':
+		return lexString
+
+	case isDigit(next):
+		return lexNumber
+
+	case isAlphaNumeric(next):
+		return lexIdentifierOrKeyword
+	}
+
+	return l.errorf("unknown rune: %s", tNext)
+}
+
+func lexSingleLineComment(l *lexer) stateFn {
+	l.acceptUntil(isEndOfLine)
+	l.emit(itemSingleLineComment)
+	return lexWhitespace
+}
+
+func lexOperator(l *lexer) stateFn {
+	return nil
+}
+
+func lexString(l *lexer) stateFn {
+	return nil
+}
+
+func lexNumber(l *lexer) stateFn {
+	return nil
+}
+
+func lexIdentifierOrKeyword(l *lexer) stateFn {
 	return nil
 }
