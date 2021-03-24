@@ -3,6 +3,7 @@ package raft
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
@@ -18,6 +19,13 @@ const (
 	MaxElectionTimeout = 3000 * time.Millisecond
 
 	requestTimeoutInterval = 1 * time.Second
+)
+
+// persistent state of the node
+var (
+	termKey         = []byte("termKey")
+	votedForKey     = []byte("votedFor")
+	lastLogIndexKey = []byte("lastLogIndex")
 )
 
 const (
@@ -103,6 +111,8 @@ type Raft struct {
 
 	// snapshot if log size exceeds it. -1 indicates no snapshotting
 	maxRaftState int64
+
+	mu *sync.RWMutex
 }
 
 type internalState struct {
@@ -589,7 +599,29 @@ func (r *Raft) applyCommittedEntries() error {
 // setTerm sets the current term.
 // every update to the current term should be done via this function.
 func (r *Raft) setTerm(term uint64) {
-	r.currentTerm.SetIfGreater(term)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	old := r.currentTerm.SetIfGreater(term)
+
+	// term was updated successfully, so persist it.
+	if old < term {
+		r.raftStorage.Set(termKey, common.U64ToByte(term), &storage.WriteOptions{Sync: true})
+	}
+}
+
+// getRaftMetaVal gets the value of raft meta value persisted on the disk
+// in case of error, it assumes that this is the first boot, hence returns 0
+func (r *Raft) getRaftMetaVal(key []byte) uint64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	val, err := r.raftStorage.Get(key, nil)
+	if err != nil {
+		return 0
+	}
+
+	return common.ByteToU64(val)
 }
 
 // becomeFollower updates the role to follower and blocks untill the cand and leader routines stop.
@@ -836,17 +868,19 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server)
 		kvConfig:     kvConfig,
 		s:            s,
 		maxRaftState: -1,
+		mu:           new(sync.RWMutex),
 	}
 
-	// TODO: update after persistence
-	r.lastLogIndex.Set(0)
+	// persistent state
+	r.currentTerm.Set(r.getRaftMetaVal(termKey))
+	r.votedFor.Set(r.getRaftMetaVal(votedForKey))
+	r.lastLogIndex.Set(r.getRaftMetaVal(lastLogIndexKey))
+
+	// volatile state
 	r.commitIndex.Set(0)
 	r.lastApplied.Set(0)
-	r.currentTerm.Set(0)
 	r.istate.currentLeader.Set(noLeader)
 	r.role.Set(follower)
-
-	r.votedFor.Set(noVote)
 
 	r.init()
 	log.Info("raft::raft::NewRaft; done")

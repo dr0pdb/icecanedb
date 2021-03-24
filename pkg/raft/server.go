@@ -206,13 +206,13 @@ func (s *Server) applyEntry(rl *raftLog) (err error) {
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v", rl.term, rl.ct))
 
 	if rl.ct == setCmd {
-		err = s.kvStorage.Set(rl.key, rl.value, nil)
+		err = s.kvStorage.Set(rl.key, rl.value, &storage.WriteOptions{Sync: true})
 	} else if rl.ct == deleteCmd {
-		err = s.kvStorage.Delete(rl.key, nil)
+		err = s.kvStorage.Delete(rl.key, &storage.WriteOptions{Sync: true})
 	} else if rl.ct == metaSetCmd {
-		err = s.kvMetaStorage.Set(rl.key, rl.value, nil)
+		err = s.kvMetaStorage.Set(rl.key, rl.value, &storage.WriteOptions{Sync: true})
 	} else if rl.ct == metaDeleteCmd {
-		err = s.kvMetaStorage.Delete(rl.key, nil)
+		err = s.kvMetaStorage.Delete(rl.key, &storage.WriteOptions{Sync: true})
 	}
 
 	if err != nil {
