@@ -51,26 +51,28 @@ const (
 	itemString  // "hello"
 	itemKeyword // SELECT, INSERT, ..
 
-	// operators and symbols
-	itemPeriod             // '.'
+	// symbols
+	itemPeriod     // '.'
+	itemComma      // ','
+	itemLeftParen  // '('
+	itemRightParen // ')'
+	itemSemicolon  // ';'
+
+	// operators
 	itemEqual              // '='
 	itemGreaterThan        // '>'
-	itemGreaterThanEqualTo // ">="
 	itemLessThan           // '<'
-	itemLessThanEqualTo    // "<="
 	itemPlus               // '+'
 	itemMinus              // '-'
 	itemAsterisk           // '*'
-	itemComma              // ','
 	itemSlash              // '/'
 	itemCaret              // '^'
 	itemPercent            // '%'
 	itemExclamation        // '!'
-	itemNotEqual           // "!="
-	itemSemicolon          // ';'
-	itemLeftParen          // '('
-	itemRightParen         // ')'
 	itemQuestionMark       // '?'
+	itemNotEqual           // "!="
+	itemLessThanEqualTo    // "<="
+	itemGreaterThanEqualTo // ">="
 )
 
 const eof = -1
@@ -227,6 +229,7 @@ func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
 func isEndOfLine(ch rune) bool { return ch == '\n' || ch == eof || ch == '\r' }
 
 // isOperator checks if the rune is an operator.
+// note that this only considers single char operators.
 func isOperator(ch rune) bool {
 	return ch == '+' || ch == '-' || ch == '*' || ch == '/' || ch == '=' || ch == '>' || ch == '<' || ch == '~' || ch == '|' || ch == '^' || ch == '&' || ch == '%'
 }
@@ -273,6 +276,24 @@ func lexWhitespace(l *lexer) stateFn {
 	case tNext == "--":
 		return lexSingleLineComment
 
+	case tNext == "!=":
+		l.next()
+		l.next()
+		l.emit(itemNotEqual)
+		return lexWhitespace
+
+	case tNext == ">=":
+		l.next()
+		l.next()
+		l.emit(itemGreaterThanEqualTo)
+		return lexWhitespace
+
+	case tNext == "<=":
+		l.next()
+		l.next()
+		l.emit(itemLessThanEqualTo)
+		return lexWhitespace
+
 	case next == '(':
 		l.next()
 		l.emit(itemLeftParen)
@@ -291,6 +312,11 @@ func lexWhitespace(l *lexer) stateFn {
 	case next == ';':
 		l.next()
 		l.emit(itemSemicolon)
+		return lexWhitespace
+
+	case next == '.': // todo: reconsider this?
+		l.next()
+		l.emit(itemPeriod)
 		return lexWhitespace
 
 	case isOperator(next):
@@ -315,8 +341,49 @@ func lexSingleLineComment(l *lexer) stateFn {
 	return lexWhitespace
 }
 
+// lexOperator scans singe rune operators
 func lexOperator(l *lexer) stateFn {
-	return nil
+	op := l.next()
+
+	switch op {
+	case '=':
+		l.emit(itemEqual)
+
+	case '>':
+		l.emit(itemGreaterThan)
+
+	case '<':
+		l.emit(itemLessThan)
+
+	case '+':
+		l.emit(itemPlus)
+
+	case '-':
+		l.emit(itemMinus)
+
+	case '*':
+		l.emit(itemAsterisk)
+
+	case '/':
+		l.emit(itemSlash)
+
+	case '^':
+		l.emit(itemCaret)
+
+	case '%':
+		l.emit(itemPercent)
+
+	case '!':
+		l.emit(itemExclamation)
+
+	case '?':
+		l.emit(itemQuestionMark)
+
+	default:
+		return l.errorf("unknown rune: %c", op)
+	}
+
+	return lexWhitespace
 }
 
 func lexString(l *lexer) stateFn {
