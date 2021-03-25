@@ -387,11 +387,41 @@ func lexOperator(l *lexer) stateFn {
 }
 
 func lexString(l *lexer) stateFn {
-	return nil
+	l.next() // opening quote
+
+	// hard to check for unterminated string using below method
+	// l.acceptUntil(func(r rune) bool { return r == '"' }) // till you find the closing quote
+
+	for {
+		r := l.next()
+
+		if r == eof {
+			return l.errorf("unclosed string. expected an end quote")
+		} else if r == '"' {
+			// found matching quote
+			l.emit(itemString)
+			return lexWhitespace
+		}
+	}
 }
 
+// lexNumber scans for a number. In case, an alphabet is found, it retracts and calls identifierOrKeyword.
 func lexNumber(l *lexer) stateFn {
-	return nil
+	count := 0
+	count += l.acceptWhile(unicode.IsDigit)
+
+	// floating point
+	if l.accept(".") {
+		count += 1 + l.acceptWhile(unicode.IsDigit)
+	}
+
+	if isAlphaNumeric(l.peek()) {
+		l.backupBy(count)
+		return lexIdentifierOrKeyword
+	}
+
+	l.emit(itemNumber)
+	return lexWhitespace
 }
 
 func lexIdentifierOrKeyword(l *lexer) stateFn {
