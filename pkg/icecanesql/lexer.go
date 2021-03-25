@@ -77,6 +77,19 @@ const (
 
 const eof = -1
 
+// set of keywords
+var keywords = map[string]bool{
+	"SELECT": true,
+	"INSERT": true,
+	"DELETE": true,
+	"UPDATE": true,
+	"CREATE": true,
+	"ALTER":  true,
+	"WHERE":  true,
+	"ORDER":  true,
+	"BY":     true,
+}
+
 // lexer is the sql lexer state machine responsible for tokenizing the input.
 type lexer struct {
 	name  string    // for error reporting
@@ -425,5 +438,29 @@ func lexNumber(l *lexer) stateFn {
 }
 
 func lexIdentifierOrKeyword(l *lexer) stateFn {
-	return nil
+	for {
+		r := l.next()
+
+		if isAlphaNumeric(r) {
+			l.acceptWhile(isAlphaNumeric)
+
+			val := l.input[l.start:l.pos]
+			if _, ok := keywords[val]; ok {
+				l.emit(itemKeyword)
+			} else {
+				l.emit(itemIdentifier)
+			}
+		}
+
+		l.acceptWhile(isWhitespace)
+
+		if l.peek() != '.' {
+			break
+		}
+
+		l.next()
+		l.emit(itemPeriod)
+	}
+
+	return lexWhitespace
 }
