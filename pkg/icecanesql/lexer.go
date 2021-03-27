@@ -88,6 +88,7 @@ var keywords = map[string]bool{
 	"WHERE":  true,
 	"ORDER":  true,
 	"BY":     true,
+	"FROM":   true,
 }
 
 // lexer is the sql lexer state machine responsible for tokenizing the input.
@@ -444,7 +445,7 @@ func lexIdentifierOrKeyword(l *lexer) stateFn {
 		if isAlphaNumeric(r) {
 			l.acceptWhile(isAlphaNumeric)
 
-			val := l.input[l.start:l.pos]
+			val := strings.ToUpper(l.input[l.start:l.pos])
 			if _, ok := keywords[val]; ok {
 				l.emit(itemKeyword)
 			} else {
@@ -452,7 +453,10 @@ func lexIdentifierOrKeyword(l *lexer) stateFn {
 			}
 		}
 
-		l.acceptWhile(isWhitespace)
+		cnt := l.acceptWhile(isWhitespace)
+		if cnt > 0 {
+			l.emit(itemWhitespace)
+		}
 
 		if l.peek() != '.' {
 			break
