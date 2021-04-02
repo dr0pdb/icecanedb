@@ -79,16 +79,22 @@ const eof = -1
 
 // set of keywords
 var keywords = map[string]bool{
-	"SELECT": true,
-	"INSERT": true,
-	"DELETE": true,
-	"UPDATE": true,
-	"CREATE": true,
-	"ALTER":  true,
-	"WHERE":  true,
-	"ORDER":  true,
-	"BY":     true,
-	"FROM":   true,
+	"CREATE":   true,
+	"DATABASE": true,
+	"TABLE":    true,
+	"SELECT":   true,
+	"INSERT":   true,
+	"DELETE":   true,
+	"UPDATE":   true,
+	"ALTER":    true,
+	"WHERE":    true,
+	"ORDER":    true,
+	"BY":       true,
+	"FROM":     true,
+
+	// data types
+	"INT":     true,
+	"VARCHAR": true,
 }
 
 // lexer is the sql lexer state machine responsible for tokenizing the input.
