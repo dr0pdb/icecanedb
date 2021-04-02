@@ -11,41 +11,25 @@ var testName = "testLexer"
 /*
 	Example SQL statements to support
 
-	DDL
+	DDL - Data Definition Language
+	a. CREATE DATABASE my_awesome_database;
+	b. CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));
 
-	a. CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));
+	DML - Data Manipulation Language
+	a.
+
+	DQL - Data Query Language
+	a.
+
+	TCL - Transaction Control Language
+	a.
 */
 
-func TestLexer1(t *testing.T) {
-	cmd := "SELECT * FROM tablename WHERE x = 2;"
+//
+// DDL tests
+//
 
-	expectedResult := []item{
-		{typ: itemKeyword, val: "SELECT"},
-		{typ: itemAsterisk, val: "*"},
-		{typ: itemKeyword, val: "FROM"},
-		{typ: itemIdentifier, val: "tablename"},
-		{typ: itemKeyword, val: "WHERE"},
-		{typ: itemIdentifier, val: "x"},
-		{typ: itemEqual, val: "="},
-		{typ: itemNumber, val: "2"},
-		{typ: itemSemicolon, val: ";"},
-		{typ: itemEOF, val: ""},
-	}
-
-	_, items := newLexer(testName, cmd)
-	idx := 0
-	for it := range items {
-		if it.typ == itemWhitespace {
-			continue
-		}
-
-		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
-		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
-		idx++
-	}
-}
-
-func TestLexer2(t *testing.T) {
+func TestDDLLexer1(t *testing.T) {
 	cmd := "CREATE DATABASE my_awesome_database;"
 
 	expectedResult := []item{
@@ -69,7 +53,7 @@ func TestLexer2(t *testing.T) {
 	}
 }
 
-func TestLexer3(t *testing.T) {
+func TestDDLLexer2(t *testing.T) {
 	cmd := "CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));"
 
 	expectedResult := []item{
@@ -95,6 +79,39 @@ func TestLexer3(t *testing.T) {
 		{typ: itemNumber, val: "20"},
 		{typ: itemRightParen, val: ")"},
 		{typ: itemRightParen, val: ")"},
+		{typ: itemSemicolon, val: ";"},
+		{typ: itemEOF, val: ""},
+	}
+
+	_, items := newLexer(testName, cmd)
+	idx := 0
+	for it := range items {
+		if it.typ == itemWhitespace {
+			continue
+		}
+
+		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
+		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
+		idx++
+	}
+}
+
+//
+// DQL tests
+//
+
+func TestDQLLexer1(t *testing.T) {
+	cmd := "SELECT * FROM tablename WHERE x = 2;"
+
+	expectedResult := []item{
+		{typ: itemKeyword, val: "SELECT"},
+		{typ: itemAsterisk, val: "*"},
+		{typ: itemKeyword, val: "FROM"},
+		{typ: itemIdentifier, val: "tablename"},
+		{typ: itemKeyword, val: "WHERE"},
+		{typ: itemIdentifier, val: "x"},
+		{typ: itemEqual, val: "="},
+		{typ: itemNumber, val: "2"},
 		{typ: itemSemicolon, val: ";"},
 		{typ: itemEOF, val: ""},
 	}
