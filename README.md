@@ -35,4 +35,12 @@ Approximate progress of the project.
 TODO: List of features
 
 ## Architecture
-TODO: Architecture diagrams and blog posts
+The project is divided into two main parts:
+1. Server
+2. Client
+
+The server is a grpc service exposing a transactional key value storage layer. The server receives grpc calls from the client and serves them. It also communicates with the other servers for replication using the [Raft consensus protocol](https://raft.github.io/). The server contains a LSM storage layer for persisting data to disk.
+
+The client is responsible for most of the heavy lifting. It provides a REPL for the user to enter their SQL queries. It then executes those queries and uses the server as the storage medium.
+
+TODO: More details, diagrams and blog posts.
