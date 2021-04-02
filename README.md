@@ -6,7 +6,7 @@
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/golang-standards/project-layout)](https://pkg.go.dev/github.com/dr0pdb/icecanedb)
 [![Release](https://img.shields.io/github/release/golang-standards/project-layout.svg?style=flat-square)](https://github.com/dr0pdb/icecanedb/releases/latest)
 
-A hobby Distributed SQL database written in Go. This is being developed with a motive to learn about distributed systems and databases.
+A hobby Distributed SQL database management system written in Go. This is being developed with a motive to learn about distributed systems and databases.
 
 **Note**: The project is under development and isn't ready. It isn't part of my focus area at work hence will take a considerable amount of time to make it fully functional.
 

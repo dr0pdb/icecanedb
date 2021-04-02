@@ -14,6 +14,9 @@ var testName = "testLexer"
 	DDL - Data Definition Language
 	a. CREATE DATABASE my_awesome_database;
 	b. CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));
+	c. DROP DATABASE my_awesome_database;
+	d. DROP TABLE Students;
+    f. TRUNCATE TABLE Students;
 
 	DML - Data Manipulation Language
 	a.
@@ -79,6 +82,78 @@ func TestDDLLexer2(t *testing.T) {
 		{typ: itemNumber, val: "20"},
 		{typ: itemRightParen, val: ")"},
 		{typ: itemRightParen, val: ")"},
+		{typ: itemSemicolon, val: ";"},
+		{typ: itemEOF, val: ""},
+	}
+
+	_, items := newLexer(testName, cmd)
+	idx := 0
+	for it := range items {
+		if it.typ == itemWhitespace {
+			continue
+		}
+
+		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
+		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
+		idx++
+	}
+}
+
+func TestDDLLexer3(t *testing.T) {
+	cmd := "DROP DATABASE my_awesome_database;"
+
+	expectedResult := []item{
+		{typ: itemKeyword, val: "DROP"},
+		{typ: itemKeyword, val: "DATABASE"},
+		{typ: itemIdentifier, val: "my_awesome_database"},
+		{typ: itemSemicolon, val: ";"},
+		{typ: itemEOF, val: ""},
+	}
+
+	_, items := newLexer(testName, cmd)
+	idx := 0
+	for it := range items {
+		if it.typ == itemWhitespace {
+			continue
+		}
+
+		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
+		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
+		idx++
+	}
+}
+
+func TestDDLLexer4(t *testing.T) {
+	cmd := "DROP TABLE Students;"
+
+	expectedResult := []item{
+		{typ: itemKeyword, val: "DROP"},
+		{typ: itemKeyword, val: "TABLE"},
+		{typ: itemIdentifier, val: "Students"},
+		{typ: itemSemicolon, val: ";"},
+		{typ: itemEOF, val: ""},
+	}
+
+	_, items := newLexer(testName, cmd)
+	idx := 0
+	for it := range items {
+		if it.typ == itemWhitespace {
+			continue
+		}
+
+		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
+		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
+		idx++
+	}
+}
+
+func TestDDLLexer5(t *testing.T) {
+	cmd := "TRUNCATE TABLE Students;"
+
+	expectedResult := []item{
+		{typ: itemKeyword, val: "TRUNCATE"},
+		{typ: itemKeyword, val: "TABLE"},
+		{typ: itemIdentifier, val: "Students"},
 		{typ: itemSemicolon, val: ";"},
 		{typ: itemEOF, val: ""},
 	}

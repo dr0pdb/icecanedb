@@ -80,8 +80,8 @@ const eof = -1
 // set of keywords
 var keywords = map[string]bool{
 	"CREATE":   true,
-	"DATABASE": true,
-	"TABLE":    true,
+	"DROP":     true,
+	"TRUNCATE": true,
 	"SELECT":   true,
 	"INSERT":   true,
 	"DELETE":   true,
@@ -91,6 +91,10 @@ var keywords = map[string]bool{
 	"ORDER":    true,
 	"BY":       true,
 	"FROM":     true,
+
+	// objects
+	"DATABASE": true,
+	"TABLE":    true,
 
 	// data types
 	"INT":     true,
