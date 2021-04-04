@@ -78,28 +78,65 @@ const (
 const eof = -1
 
 // set of keywords
-var keywords = map[string]bool{
-	"CREATE":   true,
-	"DROP":     true,
-	"TRUNCATE": true,
-	"SELECT":   true,
-	"INSERT":   true,
-	"DELETE":   true,
-	"UPDATE":   true,
-	"ALTER":    true,
-	"WHERE":    true,
-	"ORDER":    true,
-	"BY":       true,
-	"FROM":     true,
+var keywords = map[string]keywordType{
+	"CREATE":   keywordCreate,
+	"DROP":     keywordDrop,
+	"TRUNCATE": keywordTruncate,
+	"SELECT":   keywordSelect,
+	"INSERT":   keywordInsert,
+	"DELETE":   keywordDelete,
+	"UPDATE":   keywordUpdate,
+	"ALTER":    keywordAlter,
+	"WHERE":    keywordWhere,
+	"ORDER":    keywordOrder,
+	"BY":       keywordBy,
+	"FROM":     keywordFrom,
+
+	// txns
+	"BEGIN":    keywordBegin,
+	"COMMIT":   keywordCommit,
+	"ROLLBACK": keywordRollback,
 
 	// objects
-	"DATABASE": true,
-	"TABLE":    true,
+	"DATABASE": keywordDatabase,
+	"TABLE":    keywordTable,
 
 	// data types
-	"INT":     true,
-	"VARCHAR": true,
+	"INT":     keywordInt,
+	"VARCHAR": keywordVarchar,
+
+	// others
+	"EXPLAIN": keywordExplain,
 }
+
+type keywordType int
+
+const (
+	keywordCreate keywordType = iota
+	keywordDrop
+	keywordTruncate
+	keywordSelect
+	keywordInsert
+	keywordDelete
+	keywordUpdate
+	keywordAlter
+	keywordWhere
+	keywordOrder
+	keywordBy
+	keywordFrom
+
+	keywordBegin
+	keywordCommit
+	keywordRollback
+
+	keywordDatabase
+	keywordTable
+
+	keywordInt
+	keywordVarchar
+
+	keywordExplain
+)
 
 // lexer is the sql lexer state machine responsible for tokenizing the input.
 type lexer struct {

@@ -1,6 +1,8 @@
 package icecanesql
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Parser is responsible for parsing the sql string to AST
 type Parser struct {
@@ -35,8 +37,79 @@ func NewParser(name, input string) *Parser {
 // Internal functions
 //
 
+// parseStatements parses a sql statement.
+// starting point of the core parsing process.
+func (p *Parser) parseStatement() (Statement, error) {
+	it := p.peek()
+
+	switch it.typ {
+	case itemKeyword:
+		keyword := keywords[it.val]
+
+		switch keyword {
+		case keywordCreate:
+		case keywordDrop:
+			return p.parseDll()
+
+		case keywordBegin:
+		case keywordCommit:
+		case keywordRollback:
+			return p.parseTransaction()
+
+		case keywordInsert:
+			return p.parseInsert()
+		case keywordUpdate:
+			return p.parseUpdate()
+		case keywordDelete:
+			return p.parseDelete()
+		case keywordSelect:
+			return p.parseSelect()
+
+		case keywordExplain:
+			return p.parseExplain()
+
+		default:
+			return nil, fmt.Errorf("icecanesql::parser::parseStatement: unexpected keyword token %v", keyword)
+		}
+
+	default:
+		return nil, fmt.Errorf("icecanesql::parser::parseStatement: unexpected token %v - %v; expected a keyword token", it.typ, it.val)
+	}
+
+	panic("icecanesql::parser::parseStatement: won't reach here")
+}
+
+func (p *Parser) parseDll() (Statement, error) {
+	panic("")
+}
+
+func (p *Parser) parseTransaction() (Statement, error) {
+	panic("")
+}
+
+func (p *Parser) parseSelect() (Statement, error) {
+	panic("")
+}
+
+func (p *Parser) parseInsert() (Statement, error) {
+	panic("")
+}
+
+func (p *Parser) parseUpdate() (Statement, error) {
+	panic("")
+}
+
+func (p *Parser) parseDelete() (Statement, error) {
+	panic("")
+}
+
+func (p *Parser) parseExplain() (Statement, error) {
+	panic("")
+}
+
 // nextToken returns the next item from the lexer
 // it consumes the item by incrementing pos
+// NOTE: It ignores the whitespace token
 func (p *Parser) nextToken() *item {
 	if p.pos < len(p.items) {
 		p.pos++
@@ -47,9 +120,16 @@ func (p *Parser) nextToken() *item {
 		panic("icecanesql::parser::nextToken: invalid value of pos. exceeded length of buffered entries")
 	}
 
-	it := p.lexer.nextItem()
-	p.items = append(p.items, &it)
-	p.pos++
+	var it item
+	for {
+		it = p.lexer.nextItem()
+		if it.typ != itemWhitespace {
+			p.items = append(p.items, &it)
+			p.pos++
+			break
+		}
+	}
+
 	return &it
 }
 
