@@ -12,11 +12,9 @@ var testName = "testLexer"
 	Example SQL statements to support
 
 	DDL - Data Definition Language
-	a. CREATE DATABASE my_awesome_database;
-	b. CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));
-	c. DROP DATABASE my_awesome_database;
-	d. DROP TABLE Students;
-    f. TRUNCATE TABLE Students;
+	a. CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));
+	b. DROP TABLE Students;
+    c. TRUNCATE TABLE Students;
 
 	DML - Data Manipulation Language
 	a.
@@ -33,30 +31,6 @@ var testName = "testLexer"
 //
 
 func TestDDLLexer1(t *testing.T) {
-	cmd := "CREATE DATABASE my_awesome_database;"
-
-	expectedResult := []item{
-		{typ: itemKeyword, val: "CREATE"},
-		{typ: itemKeyword, val: "DATABASE"},
-		{typ: itemIdentifier, val: "my_awesome_database"},
-		{typ: itemSemicolon, val: ";"},
-		{typ: itemEOF, val: ""},
-	}
-
-	_, items := newLexer(testName, cmd)
-	idx := 0
-	for it := range items {
-		if it.typ == itemWhitespace {
-			continue
-		}
-
-		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
-		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
-		idx++
-	}
-}
-
-func TestDDLLexer2(t *testing.T) {
 	cmd := "CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));"
 
 	expectedResult := []item{
@@ -99,31 +73,7 @@ func TestDDLLexer2(t *testing.T) {
 	}
 }
 
-func TestDDLLexer3(t *testing.T) {
-	cmd := "DROP DATABASE my_awesome_database;"
-
-	expectedResult := []item{
-		{typ: itemKeyword, val: "DROP"},
-		{typ: itemKeyword, val: "DATABASE"},
-		{typ: itemIdentifier, val: "my_awesome_database"},
-		{typ: itemSemicolon, val: ";"},
-		{typ: itemEOF, val: ""},
-	}
-
-	_, items := newLexer(testName, cmd)
-	idx := 0
-	for it := range items {
-		if it.typ == itemWhitespace {
-			continue
-		}
-
-		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
-		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
-		idx++
-	}
-}
-
-func TestDDLLexer4(t *testing.T) {
+func TestDDLLexer2(t *testing.T) {
 	cmd := "DROP TABLE Students;"
 
 	expectedResult := []item{

@@ -2,7 +2,10 @@ package icecanesql
 
 import (
 	"fmt"
+	"strings"
 )
+
+// TODO: refactor this according to this guide: https://blog.golang.org/errors-are-values
 
 // Parser is responsible for parsing the sql string to AST
 type Parser struct {
@@ -11,6 +14,8 @@ type Parser struct {
 
 	items []*item // buffered tokens from the lexer for peeking
 	pos   int     // next item position in the items buffer
+
+	err error // any error encountered during the parsing process
 }
 
 //
@@ -49,7 +54,7 @@ func (p *Parser) parseStatement() (Statement, error) {
 		switch keyword {
 		case keywordCreate:
 		case keywordDrop:
-			return p.parseDll()
+			return p.parseDDL()
 
 		case keywordBegin:
 		case keywordCommit:
@@ -79,8 +84,109 @@ func (p *Parser) parseStatement() (Statement, error) {
 	panic("icecanesql::parser::parseStatement: won't reach here")
 }
 
-func (p *Parser) parseDll() (Statement, error) {
-	panic("")
+// parseDDL parses a data definition langauge query.
+// It assumes that the first token is a CREATE/DROP keyword
+func (p *Parser) parseDDL() (Statement, error) {
+	action := p.nextToken() // has to be CREATE/DROP
+	table := p.nextToken()
+
+	if !isKeyword(table, keywordTable) {
+		return nil, fmt.Errorf("icecanesql::parser::parseDDL: expected keyword \"TABLE\"") // throw error
+	}
+
+	tableName, err := p.nextTokenIdentifier()
+	if err != nil {
+		return nil, fmt.Errorf("icecanesql::parser::parseDDL: expected table name")
+	}
+
+	if isKeyword(action, keywordCreate) {
+		spec := &TableSpec{
+			TableName: tableName.val,
+		}
+
+		_, err = p.nextTokenExpect(itemLeftParen)
+		if err != nil {
+			return nil, err
+		}
+
+		var cols []*ColumnSpec
+		for {
+			col, err := p.parseSingleColumnSpec()
+			if err != nil {
+				return nil, err
+			}
+			cols = append(cols, col)
+
+			comma := p.nextTokenIf(func(it *item) bool {
+				return it.typ == itemComma
+			})
+			if comma == nil { // last column spec
+				break
+			}
+		}
+
+		_, err = p.nextTokenExpect(itemRightParen)
+		if err != nil {
+			return nil, err
+		}
+
+		spec.Columns = cols
+		stmt := &CreateTableStatement{
+			Spec: spec,
+		}
+		return stmt, nil
+	}
+
+	stmt := &DropTableStatement{TableName: tableName.val}
+	return stmt, nil
+}
+
+func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
+	colName, err := p.nextTokenIdentifier()
+	if err != nil {
+		return nil, err
+	}
+
+	colType, err := p.nextTokenKeyword()
+	if err != nil {
+		return nil, err
+	}
+
+	var typ ColumnType
+
+	switch keywords[strings.ToUpper(colType.val)] {
+	case keywordBool:
+	case keywordBoolean:
+		typ = ColumnTypeBoolean
+		break
+
+	case keywordInt:
+	case keywordInteger:
+		typ = ColumnTypeInteger
+		break
+
+	case keywordFloat:
+	case keywordDouble:
+		typ = ColumnTypeFloat
+		break
+
+	case keywordString:
+	case keywordText:
+	case keywordVarchar:
+	case keywordChar:
+		typ = ColumnTypeString
+		break
+
+	default:
+		return nil, fmt.Errorf("expected data type for the column")
+	}
+
+	cs := &ColumnSpec{
+		Name: colName.val,
+		Type: typ,
+	}
+
+	return cs, nil
 }
 
 func (p *Parser) parseTransaction() (Statement, error) {
@@ -105,6 +211,15 @@ func (p *Parser) parseDelete() (Statement, error) {
 
 func (p *Parser) parseExplain() (Statement, error) {
 	panic("")
+}
+
+// isKeyword checks if the given item is the given keyword or not
+func isKeyword(it *item, key keywordType) bool {
+	if it != nil && it.typ == itemKeyword && keywords[strings.ToUpper(it.val)] == key {
+		return true
+	}
+
+	return false
 }
 
 // nextToken returns the next item from the lexer
