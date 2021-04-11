@@ -12,7 +12,7 @@ var testName = "testLexer"
 	Example SQL statements to support
 
 	DDL - Data Definition Language
-	a. CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));
+	a. CREATE TABLE Students(ROLL_NO int, NAME varchar, SUBJECT varchar);
 	b. DROP TABLE Students;
     c. TRUNCATE TABLE Students;
 
@@ -31,7 +31,7 @@ var testName = "testLexer"
 //
 
 func TestDDLLexer1(t *testing.T) {
-	cmd := "CREATE TABLE Students(ROLL_NO int(3), NAME varchar(20), SUBJECT varchar(20));"
+	cmd := "CREATE TABLE Students(ROLL_NO int, NAME varchar, SUBJECT varchar);"
 
 	expectedResult := []item{
 		{typ: itemKeyword, val: "CREATE"},
@@ -40,21 +40,12 @@ func TestDDLLexer1(t *testing.T) {
 		{typ: itemLeftParen, val: "("},
 		{typ: itemIdentifier, val: "ROLL_NO"},
 		{typ: itemKeyword, val: "int"},
-		{typ: itemLeftParen, val: "("},
-		{typ: itemNumber, val: "3"},
-		{typ: itemRightParen, val: ")"},
 		{typ: itemComma, val: ","},
 		{typ: itemIdentifier, val: "NAME"},
 		{typ: itemKeyword, val: "varchar"},
-		{typ: itemLeftParen, val: "("},
-		{typ: itemNumber, val: "20"},
-		{typ: itemRightParen, val: ")"},
 		{typ: itemComma, val: ","},
 		{typ: itemIdentifier, val: "SUBJECT"},
 		{typ: itemKeyword, val: "varchar"},
-		{typ: itemLeftParen, val: "("},
-		{typ: itemNumber, val: "20"},
-		{typ: itemRightParen, val: ")"},
 		{typ: itemRightParen, val: ")"},
 		{typ: itemSemicolon, val: ";"},
 		{typ: itemEOF, val: ""},

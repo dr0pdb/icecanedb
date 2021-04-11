@@ -24,8 +24,8 @@ type Parser struct {
 
 // Parse the input to an AST
 func (p *Parser) Parse() (st Statement, err error) {
-	st, err = p.parseStatement()
-	_, err = p.nextTokenExpect(itemSemicolon)
+	st, _ = p.parseStatement()
+	p.nextTokenExpect(itemSemicolon)
 	_, err = p.nextTokenExpect(itemEOF)
 	return st, err
 }
@@ -52,16 +52,13 @@ func (p *Parser) parseStatement() (Statement, error) {
 
 	switch it.typ {
 	case itemKeyword:
-		keyword := keywords[it.val]
+		keyword := keywords[strings.ToUpper(it.val)]
 
 		switch keyword {
-		case keywordCreate:
-		case keywordDrop:
+		case keywordCreate, keywordDrop:
 			return p.parseDDL()
 
-		case keywordBegin:
-		case keywordCommit:
-		case keywordRollback:
+		case keywordBegin, keywordCommit, keywordRollback:
 			return p.parseTransaction()
 
 		case keywordInsert:
@@ -83,8 +80,6 @@ func (p *Parser) parseStatement() (Statement, error) {
 	default:
 		return nil, fmt.Errorf("icecanesql::parser::parseStatement: unexpected token %v - %v; expected a keyword token", it.typ, it.val)
 	}
-
-	panic("icecanesql::parser::parseStatement: won't reach here")
 }
 
 // parseDDL parses a data definition langauge query.
@@ -165,27 +160,17 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 
 	var typ ColumnType
 	switch keywords[strings.ToUpper(colType.val)] {
-	case keywordBool:
-	case keywordBoolean:
+	case keywordBool, keywordBoolean:
 		typ = ColumnTypeBoolean
-		break
 
-	case keywordInt:
-	case keywordInteger:
+	case keywordInt, keywordInteger:
 		typ = ColumnTypeInteger
-		break
 
-	case keywordFloat:
-	case keywordDouble:
+	case keywordFloat, keywordDouble:
 		typ = ColumnTypeFloat
-		break
 
-	case keywordString:
-	case keywordText:
-	case keywordVarchar:
-	case keywordChar:
+	case keywordString, keywordText, keywordVarchar, keywordChar:
 		typ = ColumnTypeString
-		break
 
 	default:
 		return nil, fmt.Errorf("expected data type for the column")
@@ -207,11 +192,9 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 		switch keywords[strings.ToUpper(kwd.val)] {
 		case keywordUnique:
 			cs.Unique = true
-			break
 
 		case keywordIndex:
 			cs.Index = true
-			break
 
 		case keywordNot:
 			null, err := p.nextTokenKeyword()
@@ -219,11 +202,9 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 				return nil, fmt.Errorf("expected keyword NULL after NOT")
 			}
 			cs.Nullable = false
-			break
 
 		case keywordNull:
 			cs.Nullable = true
-			break
 
 		case keywordPrimary:
 			key, err := p.nextTokenKeyword()
@@ -231,7 +212,6 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 				return nil, fmt.Errorf("expected keyword KEY after PRIMARY")
 			}
 			cs.PrimaryKey = false
-			break
 
 		case keywordReferences:
 			table, err := p.nextTokenIdentifier()
@@ -239,7 +219,6 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 				return nil, fmt.Errorf("expected table identifier after REFERENCES")
 			}
 			cs.References = table.val
-			break
 
 		default:
 			return nil, fmt.Errorf("unknown keyword %s in the column specification", kwd.val)
@@ -381,8 +360,9 @@ func (p *Parser) nextTokenKeyword() (*item, error) {
 		return nil, p.err
 	}
 
-	it := p.nextToken()
+	it := p.peek()
 	if it.typ == itemKeyword {
+		p.nextToken()
 		return it, nil
 	}
 
@@ -394,8 +374,9 @@ func (p *Parser) nextTokenIdentifier() (*item, error) {
 		return nil, p.err
 	}
 
-	it := p.nextToken()
+	it := p.peek()
 	if it.typ == itemIdentifier {
+		p.nextToken()
 		return it, nil
 	}
 
