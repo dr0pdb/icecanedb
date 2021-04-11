@@ -74,7 +74,7 @@ func (p *Parser) parseStatement() (Statement, error) {
 			return p.parseExplain()
 
 		default:
-			return nil, fmt.Errorf("icecanesql::parser::parseStatement: unexpected keyword token %v", keyword)
+			return nil, fmt.Errorf("icecanesql::parser::parseStatement: unexpected keyword token %v", it.val)
 		}
 
 	default:
@@ -211,7 +211,7 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 			if err != nil || (key != nil && keywords[strings.ToUpper(key.val)] != keywordKey) {
 				return nil, fmt.Errorf("expected keyword KEY after PRIMARY")
 			}
-			cs.PrimaryKey = false
+			cs.PrimaryKey = true
 
 		case keywordReferences:
 			table, err := p.nextTokenIdentifier()
@@ -366,7 +366,7 @@ func (p *Parser) nextTokenKeyword() (*item, error) {
 		return it, nil
 	}
 
-	return nil, fmt.Errorf("icecanesql::parser::nextTokenKeyword: Expected keyword token, Found token %v", it.typ)
+	return nil, fmt.Errorf("icecanesql::parser::nextTokenKeyword: Expected keyword token, Found item %v", it)
 }
 
 func (p *Parser) nextTokenIdentifier() (*item, error) {
@@ -380,5 +380,5 @@ func (p *Parser) nextTokenIdentifier() (*item, error) {
 		return it, nil
 	}
 
-	return nil, fmt.Errorf("icecanesql::parser::nextTokenIdentifier: Expected identifier token, Found token %v", it.typ)
+	return nil, fmt.Errorf("icecanesql::parser::nextTokenIdentifier: Expected identifier token, Found item %v", it)
 }

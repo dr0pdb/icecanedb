@@ -128,6 +128,53 @@ var keywords = map[string]keywordType{
 	"EXPLAIN": keywordExplain,
 }
 
+// mapping from keyword type to it's string.
+// for error output
+var keywordStringRep = map[keywordType]string{
+	keywordCreate:   "CREATE",
+	keywordDrop:     "DROP",
+	keywordTruncate: "TRUNCATE",
+	keywordSelect:   "SELECT",
+	keywordInsert:   "INSERT",
+	keywordDelete:   "DELETE",
+	keywordUpdate:   "UPDATE",
+	keywordAlter:    "ALTER",
+	keywordWhere:    "WHERE",
+	keywordOrder:    "ORDER",
+	keywordBy:       "BY",
+	keywordFrom:     "FROM",
+
+	keywordBegin:    "BEGIN",
+	keywordCommit:   "COMMIT",
+	keywordRollback: "ROLLBACK",
+
+	keywordDatabase: "DATABASE",
+	keywordTable:    "TABLE",
+
+	keywordBool:    "BOOL",
+	keywordBoolean: "BOOLEAN",
+	keywordInt:     "INT",
+	keywordInteger: "INTEGER",
+	keywordVarchar: "VARCHAR",
+	keywordFloat:   "FLOAT",
+	keywordDouble:  "DOUBLE",
+	keywordChar:    "CHAR",
+	keywordDate:    "DATE",
+	keywordText:    "TEXT",
+	keywordString:  "STRING",
+
+	keywordUnique:     "UNIQUE",
+	keywordNot:        "NOT",
+	keywordNull:       "NULL",
+	keywordPrimary:    "PRIMARY",
+	keywordKey:        "KEY",
+	keywordDefault:    "DEFAULT",
+	keywordIndex:      "INDEX",
+	keywordReferences: "REFERENCES",
+
+	keywordExplain: "EXPLAIN",
+}
+
 type keywordType int
 
 const (

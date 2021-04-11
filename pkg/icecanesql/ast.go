@@ -35,14 +35,13 @@ type TableSpec struct {
 // ColumnSpec defines a single column of a table
 // TODO: consider supporting defaults after supporting values
 type ColumnSpec struct {
-	Name           string
-	Type           ColumnType
-	Nullable       bool
-	PrimaryKey     bool
-	Unique         bool
-	Index          bool
-	References     string // the foreign key reference
-	SizeConstraint int
+	Name       string
+	Type       ColumnType
+	Nullable   bool
+	PrimaryKey bool
+	Unique     bool
+	Index      bool
+	References string // the foreign key reference
 }
 
 type ColumnType int
