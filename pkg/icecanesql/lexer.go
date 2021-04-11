@@ -114,10 +114,18 @@ var keywords = map[string]keywordType{
 	"TEXT":    keywordText,
 	"STRING":  keywordString,
 
-	// others
-	"EXPLAIN":    keywordExplain,
+	// column properties
+	"UNIQUE":     keywordUnique,
+	"NOT":        keywordNot,
+	"NULL":       keywordNull,
+	"PRIMARY":    keywordPrimary,
+	"KEY":        keywordKey,
+	"DEFAULT":    keywordDefault,
 	"INDEX":      keywordIndex,
 	"REFERENCES": keywordReferences,
+
+	// others
+	"EXPLAIN": keywordExplain,
 }
 
 type keywordType int
@@ -155,9 +163,16 @@ const (
 	keywordText
 	keywordString
 
-	keywordExplain
+	keywordUnique
+	keywordNot
+	keywordNull
+	keywordPrimary
+	keywordKey
+	keywordDefault
 	keywordIndex
 	keywordReferences
+
+	keywordExplain
 )
 
 // lexer is the sql lexer state machine responsible for tokenizing the input.

@@ -23,8 +23,11 @@ type Parser struct {
 //
 
 // Parse the input to an AST
-func (p *Parser) Parse() (Statement, error) {
-	panic("not implemented")
+func (p *Parser) Parse() (st Statement, err error) {
+	st, err = p.parseStatement()
+	_, err = p.nextTokenExpect(itemSemicolon)
+	_, err = p.nextTokenExpect(itemEOF)
+	return st, err
 }
 
 // NewParser creates a parser for the given input
@@ -87,6 +90,10 @@ func (p *Parser) parseStatement() (Statement, error) {
 // parseDDL parses a data definition langauge query.
 // It assumes that the first token is a CREATE/DROP keyword
 func (p *Parser) parseDDL() (Statement, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	action := p.nextToken() // has to be CREATE/DROP
 	table := p.nextToken()
 
@@ -142,6 +149,10 @@ func (p *Parser) parseDDL() (Statement, error) {
 }
 
 func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	colName, err := p.nextTokenIdentifier()
 	if err != nil {
 		return nil, err
@@ -153,7 +164,6 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 	}
 
 	var typ ColumnType
-
 	switch keywords[strings.ToUpper(colType.val)] {
 	case keywordBool:
 	case keywordBoolean:
@@ -182,34 +192,108 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 	}
 
 	cs := &ColumnSpec{
-		Name: colName.val,
-		Type: typ,
+		Name:     colName.val,
+		Type:     typ,
+		Nullable: true, // true by default
+	}
+
+	// column constraints such as nullable, unique..
+	for {
+		kwd, err := p.nextTokenKeyword()
+		if err != nil {
+			break
+		}
+
+		switch keywords[strings.ToUpper(kwd.val)] {
+		case keywordUnique:
+			cs.Unique = true
+			break
+
+		case keywordIndex:
+			cs.Index = true
+			break
+
+		case keywordNot:
+			null, err := p.nextTokenKeyword()
+			if err != nil || (null != nil && keywords[strings.ToUpper(null.val)] != keywordNull) {
+				return nil, fmt.Errorf("expected keyword NULL after NOT")
+			}
+			cs.Nullable = false
+			break
+
+		case keywordNull:
+			cs.Nullable = true
+			break
+
+		case keywordPrimary:
+			key, err := p.nextTokenKeyword()
+			if err != nil || (key != nil && keywords[strings.ToUpper(key.val)] != keywordKey) {
+				return nil, fmt.Errorf("expected keyword KEY after PRIMARY")
+			}
+			cs.PrimaryKey = false
+			break
+
+		case keywordReferences:
+			table, err := p.nextTokenIdentifier()
+			if err != nil {
+				return nil, fmt.Errorf("expected table identifier after REFERENCES")
+			}
+			cs.References = table.val
+			break
+
+		default:
+			return nil, fmt.Errorf("unknown keyword %s in the column specification", kwd.val)
+		}
 	}
 
 	return cs, nil
 }
 
 func (p *Parser) parseTransaction() (Statement, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	panic("")
 }
 
 func (p *Parser) parseSelect() (Statement, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	panic("")
 }
 
 func (p *Parser) parseInsert() (Statement, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	panic("")
 }
 
 func (p *Parser) parseUpdate() (Statement, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	panic("")
 }
 
 func (p *Parser) parseDelete() (Statement, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	panic("")
 }
 
 func (p *Parser) parseExplain() (Statement, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	panic("")
 }
 
@@ -250,6 +334,10 @@ func (p *Parser) nextToken() *item {
 
 // peek peeks the next item from the lexer but doesn't consume it.
 func (p *Parser) peek() *item {
+	if p.err != nil {
+		return nil
+	}
+
 	it := p.nextToken()
 	p.pos-- // revert change to pos
 	return it
@@ -257,6 +345,10 @@ func (p *Parser) peek() *item {
 
 // nextTokenIf returns the next token if it satisfies the given predicate
 func (p *Parser) nextTokenIf(pred func(*item) bool) *item {
+	if p.err != nil {
+		return nil
+	}
+
 	it := p.peek()
 
 	if pred(it) {
@@ -270,6 +362,10 @@ func (p *Parser) nextTokenIf(pred func(*item) bool) *item {
 // nextTokenExpect returns the next token if it's of the expected type.
 // it throws an error otherwise
 func (p *Parser) nextTokenExpect(expected itemType) (*item, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	it := p.nextToken()
 	if it.typ == expected {
 		return it, nil
@@ -281,6 +377,10 @@ func (p *Parser) nextTokenExpect(expected itemType) (*item, error) {
 // nextTokenKeyword returns the next token if it's a keyword.
 // it returns an error otherwise
 func (p *Parser) nextTokenKeyword() (*item, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	it := p.nextToken()
 	if it.typ == itemKeyword {
 		return it, nil
@@ -290,6 +390,10 @@ func (p *Parser) nextTokenKeyword() (*item, error) {
 }
 
 func (p *Parser) nextTokenIdentifier() (*item, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
 	it := p.nextToken()
 	if it.typ == itemIdentifier {
 		return it, nil
