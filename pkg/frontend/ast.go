@@ -1,4 +1,4 @@
-package icecanesql
+package frontend
 
 // Statement denotes a parsed SQL statement
 type Statement interface {

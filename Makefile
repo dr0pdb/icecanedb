@@ -24,6 +24,10 @@ build-example-storage:
 build-kv:
 	go build -gcflags="-N -l" -o _output/icecanekv ./cmd/icecanekv/main.go
 
+.PHONY: build-sql
+build-sql:
+	go build -gcflags="-N -l" -o _output/icecanesql ./cmd/icecanesql/main.go
+
 .PHONY: run-kv-cluster
 run-kv-cluster:
 	docker-compose -f docker/docker-compose.yml up --remove-orphans

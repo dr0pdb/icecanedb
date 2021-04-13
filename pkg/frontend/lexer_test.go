@@ -1,4 +1,4 @@
-package icecanesql
+package frontend
 
 import (
 	"testing"
