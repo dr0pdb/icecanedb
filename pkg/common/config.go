@@ -95,3 +95,26 @@ func (conf *KVConfig) LoadFromFile(path string) {
 		conf.Peers = fconf.Peers
 	}
 }
+
+// ClientConfig defines the configuration settings for IcecaneSQL
+type ClientConfig struct {
+	Servers []Peer `yaml:"servers"`
+}
+
+// LoadFromFile reads the client config from the file
+func (conf *ClientConfig) LoadFromFile(path string) {
+	log.Info(fmt.Sprintf("icecanesql::config::LoadFromFile; loading config from file %s", path))
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Error(fmt.Sprintf("icecanesql::config::LoadFromFile; error reading config from file %s, error %s", path, err))
+		return
+	}
+	fconf := KVConfig{}
+	err = yaml.Unmarshal([]byte(data), &fconf)
+	if err != nil {
+		log.Error(fmt.Sprintf("icecanesql::config::LoadFromFile; error unmarshalling config from file %s, error %s", path, err))
+		return
+	}
+
+	log.WithFields(log.Fields{"config": fconf}).Debug("icecanesql::config::LoadFromFile; read contents from the file")
+}
