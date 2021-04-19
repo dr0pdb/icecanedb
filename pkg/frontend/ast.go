@@ -27,6 +27,7 @@ type FinishTxnStatement struct {
 }
 
 // TableSpec defines the specification of a table
+// TODO: add methods for getting column, primary key etc.
 type TableSpec struct {
 	TableName string
 	Columns   []*ColumnSpec

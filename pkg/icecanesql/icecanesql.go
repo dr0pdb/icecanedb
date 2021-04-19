@@ -17,7 +17,7 @@ func (c *Client) Execute(cmd string) error {
 	}
 
 	// derive the query plan
-	err = newPlanner(stmt).plan().optimize().get()
+	_, err = newPlanner(stmt).plan().optimize().get()
 	if err != nil {
 		return err
 	}

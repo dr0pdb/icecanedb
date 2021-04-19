@@ -6,11 +6,18 @@ import "github.com/dr0pdb/icecanedb/pkg/frontend"
 type planner struct {
 	stmt frontend.Statement
 
+	res PlanNode
 	err error // errors encountered during the process
 }
 
 // plan the execution
 func (p *planner) plan() *planner {
+	switch st := p.stmt.(type) {
+	case *frontend.CreateTableStatement:
+		p.res = &CreateTablePlanNode{
+			Schema: st.Spec,
+		}
+	}
 
 	return p
 }
@@ -21,8 +28,8 @@ func (p *planner) optimize() *planner {
 }
 
 // get returns the final plan
-func (p *planner) get() error {
-	return p.err
+func (p *planner) get() (PlanNode, error) {
+	return p.res, p.err
 }
 
 // newPlanner creates a new planner for the given statement
