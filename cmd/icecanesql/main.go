@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
+	"github.com/dr0pdb/icecanedb/pkg/icecanesql"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -44,11 +45,12 @@ func main() {
 			cmd = strings.Trim(cmd, " \n")
 		}
 
-		// execute and print result
-		fmt.Println(cmd)
-
 		if cmd == "exit" {
 			break
 		}
+
+		// execute and print result
+		c := icecanesql.NewClient("random")
+		c.Execute(cmd)
 	}
 }
