@@ -11,7 +11,7 @@ type CreateTableExecutor struct {
 
 var _ Executor = (*CreateTableExecutor)(nil)
 
-func (ex *CreateTableExecutor) Execute(p PlanNode) Result {
+func (ex *CreateTableExecutor) Execute() Result {
 	log.Info("icecanesql::ddl_executor::Execute; start;")
 	return nil
 }

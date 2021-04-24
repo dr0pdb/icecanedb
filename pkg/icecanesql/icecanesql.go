@@ -6,14 +6,14 @@ import (
 )
 
 type Client struct {
-	name     string
-	leaderId uint64
+	name string
+	rpc  *rpcRepository
 }
 
 // Execute executes a sql command obtained from the REPL.
 // TODO: decide return types
 func (c *Client) Execute(cmd string) error {
-	log.WithFields(log.Fields{"name": c.name, "leaderId": c.leaderId, "cmd": cmd}).Info("icecanesql::icecanesql::Execute; starting execution of command;")
+	log.WithFields(log.Fields{"name": c.name, "cmd": cmd}).Info("icecanesql::icecanesql::Execute; starting execution of command;")
 	p := frontend.NewParser(c.name, cmd)
 	stmt, err := p.Parse()
 	if err != nil {
@@ -27,9 +27,7 @@ func (c *Client) Execute(cmd string) error {
 	}
 
 	// execute the plan node
-	ex := c.getExecutor(pn)
-	_ = ex.Execute(pn)
-
+	_ = c.getExecutor(pn).Execute()
 	return nil
 }
 
@@ -48,7 +46,7 @@ func (c *Client) getExecutor(pn PlanNode) Executor {
 // NewClient creates a new client for running sql queries.
 func NewClient(name string) *Client {
 	return &Client{
-		name:     name,
-		leaderId: 1,
+		name: name,
+		rpc:  newRpcRepository(),
 	}
 }

@@ -2,7 +2,7 @@ package icecanesql
 
 // Executor executes a query plan
 type Executor interface {
-	Execute(PlanNode) Result
+	Execute() Result
 }
 
 // Result denotes the result of the execution of a query plan
