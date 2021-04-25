@@ -26,13 +26,15 @@ import (
 //
 // The format:
 // Key: table name
-// Value: id (64 bits) | number of columns (64 bits) | col_name (string) | col_type (64 bits) | ...
-func encodeTableSchema(table *frontend.TableSpec) (key, value []byte, err error) {
+// Value: id (64 bits) | number of columns (64 bits) | col_1 | col_2 | ...
+func encodeTableSchema(table *frontend.TableSpec, id uint64) (key, value []byte, err error) {
 	key = []byte(table.TableName)
 
-	value = common.U64ToByte(uint64(len(table.Columns)))
+	value = common.U64ToByte(id)
+	value = append(value, common.U64ToByte(uint64(len(table.Columns)))...)
+
 	for i := 0; i < len(table.Columns); i++ {
-		// encode the column spec
+		value = append(value, encodeColumnSpec(table.Columns[i])...)
 	}
 
 	return key, value, err
@@ -44,6 +46,53 @@ func encodeString(s string) []byte {
 
 	res = append(res, common.U64ToByte(uint64(len(s)))...)
 	res = append(res, []byte(s)...)
+
+	return res
+}
+
+type columnSpecFieldMarker uint64
+
+const (
+	columnSpecFieldName columnSpecFieldMarker = iota
+	columnSpecFieldType
+	columnSpecFieldNullable
+	columnSpecFieldPrimaryKey
+	columnSpecFieldUnique
+	columnSpecFieldIndex
+	columnSpecFieldReferences
+)
+
+// encodeColumnSpec encodes a column spec to byte slice
+func encodeColumnSpec(cs *frontend.ColumnSpec) []byte {
+	res := make([]byte, 0)
+
+	// encode name
+	res = append(res, common.U64ToByte(uint64(columnSpecFieldName))...)
+	res = append(res, encodeString(cs.Name)...)
+
+	// encode type
+	res = append(res, common.U64ToByte(uint64(columnSpecFieldType))...)
+	res = append(res, common.U64ToByte(uint64(cs.Type))...)
+
+	// encode nullable
+	res = append(res, common.U64ToByte(uint64(columnSpecFieldNullable))...)
+	res = append(res, common.BoolToByte(cs.Nullable))
+
+	// encode primary key
+	res = append(res, common.U64ToByte(uint64(columnSpecFieldPrimaryKey))...)
+	res = append(res, common.BoolToByte(cs.PrimaryKey))
+
+	// encode unique
+	res = append(res, common.U64ToByte(uint64(columnSpecFieldUnique))...)
+	res = append(res, common.BoolToByte(cs.Unique))
+
+	// encode index
+	res = append(res, common.U64ToByte(uint64(columnSpecFieldIndex))...)
+	res = append(res, common.BoolToByte(cs.Index))
+
+	// encode references
+	res = append(res, common.U64ToByte(uint64(columnSpecFieldReferences))...)
+	res = append(res, encodeString(cs.References)...)
 
 	return res
 }

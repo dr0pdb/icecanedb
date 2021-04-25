@@ -61,7 +61,7 @@ type ColumnSpec struct {
 	References string // the foreign key reference
 }
 
-type ColumnType int
+type ColumnType uint64
 
 const (
 	ColumnTypeBoolean ColumnType = iota

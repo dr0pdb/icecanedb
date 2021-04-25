@@ -191,3 +191,18 @@ func ByteSliceToU64Slice(bslice []byte) []uint64 {
 	// TODO
 	return nil
 }
+
+// BoolToByte converts a bool to byte
+func BoolToByte(b bool) byte {
+	tmp := uint8(0)
+	if b {
+		tmp = 1
+	}
+
+	return tmp
+}
+
+// ByteToBool converts a byte to bool
+func ByteToBool(b byte) bool {
+	return b > 0
+}
