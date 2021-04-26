@@ -17,6 +17,8 @@
 package icecanesql
 
 import (
+	"fmt"
+
 	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/frontend"
 )
@@ -28,7 +30,7 @@ import (
 // Key: table name
 // Value: id (64 bits) | number of columns (64 bits) | col_1 | col_2 | ...
 func encodeTableSchema(table *frontend.TableSpec, id uint64) (key, value []byte, err error) {
-	key = []byte(table.TableName)
+	key = encodeString(table.TableName)
 
 	value = common.U64ToByte(id)
 	value = append(value, common.U64ToByte(uint64(len(table.Columns)))...)
@@ -40,6 +42,37 @@ func encodeTableSchema(table *frontend.TableSpec, id uint64) (key, value []byte,
 	return key, value, err
 }
 
+// decodeTableSchema decodes the table schema out of the key value pair stored in kv store
+func decodeTableSchema(key, value []byte) (table *frontend.TableSpec, err error) {
+	table = &frontend.TableSpec{}
+
+	// name
+	table.TableName, _, err = decodeString(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// id
+	table.TableId = common.ByteToU64(value[:8])
+
+	// columns
+	len := common.ByteToU64(value[8:16])
+	table.Columns = make([]*frontend.ColumnSpec, len)
+	value = value[16:]
+	idx := uint64(0) // to be used inside the loop
+
+	// decode each column spec
+	for i := uint64(0); i < len; i++ {
+		table.Columns[i], idx, err = decodeColumnSpec(value)
+		value = value[idx:]
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return table, err
+}
+
 // encodeString encodes the string to bytes
 func encodeString(s string) []byte {
 	res := make([]byte, 0)
@@ -48,6 +81,16 @@ func encodeString(s string) []byte {
 	res = append(res, []byte(s)...)
 
 	return res
+}
+
+// decodeString decodes a string from a byte slice at the start
+func decodeString(b []byte) (s string, nxtIdx uint64, err error) {
+	if len(b) < 8 {
+		return s, nxtIdx, fmt.Errorf("invalid byte slice for a string")
+	}
+	len := common.ByteToU64(b[:8])
+	s = string(b[8 : 8+len])
+	return s, 8 + len, nil
 }
 
 type columnSpecFieldMarker uint64
@@ -95,4 +138,49 @@ func encodeColumnSpec(cs *frontend.ColumnSpec) []byte {
 	res = append(res, encodeString(cs.References)...)
 
 	return res
+}
+
+// decodeColumnSpec decodes a column spec from a byte slice
+// todo: check for appropriate length
+func decodeColumnSpec(b []byte) (cs *frontend.ColumnSpec, idx uint64, err error) {
+	cs = &frontend.ColumnSpec{}
+	idx = uint64(0)
+
+	// name
+	_ = common.ByteToU64(b[:8])
+	cs.Name, idx, err = decodeString(b[8:])
+	if err != nil {
+		return nil, 0, fmt.Errorf("")
+	}
+
+	// type
+	_ = common.ByteToU64(b[idx : idx+8])
+	cs.Type = frontend.ColumnType(common.ByteToU64(b[idx+8 : idx+16]))
+	idx += 16
+
+	// nullable
+	_ = common.ByteToU64(b[idx : idx+8])
+	cs.Nullable = common.ByteToBool(b[idx+8])
+	idx += 9
+
+	// primary key
+	_ = common.ByteToU64(b[idx : idx+8])
+	cs.PrimaryKey = common.ByteToBool(b[idx+8])
+	idx += 9
+
+	// unique
+	_ = common.ByteToU64(b[idx : idx+8])
+	cs.Unique = common.ByteToBool(b[idx+8])
+	idx += 9
+
+	// index
+	_ = common.ByteToU64(b[idx : idx+8])
+	cs.Index = common.ByteToBool(b[idx+8])
+	idx += 9
+
+	// references
+	_ = common.ByteToU64(b[:8])
+	cs.References, idx, err = decodeString(b[8:])
+
+	return cs, idx, err
 }

@@ -45,6 +45,7 @@ type FinishTxnStatement struct {
 // TableSpec defines the specification of a table
 // TODO: add methods for getting column, primary key etc.
 type TableSpec struct {
+	TableId   uint64 // internal id of the table. unique
 	TableName string
 	Columns   []*ColumnSpec
 }
