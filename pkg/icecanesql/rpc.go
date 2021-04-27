@@ -44,20 +44,30 @@ func newRpcRepository(conf *common.ClientConfig) *rpcRepository {
 	}
 }
 
+// createAndStoreConn creates and caches the grpc connection to the leader
+func (r *rpcRepository) createAndStoreConn() error {
+	if r.leaderID != r.leaderConnId || r.leaderConn == nil || r.leaderConn.GetState().String() != "READY" {
+		var opts []grpc.DialOption
+		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithBlock())
+		conn, err := grpc.Dial(fmt.Sprintf("%s:%s", r.conf.Servers[r.leaderID-1].Address, r.conf.Servers[r.leaderID-1].Port), opts...)
+		if err != nil {
+			return err
+		}
+
+		r.leaderConn = conn
+		r.leaderConnId = r.leaderID
+	}
+
+	return nil
+}
+
 // set makes a Set RPC call to the kv store
 func (r *rpcRepository) set(key, value []byte) (bool, error) {
 	for {
-		if r.leaderID != r.leaderConnId {
-			var opts []grpc.DialOption
-			opts = append(opts, grpc.WithInsecure())
-			opts = append(opts, grpc.WithBlock())
-			conn, err := grpc.Dial(fmt.Sprintf("%s:%s", r.conf.Servers[r.leaderID-1].Address, r.conf.Servers[r.leaderID-1].Port), opts...)
-			if err != nil {
-				return false, err
-			}
-
-			r.leaderConn = conn
-			r.leaderConnId = r.leaderID
+		err := r.createAndStoreConn()
+		if err != nil {
+			return false, err
 		}
 
 		client := pb.NewIcecaneKVClient(r.leaderConn)
