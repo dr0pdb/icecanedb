@@ -6,4 +6,6 @@ type Executor interface {
 }
 
 // Result denotes the result of the execution of a query plan
-type Result interface{}
+type Result interface {
+	getError() error
+}

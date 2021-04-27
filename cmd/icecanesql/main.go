@@ -66,7 +66,7 @@ func main() {
 		}
 
 		// execute and print result
-		c := icecanesql.NewClient("random")
+		c := icecanesql.NewClient("random", conf)
 		c.Execute(cmd)
 	}
 }

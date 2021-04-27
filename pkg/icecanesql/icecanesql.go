@@ -17,6 +17,7 @@
 package icecanesql
 
 import (
+	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/frontend"
 	log "github.com/sirupsen/logrus"
 )
@@ -24,6 +25,7 @@ import (
 type Client struct {
 	name string
 	rpc  *rpcRepository
+	conf *common.ClientConfig
 }
 
 // Execute executes a sql command obtained from the REPL.
@@ -52,7 +54,7 @@ func (c *Client) getExecutor(pn PlanNode) Executor {
 
 	switch n := pn.(type) {
 	case *CreateTablePlanNode:
-		ex := &CreateTableExecutor{Table: n.Schema}
+		ex := &CreateTableExecutor{rpc: c.rpc, Table: n.Schema}
 		return ex
 	}
 
@@ -60,9 +62,10 @@ func (c *Client) getExecutor(pn PlanNode) Executor {
 }
 
 // NewClient creates a new client for running sql queries.
-func NewClient(name string) *Client {
+func NewClient(name string, conf *common.ClientConfig) *Client {
 	return &Client{
 		name: name,
-		rpc:  newRpcRepository(),
+		rpc:  newRpcRepository(conf),
+		conf: conf,
 	}
 }

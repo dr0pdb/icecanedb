@@ -16,14 +16,69 @@
 
 package icecanesql
 
+import (
+	"context"
+	"fmt"
+
+	"github.com/dr0pdb/icecanedb/pkg/common"
+	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+)
+
 // rpcRepository is responsible for communicating with the kv service
 type rpcRepository struct {
-	leaderID uint64
+	leaderID     uint64
+	leaderConn   *grpc.ClientConn
+	leaderConnId uint64 // id of the leader whose connection is cached
+	conf         *common.ClientConfig
 }
 
 // newRpcRepository creates a new rpc repository layer
-func newRpcRepository() *rpcRepository {
+func newRpcRepository(conf *common.ClientConfig) *rpcRepository {
 	return &rpcRepository{
-		leaderID: 1,
+		leaderID:     1,
+		conf:         conf,
+		leaderConn:   nil,
+		leaderConnId: 0,
+	}
+}
+
+// set makes a Set RPC call to the kv store
+func (r *rpcRepository) set(key, value []byte) (bool, error) {
+	for {
+		if r.leaderID != r.leaderConnId {
+			var opts []grpc.DialOption
+			opts = append(opts, grpc.WithInsecure())
+			opts = append(opts, grpc.WithBlock())
+			conn, err := grpc.Dial(fmt.Sprintf("%s:%s", r.conf.Servers[r.leaderID-1].Address, r.conf.Servers[r.leaderID-1].Port), opts...)
+			if err != nil {
+				return false, err
+			}
+
+			r.leaderConn = conn
+			r.leaderConnId = r.leaderID
+		}
+
+		client := pb.NewIcecaneKVClient(r.leaderConn)
+		req := &pb.SetRequest{
+			Key:   key,
+			Value: value,
+		}
+
+		resp, err := client.Set(context.Background(), req)
+		if err != nil {
+			log.Error(fmt.Sprintf("icecanesql::rpc::set; error in grpc request: %v", err))
+			return false, err
+		} else if resp.Error != "" {
+			log.Error(fmt.Sprintf("icecanesql::rpc::set; error response from the kv server: %v", resp.Error))
+			return false, fmt.Errorf(resp.Error)
+		} else if resp.LeaderId != r.leaderID {
+			log.Info("icecanesql::rpc::set; leader id different; updating and retrying...")
+			r.leaderID = resp.LeaderId
+			continue
+		}
+
+		return resp.Success, nil
 	}
 }
