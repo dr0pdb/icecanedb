@@ -145,13 +145,15 @@ func encodeColumnSpec(cs *frontend.ColumnSpec) []byte {
 func decodeColumnSpec(b []byte) (cs *frontend.ColumnSpec, idx uint64, err error) {
 	cs = &frontend.ColumnSpec{}
 	idx = uint64(0)
+	delta := uint64(0)
 
 	// name
 	_ = common.ByteToU64(b[:8])
-	cs.Name, idx, err = decodeString(b[8:])
+	cs.Name, delta, err = decodeString(b[8:])
 	if err != nil {
 		return nil, 0, fmt.Errorf("")
 	}
+	idx += 8 + delta
 
 	// type
 	_ = common.ByteToU64(b[idx : idx+8])
@@ -179,8 +181,9 @@ func decodeColumnSpec(b []byte) (cs *frontend.ColumnSpec, idx uint64, err error)
 	idx += 9
 
 	// references
-	_ = common.ByteToU64(b[:8])
-	cs.References, idx, err = decodeString(b[8:])
+	_ = common.ByteToU64(b[idx : idx+8])
+	cs.References, delta, err = decodeString(b[idx+8:])
+	idx += 8 + delta
 
 	return cs, idx, err
 }

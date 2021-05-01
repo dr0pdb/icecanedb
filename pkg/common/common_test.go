@@ -32,3 +32,11 @@ func TestUint64BytesConversion(t *testing.T) {
 	b := U64ToByte(n)
 	assert.Equal(t, n, ByteToU64(b), fmt.Sprintf("Unexpected error in uint64-bytes comparison; expected %d actual %d", n, ByteToU64(b)))
 }
+
+func TestBoolByteConversion(t *testing.T) {
+	b := BoolToByte(true)
+	assert.True(t, ByteToBool(b), "unexpected value of decoded b. expected true, found false")
+
+	b = BoolToByte(false)
+	assert.False(t, ByteToBool(b), "unexpected value of decoded b. expected false, found true")
+}
