@@ -38,7 +38,11 @@ func (c *Client) Execute(cmd string) error {
 		return err
 	}
 
-	// todo: add validator
+	// validate the parsed statement
+	err = newValidator(stmt).validate()
+	if err != nil {
+		return err
+	}
 
 	// derive the query plan
 	pn, err := newPlanner(stmt).plan().optimize().get()
