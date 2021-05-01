@@ -1,6 +1,8 @@
 syntax = "proto3";
 package icecanedbpb;
 
+option go_package = "protogen/icecanedbpb";
+
 import "kvrpcpb.proto";
 import "raftpb.proto";
 
@@ -8,6 +10,7 @@ import "raftpb.proto";
 service IcecaneKV {
   // KV commands with txn supported.
   rpc Get(GetRequest) returns (GetResponse) {}
+  rpc Scan(ScanRequest) returns (ScanResponse) {}
   rpc Set(SetRequest) returns (SetResponse) {}
   rpc Delete(DeleteRequest) returns (DeleteResponse) {}
   rpc BeginTxn(BeginTxnRequest) returns (BeginTxnResponse) {}

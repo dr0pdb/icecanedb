@@ -1,7 +1,7 @@
 package mvcc
 
 import (
-	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
+	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 )
 
 // Transaction is the MVCC transaction.

@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 type IcecaneKVClient interface {
 	// KV commands with txn supported.
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
+	Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResponse, error)
 	Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	BeginTxn(ctx context.Context, in *BeginTxnRequest, opts ...grpc.CallOption) (*BeginTxnResponse, error)
@@ -41,6 +42,15 @@ func NewIcecaneKVClient(cc grpc.ClientConnInterface) IcecaneKVClient {
 func (c *icecaneKVClient) Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error) {
 	out := new(GetResponse)
 	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/Get", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *icecaneKVClient) Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResponse, error) {
+	out := new(ScanResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/Scan", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +126,7 @@ func (c *icecaneKVClient) AppendEntries(ctx context.Context, in *AppendEntriesRe
 type IcecaneKVServer interface {
 	// KV commands with txn supported.
 	Get(context.Context, *GetRequest) (*GetResponse, error)
+	Scan(context.Context, *ScanRequest) (*ScanResponse, error)
 	Set(context.Context, *SetRequest) (*SetResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	BeginTxn(context.Context, *BeginTxnRequest) (*BeginTxnResponse, error)
@@ -133,6 +144,9 @@ type UnimplementedIcecaneKVServer struct {
 
 func (UnimplementedIcecaneKVServer) Get(context.Context, *GetRequest) (*GetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedIcecaneKVServer) Scan(context.Context, *ScanRequest) (*ScanResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Scan not implemented")
 }
 func (UnimplementedIcecaneKVServer) Set(context.Context, *SetRequest) (*SetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Set not implemented")
@@ -182,6 +196,24 @@ func _IcecaneKV_Get_Handler(srv interface{}, ctx context.Context, dec func(inter
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(IcecaneKVServer).Get(ctx, req.(*GetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IcecaneKV_Scan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).Scan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/Scan",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).Scan(ctx, req.(*ScanRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -322,6 +354,10 @@ var IcecaneKV_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Get",
 			Handler:    _IcecaneKV_Get_Handler,
+		},
+		{
+			MethodName: "Scan",
+			Handler:    _IcecaneKV_Scan_Handler,
 		},
 		{
 			MethodName: "Set",

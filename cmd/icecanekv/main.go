@@ -27,7 +27,7 @@ import (
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/icecanekv"
-	icecanedbpb "github.com/dr0pdb/icecanedb/pkg/protogen"
+	icecanedbpb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"

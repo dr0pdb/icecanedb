@@ -8,7 +8,7 @@ import (
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/mvcc"
-	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
+	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	log "github.com/sirupsen/logrus"
 )

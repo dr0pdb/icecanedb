@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
-	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
+	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"

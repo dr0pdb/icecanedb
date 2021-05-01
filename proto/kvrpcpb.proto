@@ -1,6 +1,8 @@
 syntax = "proto3";
 package icecanedbpb;
 
+option go_package = "protogen/icecanedbpb";
+
 message GetRequest {
   Context context = 1;
   bytes key = 2;

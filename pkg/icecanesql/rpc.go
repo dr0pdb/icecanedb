@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
-	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
+	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
