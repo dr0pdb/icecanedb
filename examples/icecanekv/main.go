@@ -9,7 +9,7 @@ import (
 	"github.com/dr0pdb/icecanedb/test"
 	"google.golang.org/grpc"
 
-	pb "github.com/dr0pdb/icecanedb/pkg/protogen"
+	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	log "github.com/sirupsen/logrus"
 )
 
