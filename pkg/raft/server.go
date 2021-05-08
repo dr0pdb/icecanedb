@@ -35,12 +35,12 @@ type Server struct {
 
 // RequestVote is used by the raft candidate to request for votes.
 func (s *Server) RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	return s.raft.requestVote(ctx, request)
+	return s.raft.handleRequestVote(ctx, request)
 }
 
 // AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
 func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
-	return s.raft.appendEntries(ctx, request)
+	return s.raft.handleAppendEntries(ctx, request)
 }
 
 // Close cleanups the underlying resources of the raft server.
@@ -68,94 +68,77 @@ func (s *Server) Close() {
 //
 
 // Scan returns an iterator to iterate over all the kv pairs whose key >= target
-func (s *Server) Scan(target []byte) (storage.Iterator, uint64, error) {
+func (s *Server) Scan(target []byte) (storage.Iterator, bool, error) {
 	log.Info("raft::server::Scan; started")
-	leader := s.raft.getLeaderID()
-	if leader != s.id {
-		return nil, leader, fmt.Errorf("not a leader")
+	_, role := s.raft.getNodeState()
+	if role != leader {
+		return nil, false, nil
 	}
 
 	itr := s.kvStorage.Scan(target)
 	log.Info("raft::server::Scan; done")
-	return itr, leader, nil
+	return itr, true, nil
 }
 
 // SetValue sets the value of the key and gets it replicated across peers
-func (s *Server) SetValue(key, value []byte) (leader uint64, err error) {
+func (s *Server) SetValue(key, value []byte, meta bool) (bool, error) {
 	log.Info("raft::server::SetValue; started")
-	leader = s.raft.getLeaderID()
-	if leader != s.id {
-		return leader, fmt.Errorf("not a leader")
+	_, success, err := s.raft.handleClientSetRequest(key, value, meta)
+	if err != nil {
+		return false, err
+	}
+	if !success {
+		return success, nil
 	}
 
-	err = s.raft.clientSetRequest(key, value, false)
+	// wait for the idx to be committed
+
 	log.Info("raft::server::SetValue; done")
-	return leader, err
+	return true, err
 }
 
 // DeleteValue deletes the value of the key and gets it replicated across peers
-func (s *Server) DeleteValue(key []byte) (leader uint64, err error) {
+func (s *Server) DeleteValue(key []byte, meta bool) (bool, error) {
 	log.Info("raft::server::DeleteValue; started")
-	leader = s.raft.getLeaderID()
-	if leader != s.id {
-		return leader, fmt.Errorf("not a leader")
+
+	_, success, err := s.raft.handleClientDeleteRequest(key, meta)
+	if err != nil {
+		return false, err
+	}
+	if !success {
+		return success, nil
 	}
 
-	err = s.raft.clientDeleteRequest(key, false)
+	// wait for idx to be committed
+
 	log.Info("raft::server::DeleteValue; done")
-	return leader, err
+	return true, err
 }
 
 // MetaGetValue returns the value of the key from meta storage layer.
-func (s *Server) MetaGetValue(key []byte) ([]byte, uint64, error) {
+func (s *Server) MetaGetValue(key []byte) ([]byte, bool, error) {
 	log.Info("raft::server::MetaGetValue; started")
-	leader := s.raft.getLeaderID()
-	if leader != s.id {
-		return nil, leader, fmt.Errorf("not a leader")
+	_, role := s.raft.getNodeState()
+	if role != leader {
+		return nil, false, nil
 	}
 
 	val, err := s.kvMetaStorage.Get(key, nil)
 	log.Info("raft::server::MetaGetValue; done")
-	return val, leader, err
-}
-
-// MetaSetValue sets the value of the key in the meta storage and gets it replicated across peers
-func (s *Server) MetaSetValue(key, value []byte) (leader uint64, err error) {
-	log.Info("raft::server::MetaSetValue; started")
-	leader = s.raft.getLeaderID()
-	if leader != s.id {
-		return leader, fmt.Errorf("not a leader")
-	}
-
-	err = s.raft.clientSetRequest(key, value, true)
-	log.Info("raft::server::MetaSetValue; done")
-	return leader, err
-}
-
-// MetaDeleteValue deletes the value of the key in the meta storage and gets it replicated across peers
-func (s *Server) MetaDeleteValue(key []byte) (leader uint64, err error) {
-	log.Info("raft::server::MetaDeleteValue; started")
-	leader = s.raft.getLeaderID()
-	if leader != s.id {
-		return leader, fmt.Errorf("not a leader")
-	}
-
-	err = s.raft.clientDeleteRequest(key, true)
-	log.Info("raft::server::MetaDeleteValue; done")
-	return leader, err
+	return val, true, err
 }
 
 // MetaScan returns an iterator to iterate over all the kv pairs whose key >= target
-func (s *Server) MetaScan(target []byte) (storage.Iterator, uint64, error) {
+func (s *Server) MetaScan(target []byte) (storage.Iterator, bool, error) {
 	log.Info("raft::server::MetaScan; started")
-	leader := s.raft.getLeaderID()
-	if leader != s.id {
-		return nil, leader, fmt.Errorf("not a leader")
+	_, role := s.raft.getNodeState()
+	if role != leader {
+		return nil, false, nil
 	}
 
 	itr := s.kvMetaStorage.Scan(target)
 	log.Info("raft::server::MetaScan; done")
-	return itr, leader, nil
+	return itr, true, nil
 }
 
 //
@@ -317,7 +300,8 @@ func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath strin
 		clientConnections: common.NewProtectedMapUConn(),
 	}
 
-	raft := NewRaft(kvConfig, raftStorage, s)
+	ready := make(chan interface{})
+	raft := NewRaft(kvConfig, raftStorage, s, ready)
 	s.raft = raft
 
 	log.Info("raft::server::NewRaftServer; done")

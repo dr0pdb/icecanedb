@@ -13,12 +13,13 @@ import (
 )
 
 const (
-	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = 2000 * time.Millisecond
-	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = 3000 * time.Millisecond
+	minTimeoutSeconds = 1
+	maxTimeoutSeconds = 2
 
-	requestTimeoutInterval = 1 * time.Second
+	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
+	MinElectionTimeout = minTimeoutSeconds * time.Second
+	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
+	MaxElectionTimeout = maxTimeoutSeconds * time.Second
 )
 
 // persistent state of the node
@@ -28,16 +29,36 @@ var (
 	lastLogIndexKey = []byte("lastLogIndex")
 )
 
-const (
-	leader uint64 = iota
-	follower
-	candidate
-	norole
-)
+type state uint64
 
 const (
-	noVote   uint64 = 0
-	noLeader uint64 = 0
+	leader state = iota
+	follower
+	candidate
+	dead
+)
+
+func (s state) String() string {
+	switch s {
+	case leader:
+		return "leader"
+
+	case follower:
+		return "follower"
+
+	case candidate:
+		return "candidate"
+
+	case dead:
+		return "dead"
+
+	default:
+		panic("unreachable")
+	}
+}
+
+const (
+	noVote uint64 = iota
 )
 
 // Progress denotes the progress of a peer.
@@ -57,19 +78,20 @@ type Progress struct {
 // Raft is the replicated state machine.
 // See Fig 2 of the Raft Extended paper.
 type Raft struct {
+	// mu protects the state
+	mu *sync.RWMutex
+
 	// id of the raft node.
 	// IMPORTANT: starts from 1 so that votedFor = 0 indicates no vote.
 	id uint64
 
+	/*
+		Persisted values
+	*/
+
 	// CurrentTerm denotes the latest term node has seen.
 	// VotedFor denotes the candidate id that got the vote from this node. 0 is no one.
-	// places where this is set:
-	// 1. follower
-	// 2. candidate
-	// 3. leader
-	// 4. init
-	// 4 is at the start and only one role out of 1,2,3 are possible. So a lock is fine.
-	currentTerm, votedFor common.ProtectedUint64
+	currentTerm, votedFor uint64
 
 	// stores the raft logs
 	// key: index and value: serialized form of the command.
@@ -78,15 +100,19 @@ type Raft struct {
 
 	// lastLogIndex contains the index of the highest log entry stored in raftStorage.
 	// commitIndex <= lastLogIndex
-	lastLogIndex common.ProtectedUint64
+	lastLogIndex uint64
+
+	/*
+		Volatile values
+	*/
 
 	// commitIndex is the index of highest log entry known to be committed
 	// init to 0 and increase monotonically
-	commitIndex common.ProtectedUint64
+	commitIndex uint64
 
 	// lastApplied is the index of highest log entry applied to state machine
 	// init to 0 and increases monotonically.
-	lastApplied common.ProtectedUint64
+	lastApplied uint64
 
 	// each peers progress
 	// volatile state on leaders.
@@ -97,8 +123,7 @@ type Raft struct {
 	allProgress map[uint64]*Progress
 
 	// this peer's role
-	// TODO: protect with mutex
-	role common.ProtectedUint64
+	role state
 
 	// kvConfig is the complete key value config.
 	kvConfig *common.KVConfig
@@ -111,8 +136,6 @@ type Raft struct {
 
 	// snapshot if log size exceeds it. -1 indicates no snapshotting
 	maxRaftState int64
-
-	mu *sync.RWMutex
 }
 
 type internalState struct {
@@ -120,234 +143,211 @@ type internalState struct {
 	clientRequests  chan interface{}
 	clientResponses chan bool
 
-	// append grpc requests from the leader
-	appendEntriesRequests chan *pb.AppendEntriesRequest
-	appendEntriesReponses chan *pb.AppendEntriesResponse
-
-	// grpc requests for requesting votes and responses
-	requestVoteRequests  chan *pb.RequestVoteRequest
-	requestVoteResponses chan bool
-
-	// running indicates if the server is running or not.
-	// to stop the server, set it to false
-	running common.ProtectedBool
-
-	// currentLeader is the current leader of raft according to this node.
-	// could be inaccurate but doesn't affect correctness.
-	currentLeader common.ProtectedUint64
-
 	// lastAppendOrVoteTime is the latest time at which we received an append request from the leader
 	// or we casted a vote to a candidate.
 	lastAppendOrVoteTime time.Time
 
-	// endFollower is the channel on which the follower routine ends
-	endFollower chan bool
-	endLeader   chan bool
-
-	followerRunning, candRunning, leaderRunning common.ProtectedBool
+	// applyCommittedEntriesCh is the signal to apply the committed entries to the state machine
+	applyCommittedEntriesCh chan interface{}
 }
 
 //
-// grpc server calls
+// grpc server calls: server to raft
 //
 
-// getLeaderID returns the id of the node which this node thinks is the leader.
-func (r *Raft) getLeaderID() uint64 {
-	if r.role.Get() == leader {
-		return r.id
-	}
+// getNodeState returns the role, term of the node
+// NOTE: Holds the internal read lock of raft.
+func (r *Raft) getNodeState() (term uint64, role state) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-	return r.istate.currentLeader.Get()
+	return r.currentTerm, r.role
 }
 
-func (r *Raft) clientSetRequest(key, value []byte, meta bool) error {
-	log.WithFields(log.Fields{"id": r.id, "key": string(key), "value": string(value)}).Info("raft::raft::clientSetRequest; received set request")
-	sr := &setRequest{
-		key:   key,
-		value: value,
-		meta:  meta,
-	}
+// getLastCommittedIndex returns the last committed log index
+// NOTE: Holds the internal read lock of raft.
+func (r *Raft) getLastCommittedIndex() uint64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-	r.istate.clientRequests <- sr
-	resp := <-r.istate.clientResponses
-
-	if !resp {
-		log.WithFields(log.Fields{"id": r.id}).Error("raft::raft::clientSetRequest; error")
-		return fmt.Errorf("set request failed")
-	}
-
-	return nil
-}
-
-func (r *Raft) clientDeleteRequest(key []byte, meta bool) error {
-	log.WithFields(log.Fields{"id": r.id, "key": string(key)}).Info("raft::raft::clientDeleteRequest; received delete request")
-	dr := &deleteRequest{
-		key:  key,
-		meta: meta,
-	}
-
-	r.istate.clientRequests <- dr
-	resp := <-r.istate.clientResponses
-
-	if !resp {
-		log.WithFields(log.Fields{"id": r.id}).Error("raft::raft::clientDeleteRequest; error")
-		return fmt.Errorf("delete request failed")
-	}
-
-	return nil
+	return r.commitIndex
 }
 
 // RequestVote is used by the raft candidate to request for votes.
 // The current node has received a request to vote by another peer.
-func (r *Raft) requestVote(ctx context.Context, request *pb.RequestVoteRequest) (resp *pb.RequestVoteResponse, err error) {
-	log.WithFields(log.Fields{"id": r.id, "candidateId": request.CandidateId, "candidateTerm": request.Term}).Info("raft::raft::requestVote; received grpc request to vote;")
+// NOTE: Holds the internal lock of raft.
+func (r *Raft) handleRequestVote(ctx context.Context, req *pb.RequestVoteRequest) (resp *pb.RequestVoteResponse, err error) {
+	log.WithFields(log.Fields{"id": r.id, "candidateId": req.CandidateId, "candidateTerm": req.Term}).Info("raft::raft::requestVote; received grpc request to vote;")
 
-	r.istate.requestVoteRequests <- request
-	voteGranted := <-r.istate.requestVoteResponses
+	// todo: check role
+
+	r.mu.RLock()
+	ct := r.currentTerm
+	votedFor := r.votedFor
+	r.mu.RUnlock()
+
+	granted := false
+
+	if (req.Term > ct || (req.Term == ct && votedFor == noVote)) && r.isUpToDate(req) {
+		log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote yes")
+
+		r.mu.Lock()
+		r.istate.lastAppendOrVoteTime = time.Now()
+		r.setTerm(req.Term)
+		r.setVotedFor(req.CandidateId)
+		r.mu.Unlock()
+
+		granted = true
+	} else {
+		log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote no")
+	}
 
 	return &pb.RequestVoteResponse{
-		Term:        r.currentTerm.Get(),
-		VoteGranted: voteGranted,
+		Term:        ct,
+		VoteGranted: granted,
 		VoterId:     r.id,
 	}, err
 }
 
 // appendEntries is invoked by leader to replicate log entries; also used as heartbeat
-func (r *Raft) appendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (resp *pb.AppendEntriesResponse, err error) {
+// NOTE: Holds the internal lock of raft.
+func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (resp *pb.AppendEntriesResponse, err error) {
 	log.WithFields(log.Fields{"id": r.id, "leaderID": req.LeaderId, "leaderTerm": req.Term}).Info("raft::raft::appendEntries; received grpc request to append entries;")
 
-	r.istate.appendEntriesRequests <- req
-	resp = <-r.istate.appendEntriesReponses
+	r.mu.RLock()
+	ct := r.currentTerm
+	role := r.role
+	r.mu.RUnlock()
+
+	success := req.Term >= ct
+
+	if success {
+		r.mu.Lock()
+		r.istate.lastAppendOrVoteTime = time.Now()
+		r.mu.Unlock()
+
+		if role == candidate || (role == leader && req.Term > ct) {
+			r.becomeFollower(req.Term)
+		} else if role == follower {
+			lrl := r.getLogEntryOrDefault(req.PrevLogIndex)
+			if lrl.term == req.PrevLogTerm {
+				for idx, rlb := range req.Entries {
+					// insert at prevLogIndex + idx (0 based indexing) + 1
+					err := r.raftStorage.Set(common.U64ToByte(uint64(idx+1)+req.PrevLogIndex), rlb.Entry, nil)
+					if err != nil {
+						success = false // ?
+						break
+					}
+					r.setLastLogIndex(uint64(idx+1) + req.PrevLogIndex)
+				}
+			} else {
+				success = false
+			}
+
+			r.mu.Lock()
+			r.setTerm(req.Term)
+			r.mu.Unlock()
+		}
+	}
+
+	resp = &pb.AppendEntriesResponse{
+		Term:        ct,
+		Success:     success,
+		ResponderId: r.id,
+	}
+
+	// update commit index
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if req.LeaderCommit > r.commitIndex {
+		r.commitIndex = common.MinU64(req.LeaderCommit, r.lastLogIndex)
+	}
+
+	// trigger application to storage layer
+	r.istate.applyCommittedEntriesCh <- struct{}{}
 
 	return resp, err
+}
+
+// handleClientSetRequest handles the set request
+// NOTE: holds exclusive lock to the raft struct
+// returns false if the node is not the leader
+func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, bool, error) {
+	log.WithFields(log.Fields{"id": r.id, "key": string(key), "value": string(value)}).Info("raft::raft::handleClientSetRequest; received set request")
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.role != leader {
+		return 0, false, nil
+	}
+
+	var rl *raftLog
+
+	if meta {
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientSetRequest; metaset request")
+		rl = newMetaSetRaftLog(r.currentTerm, key, value)
+	} else {
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientSetRequest; set request")
+		rl = newSetRaftLog(r.currentTerm, key, value)
+	}
+
+	idx, err := r.submitRaftLog(rl)
+	if err != nil {
+		return 0, true, err
+	}
+
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleClientSetRequest; submitted set log at idx: %d", idx))
+	return idx, true, nil
+}
+
+// handleClientDeleteRequest handles the delete request
+// NOTE: holds exclusive lock to the raft struct
+// returns false if the node is not the leader
+func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, bool, error) {
+	log.WithFields(log.Fields{"id": r.id, "key": string(key)}).Info("raft::raft::handleClientDeleteRequest; received delete request")
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.role != leader {
+		return 0, false, nil
+	}
+
+	var rl *raftLog
+
+	if meta {
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientDeleteRequest; metadelete request")
+		rl = newMetaDeleteRaftLog(r.currentTerm, key)
+	} else {
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientDeleteRequest; delete request")
+		rl = newDeleteRaftLog(r.currentTerm, key)
+	}
+
+	idx, err := r.submitRaftLog(rl)
+	if err != nil {
+		return 0, true, err
+	}
+
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleClientDeleteRequest; submitted delete log at idx: %d", idx))
+	return idx, true, nil
 }
 
 //
 // internal functions
 //
 
-func (r *Raft) sendRequestVote(rl *raftLog, voterID uint64) (*pb.RequestVoteResponse, error) {
-	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendRequestVote; sending vote request to peer %d", voterID))
-	req := &pb.RequestVoteRequest{
-		Term:         r.currentTerm.Get(),
-		CandidateId:  r.id,
-		LastLogIndex: r.commitIndex.Get(),
-		LastLogTerm:  rl.term,
+// submitRaftLog submits the Raft log
+// NOTE: Expects exclusive lock to be held on the struct
+// returns the index of the log entry / error
+func (r *Raft) submitRaftLog(rl *raftLog) (uint64, error) {
+	err := r.raftStorage.Set(common.U64ToByte(r.lastLogIndex+1), rl.toBytes(), nil)
+	if err != nil {
+		log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::submitRaftLog; error in submitting request to the raft storage at idx: %d. err: %v", r.lastLogIndex+1, err))
+		return 0, err
 	}
-	return r.s.sendRequestVote(voterID, req)
-}
-
-// sendAppendEntries sends append entries to the given receiver using the info stored in r.allProgress
-// also acts as heartbeat.
-func (r *Raft) sendAppendEntries(receiverID uint64) (*pb.AppendEntriesResponse, error) {
-	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; sending append entries to peer %d", receiverID))
-
-	// we have to send entries from index p.Next to r.lastLogIndex
-	p := r.allProgress[receiverID]
-	lastRl := r.getLogEntryOrDefault(p.Next - 1)
-	prevLogIndex := p.Next - 1
-	prevLogTerm := lastRl.term
-
-	var entries []*pb.LogEntry
-	lim := r.lastLogIndex.Get()
-	for i := p.Next; i <= lim; i++ {
-		rl := r.getLogEntryOrDefault(i)
-		entry := &pb.LogEntry{
-			Entry: rl.toBytes(),
-		}
-		entries = append(entries, entry)
-	}
-
-	log.WithFields(log.Fields{"id": r.id, "p.Next": p.Next, "lim": lim}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
-
-	req := &pb.AppendEntriesRequest{
-		Term:         r.currentTerm.Get(),
-		LeaderId:     r.id,
-		PrevLogIndex: prevLogIndex,
-		PrevLogTerm:  prevLogTerm,
-		LeaderCommit: r.commitIndex.Get(),
-		Entries:      entries,
-	}
-	return r.s.sendAppendEntries(receiverID, req)
-}
-
-// follower does the role of a raft follower.
-func (r *Raft) follower() {
-	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; became follower;")
-
-	r.istate.followerRunning.Set(true)
-	defer r.istate.followerRunning.Set(false)
-
-	for {
-		select {
-		case <-r.istate.endFollower:
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; received on endFollower chan")
-			goto end
-
-		case req := <-r.istate.requestVoteRequests:
-			log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId, "candidateTerm": req.Term, "currentTerm": r.currentTerm.Get(), "votedFor": r.votedFor.Get()}).Info("raft::raft::followerroutine; request for vote received")
-			ct := r.currentTerm.Get()
-
-			if (req.Term > ct || (req.Term == ct && r.votedFor.Get() == noVote)) && r.isUpToDate(req) {
-				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote yes")
-				r.istate.lastAppendOrVoteTime = time.Now()
-				r.setTerm(req.Term)
-				r.setVotedFor(req.CandidateId)
-				r.istate.requestVoteResponses <- true
-			} else {
-				log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote no")
-				r.istate.requestVoteResponses <- false
-			}
-
-		case req := <-r.istate.appendEntriesRequests:
-			log.WithFields(log.Fields{"id": r.id, "leader": req.LeaderId, "leaderTerm": req.Term}).Info("raft::raft::followerroutine; leader append request received")
-			r.istate.lastAppendOrVoteTime = time.Now()
-
-			ct := r.currentTerm.Get()
-			success := req.Term >= ct
-
-			if success {
-				lrl := r.getLogEntryOrDefault(req.PrevLogIndex)
-				if lrl.term == req.PrevLogTerm {
-					for idx, rlb := range req.Entries {
-						// insert at prevLogIndex + idx (0 based indexing) + 1
-						err := r.raftStorage.Set(common.U64ToByte(uint64(idx+1)+req.PrevLogIndex), rlb.Entry, nil)
-						if err != nil {
-							success = false // ?
-							break
-						}
-						r.setLastLogIndex(uint64(idx+1) + req.PrevLogIndex)
-					}
-				} else {
-					success = false
-				}
-
-				r.istate.currentLeader.Set(req.LeaderId)
-				r.setTerm(req.Term)
-			}
-
-			resp := &pb.AppendEntriesResponse{
-				Term:        ct,
-				Success:     success,
-				ResponderId: r.id,
-			}
-
-			r.istate.appendEntriesReponses <- resp
-
-			// update commit index
-			if req.LeaderCommit > r.commitIndex.Get() {
-				r.commitIndex.Set(common.MinU64(req.LeaderCommit, r.lastLogIndex.Get()))
-			}
-
-			err := r.applyCommittedEntries()
-			if err != nil {
-				log.WithFields(log.Fields{"id": r.id, "leader": req.LeaderId, "leaderTerm": req.Term}).Error("raft::raft::followerroutine; error in applying log entry")
-			}
-		}
-	}
-
-end:
-	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::followerroutine; follower routine ending;")
+	r.lastLogIndex += 1
+	return r.lastLogIndex, nil
 }
 
 // isUpToDate returns if the candidate's log is to update in comparison to this node.
@@ -356,13 +356,18 @@ end:
 // if it's terms are different, we favour the later term.
 // in case of tie, we favour the index of the last term.
 // for more info check section 5.4.1 last paragraph of the paper.
+// NOTE: Don't hold lock while calling this function
 func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; starting")
 
+	r.mu.RLock()
+	commitIndex := r.commitIndex
+	r.mu.RUnlock()
+
 	// commit Index is 0 when the server just starts.
 	// In this case, the candidate will always be at least up to date as us.
-	if r.commitIndex.Get() > 0 {
-		b, err := r.raftStorage.Get(common.U64ToByte(r.commitIndex.Get()), &storage.ReadOptions{})
+	if commitIndex > 0 {
+		b, err := r.raftStorage.Get(common.U64ToByte(commitIndex), &storage.ReadOptions{})
 		if err != nil {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; return false due to error in getting raft log from storage")
 			return false
@@ -374,7 +379,7 @@ func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
 		}
 
 		// we decline if the candidate log is not at least up to date as us.
-		if rl.term > req.LastLogTerm || r.commitIndex.Get() > req.LastLogIndex {
+		if rl.term > req.LastLogTerm || commitIndex > req.LastLogIndex {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; returning false since candidate log is not up to date.")
 			return false
 		}
@@ -384,169 +389,406 @@ func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
 	return true
 }
 
-func (r *Raft) candidate() {
-	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; became candidate;")
-	r.istate.candRunning.Set(true)
-	defer r.istate.candRunning.Set(false)
-	for {
-		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; requesting votes")
-		cnt := 1 // counting self votes
-		voteRecCh := make(chan *pb.RequestVoteResponse, len(r.allProgress))
+// becomeFollower updates the role to follower
+// NOTE: Expects lock to be held by the caller
+func (r *Raft) becomeFollower(term uint64) {
+	log.WithFields(log.Fields{"newTerm": term}).Info("raft::raft::becomeFollower; started")
 
-		r.currentTerm.Increment()
-		r.setVotedFor(r.id)
-		rl := r.getLogEntryOrDefault(r.lastLogIndex.Get())
+	r.role = follower
+	r.setTerm(term)
+	r.setVotedFor(noVote)
+	r.istate.lastAppendOrVoteTime = time.Now()
 
-		for i := range r.allProgress {
-			if i != r.id {
-				go func(id uint64) {
-					resp, err := r.sendRequestVote(rl, id)
-					if err != nil {
-						log.Error(fmt.Sprintf("raft::raft::candidateroutine; error response to the vote request: %v", err))
-						return
+	go r.electionTimerChecker()
+
+	log.Info("raft::raft::becomeFollower; done")
+}
+
+// commitEntryRoutine commits the log entries
+// Spins a routine so doesn't block.
+func (r *Raft) commitEntryRoutine() {
+	log.Info("raft::raft::commitEntryRoutine; started")
+
+	go func() {
+		for {
+			r.mu.RLock()
+			role := r.role
+			ci := r.commitIndex
+			lastLogIndex := r.lastLogIndex
+			ct := r.currentTerm
+			r.mu.RUnlock()
+
+			if role != leader {
+				log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; no longer a leader. current state: %s", role))
+				return
+			}
+
+			for idx := ci + 1; idx <= lastLogIndex; idx++ {
+				rl := r.getLogEntryOrDefault(idx)
+				log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; trying to commit idx: %d", idx))
+				if rl.term == ct {
+					cnt := 1
+
+					for id, p := range r.allProgress {
+						if r.id != id && p.Match >= idx {
+							cnt++
+						}
 					}
 
-					// this is required since the voteRecCh channel could be closed due to timeout.
-					// TODO: find a better way if possible?
-					defer func() {
-						if rec := recover(); rec != nil {
-							log.Warn(fmt.Sprintf("raft::raft::candidateroutine; send request vote routine failed with: %v", rec))
-						}
-					}()
-					voteRecCh <- resp
-				}(i)
+					if isMajiority(cnt, len(r.allProgress)) {
+						r.mu.Lock()
+						r.commitIndex = idx
+						r.mu.Unlock()
+						log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; committed idx: %d", idx))
+					}
+				}
 			}
+
+			time.Sleep(10 * time.Millisecond)
 		}
+	}()
+}
 
-		t := time.After(getElectionTimeout())
+// applyCommittedEntries applies the already committed entries that haven't been applied yet.
+// it blocks hence should be a separate routine
+// it's always running in the background till the ch is closed.
+func (r *Raft) applyCommittedEntriesRoutine() {
+	log.Info("raft::raft::applyCommittedEntries; started")
 
-		for {
-			select {
-			case req := <-r.istate.appendEntriesRequests:
-				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::candidateroutine; received append request from %d", req.LeaderId))
+	for range r.istate.applyCommittedEntriesCh {
+		r.mu.RLock()
+		la := r.lastApplied
+		lli := r.commitIndex
+		r.mu.RUnlock()
 
-				if req.Term >= r.currentTerm.Get() {
-					log.Info(fmt.Sprintf("raft::raft::candidateroutine; request from %d is up to date. becoming follower", req.LeaderId))
-					r.istate.lastAppendOrVoteTime = time.Now()
-					r.setTerm(req.Term)
-					r.becomeFollower(candidate)
-					goto end
-				} else {
-					log.Info(fmt.Sprintf("raft::raft::candidateroutine; request from %d is stale. ignoring", req.LeaderId))
+		// we simply reapply all the entries.
+		// the paper suggests to check the log entries and only apply those
+		// which have a conflicting entry (term) at the same index.
+		for idx := la + 1; idx <= lli; idx++ {
+			rl := r.getLogEntryOrDefault(idx)
+			err := r.s.applyEntry(rl)
+			if err != nil {
+				log.Error(fmt.Sprintf("raft::raft::applyCommittedEntries; error in applying entry. Err: %v", err.Error()))
+				// todo: move to dead state
+			}
+
+			r.mu.Lock()
+			r.lastApplied = idx
+			r.mu.Unlock()
+		}
+	}
+
+	log.Info("raft::raft::applyCommittedEntries; done. closing...")
+}
+
+// sendAppendEntries sends append entry requests to the followers.
+// If there is nothing to send, it sends heartbeats.
+// NOTE: Don't hold the lock while calling this
+func (r *Raft) sendAppendEntries() {
+	log.Info("raft::raft::sendAppendEntries; sending append entry requests to followers")
+
+	r.mu.RLock()
+	lastLogIndex := r.lastLogIndex
+	currentTerm := r.currentTerm
+	leaderCommit := r.commitIndex
+	r.mu.RUnlock()
+
+	for i := range r.allProgress {
+		if i != r.id {
+			go func(receiverID uint64) {
+				// we have to send entries from index p.Next to r.lastLogIndex
+				p := r.allProgress[receiverID]
+				lastRl := r.getLogEntryOrDefault(p.Next - 1)
+				prevLogIndex := p.Next - 1
+				prevLogTerm := lastRl.term
+
+				var entries []*pb.LogEntry
+				lim := lastLogIndex
+				for i := p.Next; i <= lim; i++ {
+					rl := r.getLogEntryOrDefault(i)
+					entry := &pb.LogEntry{
+						Entry: rl.toBytes(),
+					}
+					entries = append(entries, entry)
 				}
 
-			case resp := <-voteRecCh:
-				log.WithFields(log.Fields{"id": r.id, "voterId": resp.VoterId, "granted": resp.VoteGranted}).Info(fmt.Sprintf("raft::raft::candidateroutine; received vote from %d", resp.VoterId))
-				if resp.Term > r.currentTerm.Get() {
-					log.WithFields(log.Fields{"id": r.id, "voterId": resp.VoterId}).Info(fmt.Sprintf("raft::raft::candidateroutine; vote from %d has higher term. becoming follower", resp.VoterId))
-					r.istate.lastAppendOrVoteTime = time.Now()
+				log.WithFields(log.Fields{"id": r.id, "p.Next": p.Next, "lim": lim}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
+
+				req := &pb.AppendEntriesRequest{
+					Term:         currentTerm,
+					LeaderId:     r.id,
+					PrevLogIndex: prevLogIndex,
+					PrevLogTerm:  prevLogTerm,
+					LeaderCommit: leaderCommit,
+					Entries:      entries,
+				}
+				resp, err := r.s.sendAppendEntries(receiverID, req)
+
+				if err != nil {
+					log.Error(fmt.Sprintf("raft::raft::sendAppendEntries; error in send append entries %v", err))
+					return
+				}
+
+				if resp.Term > currentTerm {
 					r.setTerm(resp.Term)
-					r.becomeFollower(candidate)
-					goto end
+					r.becomeFollower(resp.Term)
+					log.Info(fmt.Sprintf("raft::raft::sendAppendEntries; append entry response term is higher. becoming follower"))
 				}
 
-				if resp.VoteGranted {
-					cnt++
-				}
-
-				// become a leader as soon as you get majiority
-				if isMajiority(cnt, len(r.allProgress)) {
-					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; received majiority of votes. becoming leader")
-					r.becomeLeader(candidate)
-					goto end
-				}
-
-			case <-t:
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; leader election timed out.")
-				close(voteRecCh)
-				goto restart
-			}
-		}
-
-	restart:
-		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; didn't receive majiority votes; restarting...")
-	}
-
-end:
-	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::candidateroutine; ending;")
-}
-
-func (r *Raft) leader() {
-	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; became leader;")
-	r.istate.leaderRunning.Set(true)
-	defer r.istate.leaderRunning.Set(false)
-
-	r.initializeLeaderVolatileState()
-
-	for {
-		select {
-		case <-r.istate.endLeader:
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; received on endLeader chan")
-			goto end
-
-		case req := <-r.istate.clientRequests:
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; received a client request")
-			var rl *raftLog
-
-			switch request := req.(type) {
-			case *setRequest:
-				if !request.meta {
-					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; set request")
-					rl = newSetRaftLog(r.currentTerm.Get(), request.key, request.value)
+				if resp.Success {
+					p.Next = r.lastLogIndex + 1
+					p.Match = r.lastLogIndex
 				} else {
-					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; metaset request")
-					rl = newMetaSetRaftLog(r.currentTerm.Get(), request.key, request.value)
+					log.Info(fmt.Sprintf("raft::raft::sendAppendEntries; response from %d indicates failure. retrying with decremented next index", resp.ResponderId))
+					p.Next--
 				}
-			case *deleteRequest:
-				if !request.meta {
-					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; delete request")
-					rl = newDeleteRaftLog(r.currentTerm.Get(), request.key)
-				} else {
-					log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine;metadelete request")
-					rl = newMetaDeleteRaftLog(r.currentTerm.Get(), request.key)
-				}
-			default:
-				log.WithFields(log.Fields{"id": r.id}).Error("raft::raft::leaderroutine; invalid request")
-
-				// TODO: handle
-			}
-
-			lastIdx := r.lastLogIndex.Get()
-			err := r.raftStorage.Set(common.U64ToByte(lastIdx+1), rl.toBytes(), nil)
-			if err != nil {
-				// handle error
-			}
-			r.lastLogIndex.Increment()
-
-			// wait for the log to get replicated on a majiority by the append entry routine.
-			for {
-				if r.commitIndex.Get() >= r.lastLogIndex.Get() {
-					break
-				}
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; waiting for log to get replicated...")
-				time.Sleep(MinElectionTimeout / 5)
-			}
-
-			r.istate.clientResponses <- true
-
-			err = r.applyCommittedEntries()
-			if err != nil {
-				// handle error in application.
-			}
+			}(i)
 		}
 	}
-
-end:
-	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::leaderroutine; ending;")
 }
 
+// initializeLeaderVolatileState inits the volatile state for the leader
+// NOTE: Expects the lock to be held while calling this
 func (r *Raft) initializeLeaderVolatileState() {
 	for id, prog := range r.allProgress {
 		if id != r.id {
-			prog.Next = r.lastLogIndex.Get() + 1
+			prog.Next = r.lastLogIndex + 1
 			prog.Match = 0
 		}
 	}
+}
+
+// startLeader sets role to leader and initiates periodic append entry requests
+// It also initiates the commit entry routine for committing log entries
+// NOTE: Expects the lock to be held while calling this
+func (r *Raft) startLeader() {
+	r.role = leader
+	r.initializeLeaderVolatileState()
+	log.Info(fmt.Sprintf("raft::raft::startLeader; Became a leader with term: %d", r.currentTerm))
+
+	go func() {
+		ticker := time.NewTicker(50 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			r.sendAppendEntries()
+			<-ticker.C
+
+			r.mu.Lock()
+
+			// It could be because one of the responses to the append entry could have a higher term
+			// which would mean this node would be a follower now.
+			if r.role != leader {
+				r.mu.Unlock()
+				return
+			}
+
+			r.mu.Unlock()
+		}
+	}()
+
+	go r.commitEntryRoutine()
+}
+
+// startElection starts a leader election
+// it changes the role to a candidate and sends vote requests
+// NOTE: Expects the lock to be held while calling this
+func (r *Raft) startElection() {
+	log.Info("raft::raft::startElection; started")
+	r.role = candidate
+	r.currentTerm += 1
+	r.setVotedFor(r.id)
+	rl := r.getLogEntryOrDefault(r.lastLogIndex)
+
+	var count common.ProtectedUint64
+	count.Set(1)
+
+	term := r.currentTerm
+	lastLogIndex := r.lastLogIndex
+
+	for i := range r.allProgress {
+		if i != r.id {
+			go func(id uint64) {
+				req := &pb.RequestVoteRequest{
+					Term:         term,
+					CandidateId:  r.id,
+					LastLogIndex: lastLogIndex,
+					LastLogTerm:  rl.term,
+				}
+
+				resp, err := r.s.sendRequestVote(id, req)
+				if err != nil {
+					log.Error(fmt.Sprintf("raft::raft::startElection; error response to the vote request: %v", err))
+					return
+				}
+				log.Info(fmt.Sprintf("raft::raft::startElection; Received vote response from %d, granted: %v", resp.VoterId, resp.VoteGranted))
+
+				r.mu.Lock()
+				defer r.mu.Unlock()
+
+				if r.role != candidate {
+					log.Info(fmt.Sprintf("raft::raft::startElection; No longer a candidate after receiving vote response. state: %s", r.role))
+					return
+				}
+
+				if resp.Term > term {
+					log.Info(fmt.Sprintf("raft::raft::startElection; resp.Term (%d) is higher than saved term (%d). becoming follower..", resp.Term, term))
+					r.becomeFollower(resp.Term)
+					return
+				} else {
+					if resp.VoteGranted {
+						count.Increment()
+						if int(count.Get())*2 > len(r.allProgress) {
+							log.Info("raft::raft::startElection; became leader")
+							r.startLeader()
+							return
+						}
+					}
+				}
+
+			}(i)
+		}
+	}
+
+	// run checker to run another election if this one fails/times out
+	// if election was successful then it's okay since the checker returns if the role is leader/dead
+	go r.electionTimerChecker()
+}
+
+// electionTimerChecker checks for election timeout and triggers it when required
+func (r *Raft) electionTimerChecker() {
+	ts := getElectionTimeout()
+	r.mu.RLock()
+	term := r.currentTerm
+	r.mu.RUnlock()
+	log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; started. timeout = %d term = %d", ts, term))
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		<-ticker.C
+
+		r.mu.Lock()
+
+		// no need for election timer in leader/dead state
+		if r.role != candidate && r.role != follower {
+			log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; no longer a candidate/follower. state = %s term = %d", r.role, term))
+			r.mu.Unlock()
+			return
+		}
+
+		// if the term has increased. this can happen in the following conditions:
+		// a. if the follower receives an append entry message with a new term
+		// b. if a candidate receives an append entry and moves back to follower state
+		if r.currentTerm != term {
+			log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; current term doesn't match. exiting. current term = %s term = %d", r.currentTerm, term))
+			r.mu.Unlock()
+			return
+		}
+
+		if delta := time.Since(r.istate.lastAppendOrVoteTime); delta >= ts {
+			log.Info("raft::raft::electionTimerChecker; election timeout triggered. starting election")
+			r.startElection()
+			r.mu.Unlock()
+			return
+		}
+
+		r.mu.Unlock()
+	}
+}
+
+// NewRaft initializes a new raft state machine.
+func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server, ready <-chan interface{}) *Raft {
+	log.Info("raft::raft::NewRaft; started")
+	r := &Raft{
+		id:          kvConfig.ID,
+		raftStorage: raftStorage,
+		allProgress: initProgress(kvConfig.ID, kvConfig.Peers),
+		istate: &internalState{
+			clientRequests:       make(chan interface{}),
+			clientResponses:      make(chan bool),
+			lastAppendOrVoteTime: time.Now(),
+		},
+		kvConfig:     kvConfig,
+		s:            s,
+		maxRaftState: -1,
+		mu:           new(sync.RWMutex),
+	}
+
+	// volatile state
+	r.commitIndex = 0
+	r.lastApplied = 0
+	r.role = follower
+
+	// persistent state
+	r.currentTerm = r.getRaftMetaVal(termKey)
+	r.votedFor = r.getRaftMetaVal(votedForKey)
+	r.lastLogIndex = r.getRaftMetaVal(lastLogIndexKey)
+
+	// todo: apply the logs to the state machine.
+
+	// init election timer and apply committed entry routines
+	go func() {
+		<-ready
+
+		r.mu.Lock()
+		r.istate.lastAppendOrVoteTime = time.Now()
+		r.mu.Unlock()
+		r.electionTimerChecker()
+	}()
+	go r.applyCommittedEntriesRoutine()
+
+	log.Info("raft::raft::NewRaft; done")
+	return r
+}
+
+//
+// utilities
+//
+
+// setTerm sets the current term.
+// NOTE: expects caller to hold lock
+func (r *Raft) setTerm(term uint64) {
+	r.currentTerm = term
+	err := r.raftStorage.Set(termKey, common.U64ToByte(term), &storage.WriteOptions{Sync: true})
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::raft::setTerm; error during persisting current term %v", err.Error()))
+	}
+}
+
+// setVotedFor sets the voted for
+// NOTE: expects caller to hold lock
+func (r *Raft) setVotedFor(id uint64) {
+	r.votedFor = id
+	err := r.raftStorage.Set(votedForKey, common.U64ToByte(id), &storage.WriteOptions{Sync: true})
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::raft::setVotedFor; error during persisting votedFor %v", err.Error()))
+	}
+}
+
+// setLastLogIndex sets the last log index
+// NOTE: expects caller to hold lock
+func (r *Raft) setLastLogIndex(index uint64) {
+	r.lastLogIndex = index
+	err := r.raftStorage.Set(lastLogIndexKey, common.U64ToByte(index), &storage.WriteOptions{Sync: true})
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::raft::setLastLogIndex; error during persisting last log index %v", err.Error()))
+	}
+}
+
+// getRaftMetaVal gets the value of raft meta value persisted on the disk
+// in case of error, it assumes that this is the first boot, hence returns 0
+func (r *Raft) getRaftMetaVal(key []byte) uint64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	val, err := r.raftStorage.Get(key, nil)
+	if err != nil {
+		return 0
+	}
+
+	return common.ByteToU64(val)
 }
 
 // getLogEntryOrDefault returns the raft log at given index or dummy.
@@ -571,351 +813,6 @@ func (r *Raft) getLogEntryOrDefault(idx uint64) *raftLog {
 	return rl
 }
 
-// applyCommittedEntries applies the already committed entries that haven't been applied yet.
-func (r *Raft) applyCommittedEntries() error {
-	log.Info("raft::raft::applyCommittedEntries; started")
-
-	la := r.lastApplied.Get()
-	lli := r.commitIndex.Get()
-
-	// we simply reapply all the entries.
-	// the paper suggests to check the log entries and only apply those
-	// which have a conflicting entry (term) at the same index.
-	for idx := la + 1; idx <= lli; idx++ {
-		rl := r.getLogEntryOrDefault(idx)
-		err := r.s.applyEntry(rl)
-		if err != nil {
-			log.Error(fmt.Sprintf("raft::raft::applyCommittedEntries; error in applying entry. Err: %v", err.Error()))
-			return err
-		}
-
-		r.lastApplied.Set(idx)
-	}
-
-	log.Info("raft::raft::applyCommittedEntries; done")
-	return nil
-}
-
-// setTerm sets the current term.
-// every update to the current term should be done via this function.
-func (r *Raft) setTerm(term uint64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	old := r.currentTerm.SetIfGreater(term)
-
-	// term was updated successfully, so persist it.
-	if old < term {
-		err := r.raftStorage.Set(termKey, common.U64ToByte(term), &storage.WriteOptions{Sync: true})
-		if err != nil {
-			log.Error(fmt.Sprintf("raft::raft::setTerm; error during persisting current term %v", err.Error()))
-		}
-	}
-}
-
-// setTerm sets the current term.
-// every update to the current term should be done via this function.
-func (r *Raft) setVotedFor(id uint64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.votedFor.Set(id)
-	err := r.raftStorage.Set(votedForKey, common.U64ToByte(id), &storage.WriteOptions{Sync: true})
-	if err != nil {
-		log.Error(fmt.Sprintf("raft::raft::setVotedFor; error during persisting votedFor %v", err.Error()))
-	}
-}
-
-// setTerm sets the current term.
-// every update to the current term should be done via this function.
-func (r *Raft) setLastLogIndex(index uint64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.lastLogIndex.Set(index)
-	err := r.raftStorage.Set(lastLogIndexKey, common.U64ToByte(index), &storage.WriteOptions{Sync: true})
-	if err != nil {
-		log.Error(fmt.Sprintf("raft::raft::setLastLogIndex; error during persisting last log index %v", err.Error()))
-	}
-}
-
-// getRaftMetaVal gets the value of raft meta value persisted on the disk
-// in case of error, it assumes that this is the first boot, hence returns 0
-func (r *Raft) getRaftMetaVal(key []byte) uint64 {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	val, err := r.raftStorage.Get(key, nil)
-	if err != nil {
-		return 0
-	}
-
-	return common.ByteToU64(val)
-}
-
-// becomeFollower updates the role to follower and blocks untill the cand and leader routines stop.
-// this is done to ensure that we only have one routine running at a time.
-// src - the current role from which this method has been called.
-// eg: if src = candidate, then it means that this method has been called from the candidate routine.
-// In this case we can expect the candidate routine to clean up itself and hence we don't wait for it to end.
-func (r *Raft) becomeFollower(src uint64) {
-	log.Info("raft::raft::becomeFollower; started")
-
-	r.role.Set(follower)
-	for {
-		if (src == candidate || !r.istate.candRunning.Get()) && (src == leader || !r.istate.leaderRunning.Get()) {
-			break
-		}
-	}
-
-	log.Info("raft::raft::becomeFollower; done")
-}
-
-// becomeCandidate updates the role to follower and blocks untill the follower and leader routines stop.
-// this is done to ensure that we only have one routine running at a time.
-func (r *Raft) becomeCandidate(src uint64) {
-	log.Info("raft::raft::becomeCandidate; started")
-
-	if r.istate.followerRunning.Get() {
-		r.istate.endFollower <- true
-	}
-	r.setVotedFor(noVote)
-	r.role.Set(candidate)
-	for {
-		if (src == follower || !r.istate.followerRunning.Get()) && (src == leader && !r.istate.leaderRunning.Get()) {
-			break
-		}
-	}
-
-	log.Info("raft::raft::becomeCandidate; done")
-}
-
-// becomeLeader updates the role to follower and blocks untill the cand and follower routines stop.
-// this is done to ensure that we only have one routine running at a time.
-func (r *Raft) becomeLeader(src uint64) {
-	log.Info("raft::raft::becomeLeader; started")
-
-	if r.istate.followerRunning.Get() {
-		r.istate.endFollower <- true
-	}
-	r.role.Set(leader)
-	for {
-		if (src == candidate || !r.istate.candRunning.Get()) && (src == follower || !r.istate.followerRunning.Get()) {
-			break
-		}
-	}
-
-	log.Info("raft::raft::becomeLeader; done")
-}
-
-func (r *Raft) electionTimerRoutine() {
-	log.Info("raft::raft::electionTimerRoutine; started")
-
-	go func() {
-		time.Sleep(2 * time.Second) // wait for other components to init
-		for {
-			if r.role.Get() == follower {
-				ts := getElectionTimeout()
-				if time.Now().Sub(r.istate.lastAppendOrVoteTime) > ts {
-					log.Info("raft::raft::electionTimerRoutine; election timeout triggered; sending end signal to follower")
-					r.becomeCandidate(norole)
-				}
-			}
-
-			time.Sleep(1000 * time.Millisecond)
-		}
-	}()
-
-	log.Info("raft::raft::electionTimerRoutine; done")
-}
-
-// appendEntryRoutine sends append entry requests to the followers.
-// If there is nothing to send, it sends heartbeats.
-func (r *Raft) appendEntryRoutine() {
-	log.Info("raft::raft::appendEntryRoutine; started")
-
-	go func() {
-		for {
-			if r.role.Get() == leader {
-				ch := make(chan *pb.AppendEntriesResponse, len(r.allProgress))
-
-				for i := range r.allProgress {
-					if i != r.id {
-						go func(id uint64) {
-							resp, err := r.sendAppendEntries(id)
-							if err != nil {
-								log.Error(fmt.Sprintf("raft::raft::appendEntryRoutine; error in send append entries %v", err))
-								return
-							}
-
-							// this is required since the ch channel could be closed due to timeout.
-							// TODO: find a better way if possible?
-							defer func() {
-								if rec := recover(); rec != nil {
-									log.Warn(fmt.Sprintf("raft::raft::appendEntryRoutine; send append entries routine failed with: %v", rec))
-								}
-							}()
-
-							ch <- resp
-						}(i)
-					}
-				}
-
-				t := time.After(MinElectionTimeout / 3)
-				cnt := 1
-
-				for {
-					select {
-					case resp := <-ch:
-						if resp.Term > r.currentTerm.Get() {
-							r.setTerm(resp.Term)
-							r.istate.currentLeader.Set(resp.ResponderId)
-							r.becomeFollower(norole)
-							goto out
-						}
-
-						p := r.allProgress[resp.ResponderId]
-						if resp.Success {
-							p.Next = r.lastLogIndex.Get() + 1
-							p.Match = r.lastLogIndex.Get()
-						} else {
-							p.Next-- // retry with decremented next index
-						}
-
-						cnt++
-						if cnt == len(r.allProgress) {
-							log.Info("raft::raft::appendEntryRoutine; received response from everyone.")
-							goto out
-						}
-
-					case <-t:
-						log.Warn("raft::raft::appendEntryRoutine; timed out in sending append entries.")
-						close(ch)
-						goto out
-					}
-				}
-			}
-
-		out:
-			time.Sleep(MinElectionTimeout / 4)
-		}
-	}()
-
-	log.Info("raft::raft::appendEntryRoutine; done")
-}
-
-func (r *Raft) commitEntryRoutine() {
-	log.Info("raft::raft::commitEntryRoutine; started")
-
-	go func() {
-		for {
-			if r.role.Get() == leader {
-				ci := r.commitIndex.Get()
-				for idx := ci + 1; idx <= r.lastLogIndex.Get(); idx++ {
-					rl := r.getLogEntryOrDefault(idx)
-					log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; trying to commit idx: %d", idx))
-					if rl.term == r.currentTerm.Get() {
-						cnt := 1
-
-						for id, p := range r.allProgress {
-							if r.id != id && p.Match >= idx {
-								cnt++
-							}
-						}
-
-						if isMajiority(cnt, len(r.allProgress)) {
-							r.commitIndex.Set(idx)
-							log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; committed idx: %d", idx))
-						}
-					}
-				}
-			}
-
-			time.Sleep(MinElectionTimeout)
-		}
-	}()
-
-	log.Info("raft::raft::commitEntryRoutine; done")
-}
-
-func (r *Raft) init() {
-	log.Info("raft::raft::init; started")
-
-	r.electionTimerRoutine()
-	r.appendEntryRoutine()
-	r.commitEntryRoutine()
-
-	go func() {
-		time.Sleep(time.Second) // allow starting grpc server
-		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; starting;")
-
-		r.istate.running.Set(true)
-		for {
-			role := r.role.Get()
-
-			if role == follower {
-				r.follower()
-			} else if role == candidate {
-				r.candidate()
-			} else if role == leader {
-				r.leader()
-			} else if !r.istate.running.Get() {
-				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::initroutine; stopping;")
-				break
-			}
-		}
-	}()
-
-	log.Info("raft::raft::init; done")
-}
-
-func (r *Raft) close() {
-	// close channels etc.
-
-	// close raft storage
-	r.raftStorage.Close()
-}
-
-// NewRaft initializes a new raft state machine.
-func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server) *Raft {
-	log.Info("raft::raft::NewRaft; started")
-	r := &Raft{
-		id:          kvConfig.ID,
-		raftStorage: raftStorage,
-		allProgress: initProgress(kvConfig.ID, kvConfig.Peers),
-		istate: &internalState{
-			clientRequests:        make(chan interface{}),
-			clientResponses:       make(chan bool),
-			appendEntriesRequests: make(chan *pb.AppendEntriesRequest),
-			appendEntriesReponses: make(chan *pb.AppendEntriesResponse),
-			requestVoteRequests:   make(chan *pb.RequestVoteRequest),
-			requestVoteResponses:  make(chan bool),
-			endFollower:           make(chan bool),
-			endLeader:             make(chan bool),
-			lastAppendOrVoteTime:  time.Now(),
-		},
-		kvConfig:     kvConfig,
-		s:            s,
-		maxRaftState: -1,
-		mu:           new(sync.RWMutex),
-	}
-
-	// persistent state
-	r.currentTerm.Set(r.getRaftMetaVal(termKey))
-	r.votedFor.Set(r.getRaftMetaVal(votedForKey))
-	r.lastLogIndex.Set(r.getRaftMetaVal(lastLogIndexKey))
-
-	// volatile state
-	r.commitIndex.Set(0)
-	r.lastApplied.Set(0)
-	r.istate.currentLeader.Set(noLeader)
-	r.role.Set(follower)
-
-	r.init()
-	log.Info("raft::raft::NewRaft; done")
-	return r
-}
-
 // initProgress inits the progress map.
 // This is temporary and in case this node becomes the leader, it'll be
 // reupdated in the initializeLeaderVolatileState function
@@ -937,4 +834,11 @@ func initProgress(id uint64, peers []common.Peer) map[uint64]*Progress {
 
 	log.Info("raft::raft::initProgress; started")
 	return m
+}
+
+func (r *Raft) close() {
+	// close channels etc.
+
+	// close raft storage
+	r.raftStorage.Close()
 }

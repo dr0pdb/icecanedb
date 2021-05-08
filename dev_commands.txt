@@ -1,0 +1,10 @@
+Commands to test KV
+
+make build-kv
+
+./_output/icecanekv -configFilePath=local/1.yaml
+./_output/icecanekv -configFilePath=local/2.yaml
+./_output/icecanekv -configFilePath=local/3.yaml
+./_output/icecanekv -configFilePath=local/4.yaml
+./_output/icecanekv -configFilePath=local/5.yaml
+
