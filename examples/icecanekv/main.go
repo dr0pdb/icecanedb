@@ -63,9 +63,9 @@ func set(key, value []byte, txnID uint64) (*pb.SetResponse, error) {
 			log.Info(fmt.Sprintf("received resp from peer %d, result: %v", leaderID, resp))
 		}
 
-		if !resp.Success && resp.LeaderId != leaderID {
-			log.Info(fmt.Sprintf("different leader. updating"))
-			leaderID = resp.LeaderId
+		if !resp.Success && !resp.IsLeader {
+			log.Info("different leader. updating")
+			// todo: change leader
 			continue
 		}
 
@@ -99,9 +99,9 @@ func get(key []byte, txnID uint64) (*pb.GetResponse, error) {
 			log.Info(fmt.Sprintf("received resp from peer %d, result: %v", leaderID, resp))
 		}
 
-		if resp.LeaderId != leaderID {
-			log.Info(fmt.Sprintf("different leader. updating"))
-			leaderID = resp.LeaderId
+		if !resp.IsLeader {
+			log.Info("different leader. updating")
+			// todo: change leader
 			continue
 		}
 
@@ -135,9 +135,9 @@ func delete(key []byte, txnID uint64) (*pb.DeleteResponse, error) {
 			log.Info(fmt.Sprintf("received resp from peer %d, result: %v", leaderID, resp))
 		}
 
-		if resp.LeaderId != leaderID {
-			log.Info(fmt.Sprintf("different leader. updating"))
-			leaderID = resp.LeaderId
+		if !resp.IsLeader {
+			log.Info("different leader. updating")
+			// todo: change leader
 			continue
 		}
 

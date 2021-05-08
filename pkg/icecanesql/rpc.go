@@ -83,9 +83,9 @@ func (r *rpcRepository) set(key, value []byte) (bool, error) {
 		} else if resp.Error != "" {
 			log.Error(fmt.Sprintf("icecanesql::rpc::set; error response from the kv server: %v", resp.Error))
 			return false, fmt.Errorf(resp.Error)
-		} else if resp.LeaderId != r.leaderID {
+		} else if !resp.IsLeader {
 			log.Info("icecanesql::rpc::set; leader id different; updating and retrying...")
-			r.leaderID = resp.LeaderId
+			// todo: change leader
 			continue
 		}
 

@@ -17,7 +17,7 @@ message GetResponse {
   bytes value = 1;
   string error = 2;
   bool found = 3;
-  uint64 leader_id = 4;
+  bool is_leader = 4;
 }
 
 message SetRequest {
@@ -33,7 +33,7 @@ message SetRequest {
 message SetResponse {
   bool success = 1;
   string error = 2;
-  uint64 leader_id = 3;
+  bool is_leader = 3;
 }
 
 message DeleteRequest {
@@ -48,7 +48,7 @@ message DeleteRequest {
 message DeleteResponse {
   bool success = 1;
   string error = 2;
-  uint64 leader_id = 3;
+  bool is_leader = 3;
 }
 
 // TxnMode defines the mode of the txn.
@@ -66,7 +66,7 @@ message BeginTxnRequest {
 message BeginTxnResponse {
   bool success = 1;
   uint64 txn_id = 2;
-  uint64 leader_id = 3;
+  bool is_leader = 3;
 }
 
 message CommitTxnRequest {
@@ -76,7 +76,7 @@ message CommitTxnRequest {
 
 message CommitTxnResponse {
   bool success = 1;
-  uint64 leader_id = 2;
+  bool is_leader = 2;
   string error = 3;
 }
 
@@ -87,7 +87,7 @@ message RollbackTxnRequest {
 
 message RollbackTxnResponse {
   bool success = 1;
-  uint64 leader_id = 2;
+  bool is_leader = 2;
   string error = 3;
 }
 
