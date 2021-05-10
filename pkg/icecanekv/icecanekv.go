@@ -95,13 +95,18 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 	}
 
 	txnComp := mvcc.NewtxnKeyComparator()
-	raftServer, err := raft.NewRaftServer(kvConfig, raftPath, kvPath, kvMetaPath, txnComp)
+	ready := make(chan interface{})
+	raftServer, err := raft.NewRaftServer(kvConfig, raftPath, kvPath, kvMetaPath, txnComp, ready)
 	if err != nil {
 		log.Error(fmt.Sprintf("icecanekv::icecanekv::NewKVServer; error in creating raft server: %v", err))
 		return nil, err
 	}
 
 	kvMvcc := mvcc.NewMVCC(kvConfig.ID, raftServer)
+
+	// signal to start all the concurrent routines in raft
+	ready <- struct{}{}
+
 	log.Info("icecanekv::icecanekv::NewKVServer; done")
 	return &KVServer{
 		raftPath:   raftPath,

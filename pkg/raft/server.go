@@ -26,6 +26,14 @@ type Server struct {
 	// clientConnections contains the grpc client connections made with other raft peers.
 	// key: id of the peer.
 	clientConnections *common.ProtectedMapUConn
+
+	th *testHelpers
+}
+
+// testHelpers contains fields that are used in testing.
+type testHelpers struct {
+	// drop the rpc calls if this is true
+	drop bool
 }
 
 //
@@ -149,6 +157,10 @@ func (s *Server) MetaScan(target []byte) (storage.Iterator, bool, error) {
 func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; sending vote request to %d peer", voterID))
 
+	if s.th.drop {
+		return nil, fmt.Errorf("dropping request for testing")
+	}
+
 	conn, err := s.getOrCreateClientConnection(voterID)
 	if err != nil {
 		log.Error(fmt.Sprintf("raft::server::sendRequestVote; error in getting conn: %v", err))
@@ -167,6 +179,10 @@ func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest)
 
 func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendAppendEntries; sending append entries to peer %d", receiverID))
+
+	if s.th.drop {
+		return nil, fmt.Errorf("dropping request for testing")
+	}
 
 	conn, err := s.getOrCreateClientConnection(receiverID)
 	if err != nil {
@@ -263,7 +279,7 @@ func createAndOpenKVStorage(path, name string, txnComp storage.Comparator, opts 
 }
 
 // NewRaftServer creates a new instance of a Raft server
-func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath string, txnComp storage.Comparator) (*Server, error) {
+func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath string, txnComp storage.Comparator, ready <-chan interface{}) (*Server, error) {
 	log.Info("raft::server::NewRaftServer; started")
 
 	rOpts := &storage.Options{
@@ -298,9 +314,11 @@ func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath strin
 		kvMetaStorage:     kvMetaStorage,
 		kvConfig:          kvConfig,
 		clientConnections: common.NewProtectedMapUConn(),
+		th: &testHelpers{
+			drop: false,
+		},
 	}
 
-	ready := make(chan interface{})
 	raft := NewRaft(kvConfig, raftStorage, s, ready)
 	s.raft = raft
 

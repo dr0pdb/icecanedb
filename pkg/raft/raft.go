@@ -177,33 +177,34 @@ func (r *Raft) getLastCommittedIndex() uint64 {
 // The current node has received a request to vote by another peer.
 // NOTE: Holds the internal lock of raft.
 func (r *Raft) handleRequestVote(ctx context.Context, req *pb.RequestVoteRequest) (resp *pb.RequestVoteResponse, err error) {
-	log.WithFields(log.Fields{"id": r.id, "candidateId": req.CandidateId, "candidateTerm": req.Term}).Info("raft::raft::requestVote; received grpc request to vote;")
+	log.WithFields(log.Fields{"id": r.id, "candidateId": req.CandidateId, "candidateTerm": req.Term}).Info("raft::raft::handleRequestVote; received grpc request to vote;")
 
-	// todo: check role
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	r.mu.RLock()
-	ct := r.currentTerm
-	votedFor := r.votedFor
-	r.mu.RUnlock()
+	if r.role == dead {
+		return nil, fmt.Errorf("node is dead")
+	}
 
 	granted := false
+	if req.Term > r.currentTerm {
+		log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::handleRequestVote; vote request has higher term. becoming follower")
+		r.becomeFollower(req.Term)
+	}
 
-	if (req.Term > ct || (req.Term == ct && votedFor == noVote)) && r.isUpToDate(req) {
-		log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote yes")
+	if req.Term == r.currentTerm && (r.votedFor == noVote || r.votedFor == req.CandidateId) && r.isUpToDate(req) {
+		log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::handleRequestVote; vote yes")
 
-		r.mu.Lock()
 		r.istate.lastAppendOrVoteTime = time.Now()
-		r.setTerm(req.Term)
 		r.setVotedFor(req.CandidateId)
-		r.mu.Unlock()
 
 		granted = true
 	} else {
-		log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::followerroutine; vote no")
+		log.WithFields(log.Fields{"id": r.id, "candidate": req.CandidateId}).Info("raft::raft::handleRequestVote; vote no")
 	}
 
 	return &pb.RequestVoteResponse{
-		Term:        ct,
+		Term:        r.currentTerm,
 		VoteGranted: granted,
 		VoterId:     r.id,
 	}, err
@@ -212,23 +213,31 @@ func (r *Raft) handleRequestVote(ctx context.Context, req *pb.RequestVoteRequest
 // appendEntries is invoked by leader to replicate log entries; also used as heartbeat
 // NOTE: Holds the internal lock of raft.
 func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (resp *pb.AppendEntriesResponse, err error) {
-	log.WithFields(log.Fields{"id": r.id, "leaderID": req.LeaderId, "leaderTerm": req.Term}).Info("raft::raft::appendEntries; received grpc request to append entries;")
+	log.WithFields(log.Fields{"id": r.id, "leaderID": req.LeaderId, "leaderTerm": req.Term}).Info("raft::raft::handleAppendEntries; received grpc request to append entries;")
 
-	r.mu.RLock()
-	ct := r.currentTerm
-	role := r.role
-	r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	success := req.Term >= ct
+	if r.role == dead {
+		return nil, fmt.Errorf("node is dead")
+	}
 
-	if success {
-		r.mu.Lock()
-		r.istate.lastAppendOrVoteTime = time.Now()
-		r.mu.Unlock()
+	if req.Term > r.currentTerm {
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; append entry request has higher term. becoming follower")
+		r.becomeFollower(req.Term)
+	}
 
-		if role == candidate || (role == leader && req.Term > ct) {
+	success := false
+	if req.Term == r.currentTerm {
+		if r.role == candidate { // Raft guarantees it won't be the leader.
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; found the leader in the same term. becoming follower")
 			r.becomeFollower(req.Term)
-		} else if role == follower {
+		}
+
+		r.istate.lastAppendOrVoteTime = time.Now()
+		log.Info(fmt.Sprintf("raft::raft::handleAppendEntries; request info: %+v", req))
+
+		if len(req.Entries) > 0 {
 			lrl := r.getLogEntryOrDefault(req.PrevLogIndex)
 			if lrl.term == req.PrevLogTerm {
 				for idx, rlb := range req.Entries {
@@ -240,31 +249,31 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 					}
 					r.setLastLogIndex(uint64(idx+1) + req.PrevLogIndex)
 				}
-			} else {
-				success = false
-			}
 
-			r.mu.Lock()
-			r.setTerm(req.Term)
-			r.mu.Unlock()
+				// update commit index
+				if req.LeaderCommit > r.commitIndex {
+					r.commitIndex = common.MinU64(req.LeaderCommit, r.lastLogIndex)
+				}
+
+				// trigger application to storage layer
+				r.istate.applyCommittedEntriesCh <- struct{}{}
+
+				success = true
+				log.Info("raft::raft::handleAppendEntries; successfully applied append entries")
+			} else {
+				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleAppendEntries; term doesn't match for the PrevLogIndex: %d, req term: %d and log term: %d", req.PrevLogIndex, req.PrevLogTerm, lrl.term))
+			}
+		} else {
+			log.Info("raft::raft::handleAppendEntries; successfully received heartbeat")
+			success = true
 		}
 	}
 
 	resp = &pb.AppendEntriesResponse{
-		Term:        ct,
+		Term:        r.currentTerm,
 		Success:     success,
 		ResponderId: r.id,
 	}
-
-	// update commit index
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if req.LeaderCommit > r.commitIndex {
-		r.commitIndex = common.MinU64(req.LeaderCommit, r.lastLogIndex)
-	}
-
-	// trigger application to storage layer
-	r.istate.applyCommittedEntriesCh <- struct{}{}
 
 	return resp, err
 }
@@ -356,13 +365,11 @@ func (r *Raft) submitRaftLog(rl *raftLog) (uint64, error) {
 // if it's terms are different, we favour the later term.
 // in case of tie, we favour the index of the last term.
 // for more info check section 5.4.1 last paragraph of the paper.
-// NOTE: Don't hold lock while calling this function
+// NOTE: Expects lock to be held by the caller
 func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; starting")
 
-	r.mu.RLock()
 	commitIndex := r.commitIndex
-	r.mu.RUnlock()
 
 	// commit Index is 0 when the server just starts.
 	// In this case, the candidate will always be at least up to date as us.
@@ -530,9 +537,9 @@ func (r *Raft) sendAppendEntries() {
 				}
 
 				if resp.Term > currentTerm {
+					log.Info(fmt.Sprintf("raft::raft::sendAppendEntries; append entry response term %d is higher than current term %d. becoming follower", resp.Term, currentTerm))
 					r.setTerm(resp.Term)
 					r.becomeFollower(resp.Term)
-					log.Info(fmt.Sprintf("raft::raft::sendAppendEntries; append entry response term is higher. becoming follower"))
 				}
 
 				if resp.Success {
@@ -567,7 +574,7 @@ func (r *Raft) startLeader() {
 	log.Info(fmt.Sprintf("raft::raft::startLeader; Became a leader with term: %d", r.currentTerm))
 
 	go func() {
-		ticker := time.NewTicker(50 * time.Millisecond)
+		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
 
 		for {
@@ -650,12 +657,16 @@ func (r *Raft) startElection() {
 		}
 	}
 
+	// allow some time for this election to take place
+	time.Sleep(2 * time.Second)
+
 	// run checker to run another election if this one fails/times out
 	// if election was successful then it's okay since the checker returns if the role is leader/dead
 	go r.electionTimerChecker()
 }
 
 // electionTimerChecker checks for election timeout and triggers it when required
+// NOTE: Spin up a new routine while calling this
 func (r *Raft) electionTimerChecker() {
 	ts := getElectionTimeout()
 	r.mu.RLock()
@@ -682,7 +693,7 @@ func (r *Raft) electionTimerChecker() {
 		// a. if the follower receives an append entry message with a new term
 		// b. if a candidate receives an append entry and moves back to follower state
 		if r.currentTerm != term {
-			log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; current term doesn't match. exiting. current term = %s term = %d", r.currentTerm, term))
+			log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; current term doesn't match. exiting. current term = %d term = %d", r.currentTerm, term))
 			r.mu.Unlock()
 			return
 		}
@@ -706,9 +717,10 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 		raftStorage: raftStorage,
 		allProgress: initProgress(kvConfig.ID, kvConfig.Peers),
 		istate: &internalState{
-			clientRequests:       make(chan interface{}),
-			clientResponses:      make(chan bool),
-			lastAppendOrVoteTime: time.Now(),
+			clientRequests:          make(chan interface{}),
+			clientResponses:         make(chan bool),
+			lastAppendOrVoteTime:    time.Now(),
+			applyCommittedEntriesCh: make(chan interface{}),
 		},
 		kvConfig:     kvConfig,
 		s:            s,
@@ -750,6 +762,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 // setTerm sets the current term.
 // NOTE: expects caller to hold lock
 func (r *Raft) setTerm(term uint64) {
+	log.Info(fmt.Sprintf("raft::raft::setTerm; setting term: %d", term))
 	r.currentTerm = term
 	err := r.raftStorage.Set(termKey, common.U64ToByte(term), &storage.WriteOptions{Sync: true})
 	if err != nil {
@@ -760,6 +773,7 @@ func (r *Raft) setTerm(term uint64) {
 // setVotedFor sets the voted for
 // NOTE: expects caller to hold lock
 func (r *Raft) setVotedFor(id uint64) {
+	log.Info(fmt.Sprintf("raft::raft::setVotedFor; setting votedFor: %d", id))
 	r.votedFor = id
 	err := r.raftStorage.Set(votedForKey, common.U64ToByte(id), &storage.WriteOptions{Sync: true})
 	if err != nil {
@@ -770,6 +784,7 @@ func (r *Raft) setVotedFor(id uint64) {
 // setLastLogIndex sets the last log index
 // NOTE: expects caller to hold lock
 func (r *Raft) setLastLogIndex(index uint64) {
+	log.Info(fmt.Sprintf("raft::raft::setLastLogIndex; setting last log index: %d", index))
 	r.lastLogIndex = index
 	err := r.raftStorage.Set(lastLogIndexKey, common.U64ToByte(index), &storage.WriteOptions{Sync: true})
 	if err != nil {
@@ -836,8 +851,12 @@ func initProgress(id uint64, peers []common.Peer) map[uint64]*Progress {
 	return m
 }
 
+// close closes the raft routines
 func (r *Raft) close() {
-	// close channels etc.
+	r.mu.Lock()
+	r.role = dead
+	close(r.istate.applyCommittedEntriesCh)
+	r.mu.Unlock()
 
 	// close raft storage
 	r.raftStorage.Close()
