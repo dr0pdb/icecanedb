@@ -29,27 +29,27 @@ var (
 	lastLogIndexKey = []byte("lastLogIndex")
 )
 
-type state uint64
+type State uint64
 
 const (
-	leader state = iota
-	follower
-	candidate
-	dead
+	Leader State = iota
+	Follower
+	Candidate
+	Dead
 )
 
-func (s state) String() string {
+func (s State) String() string {
 	switch s {
-	case leader:
+	case Leader:
 		return "leader"
 
-	case follower:
+	case Follower:
 		return "follower"
 
-	case candidate:
+	case Candidate:
 		return "candidate"
 
-	case dead:
+	case Dead:
 		return "dead"
 
 	default:
@@ -123,7 +123,7 @@ type Raft struct {
 	allProgress map[uint64]*Progress
 
 	// this peer's role
-	role state
+	role State
 
 	// kvConfig is the complete key value config.
 	kvConfig *common.KVConfig
@@ -157,20 +157,11 @@ type internalState struct {
 
 // getNodeState returns the role, term of the node
 // NOTE: Holds the internal read lock of raft.
-func (r *Raft) getNodeState() (term uint64, role state) {
+func (r *Raft) getNodeState() (term, commitIdx uint64, role State) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return r.currentTerm, r.role
-}
-
-// getLastCommittedIndex returns the last committed log index
-// NOTE: Holds the internal read lock of raft.
-func (r *Raft) getLastCommittedIndex() uint64 {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	return r.commitIndex
+	return r.currentTerm, r.commitIndex, r.role
 }
 
 // RequestVote is used by the raft candidate to request for votes.
@@ -182,7 +173,7 @@ func (r *Raft) handleRequestVote(ctx context.Context, req *pb.RequestVoteRequest
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.role == dead {
+	if r.role == Dead {
 		return nil, fmt.Errorf("node is dead")
 	}
 
@@ -218,7 +209,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.role == dead {
+	if r.role == Dead {
 		return nil, fmt.Errorf("node is dead")
 	}
 
@@ -229,7 +220,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 
 	success := false
 	if req.Term == r.currentTerm {
-		if r.role == candidate { // Raft guarantees it won't be the leader.
+		if r.role == Candidate { // Raft guarantees it won't be the leader.
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; found the leader in the same term. becoming follower")
 			r.becomeFollower(req.Term)
 		}
@@ -287,7 +278,7 @@ func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, boo
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.role != leader {
+	if r.role != Leader {
 		return 0, false, nil
 	}
 
@@ -319,7 +310,7 @@ func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, bool, e
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.role != leader {
+	if r.role != Leader {
 		return 0, false, nil
 	}
 
@@ -401,7 +392,7 @@ func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
 func (r *Raft) becomeFollower(term uint64) {
 	log.WithFields(log.Fields{"newTerm": term}).Info("raft::raft::becomeFollower; started")
 
-	r.role = follower
+	r.role = Follower
 	r.setTerm(term)
 	r.setVotedFor(noVote)
 	r.istate.lastAppendOrVoteTime = time.Now()
@@ -425,7 +416,7 @@ func (r *Raft) commitEntryRoutine() {
 			ct := r.currentTerm
 			r.mu.RUnlock()
 
-			if role != leader {
+			if role != Leader {
 				log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; no longer a leader. current state: %s", role))
 				return
 			}
@@ -444,6 +435,7 @@ func (r *Raft) commitEntryRoutine() {
 
 					if isMajiority(cnt, len(r.allProgress)) {
 						r.mu.Lock()
+						r.s.updateRaftIdx(idx, r.commitIndex)
 						r.commitIndex = idx
 						r.mu.Unlock()
 						log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; committed idx: %d", idx))
@@ -569,12 +561,12 @@ func (r *Raft) initializeLeaderVolatileState() {
 // It also initiates the commit entry routine for committing log entries
 // NOTE: Expects the lock to be held while calling this
 func (r *Raft) startLeader() {
-	r.role = leader
+	r.role = Leader
 	r.initializeLeaderVolatileState()
 	log.Info(fmt.Sprintf("raft::raft::startLeader; Became a leader with term: %d", r.currentTerm))
 
 	go func() {
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(400 * time.Millisecond)
 		defer ticker.Stop()
 
 		for {
@@ -585,7 +577,7 @@ func (r *Raft) startLeader() {
 
 			// It could be because one of the responses to the append entry could have a higher term
 			// which would mean this node would be a follower now.
-			if r.role != leader {
+			if r.role != Leader {
 				r.mu.Unlock()
 				return
 			}
@@ -602,7 +594,7 @@ func (r *Raft) startLeader() {
 // NOTE: Expects the lock to be held while calling this
 func (r *Raft) startElection() {
 	log.Info("raft::raft::startElection; started")
-	r.role = candidate
+	r.role = Candidate
 	r.currentTerm += 1
 	r.setVotedFor(r.id)
 	rl := r.getLogEntryOrDefault(r.lastLogIndex)
@@ -633,7 +625,7 @@ func (r *Raft) startElection() {
 				r.mu.Lock()
 				defer r.mu.Unlock()
 
-				if r.role != candidate {
+				if r.role != Candidate {
 					log.Info(fmt.Sprintf("raft::raft::startElection; No longer a candidate after receiving vote response. state: %s", r.role))
 					return
 				}
@@ -683,7 +675,7 @@ func (r *Raft) electionTimerChecker() {
 		r.mu.Lock()
 
 		// no need for election timer in leader/dead state
-		if r.role != candidate && r.role != follower {
+		if r.role != Candidate && r.role != Follower {
 			log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; no longer a candidate/follower. state = %s term = %d", r.role, term))
 			r.mu.Unlock()
 			return
@@ -731,7 +723,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 	// volatile state
 	r.commitIndex = 0
 	r.lastApplied = 0
-	r.role = follower
+	r.role = Follower
 
 	// persistent state
 	r.currentTerm = r.getRaftMetaVal(termKey)
@@ -854,7 +846,7 @@ func initProgress(id uint64, peers []common.Peer) map[uint64]*Progress {
 // close closes the raft routines
 func (r *Raft) close() {
 	r.mu.Lock()
-	r.role = dead
+	r.role = Dead
 	close(r.istate.applyCommittedEntriesCh)
 	r.mu.Unlock()
 

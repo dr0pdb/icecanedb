@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
@@ -27,6 +28,9 @@ type Server struct {
 	// key: id of the peer.
 	clientConnections *common.ProtectedMapUConn
 
+	// the raft commit idx
+	raftCommitIdx uint64
+
 	th *testHelpers
 }
 
@@ -34,6 +38,14 @@ type Server struct {
 type testHelpers struct {
 	// drop the rpc calls if this is true
 	drop bool
+}
+
+type DiagInfo struct {
+	Role State
+
+	RaftCommitIdx uint64
+
+	Term uint64
 }
 
 //
@@ -49,6 +61,17 @@ func (s *Server) RequestVote(ctx context.Context, request *pb.RequestVoteRequest
 // AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
 func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	return s.raft.handleAppendEntries(ctx, request)
+}
+
+// GetDiagnosticInformation returns the diag state of the raft server
+func (s *Server) GetDiagnosticInformation() *DiagInfo {
+	term, commitIdx, role := s.raft.getNodeState()
+
+	return &DiagInfo{
+		Role:          role,
+		RaftCommitIdx: commitIdx,
+		Term:          term,
+	}
 }
 
 // Close cleanups the underlying resources of the raft server.
@@ -78,8 +101,8 @@ func (s *Server) Close() {
 // Scan returns an iterator to iterate over all the kv pairs whose key >= target
 func (s *Server) Scan(target []byte) (storage.Iterator, bool, error) {
 	log.Info("raft::server::Scan; started")
-	_, role := s.raft.getNodeState()
-	if role != leader {
+	_, _, role := s.raft.getNodeState()
+	if role != Leader {
 		return nil, false, nil
 	}
 
@@ -91,7 +114,7 @@ func (s *Server) Scan(target []byte) (storage.Iterator, bool, error) {
 // SetValue sets the value of the key and gets it replicated across peers
 func (s *Server) SetValue(key, value []byte, meta bool) (bool, error) {
 	log.Info("raft::server::SetValue; started")
-	_, success, err := s.raft.handleClientSetRequest(key, value, meta)
+	idx, success, err := s.raft.handleClientSetRequest(key, value, meta)
 	if err != nil {
 		return false, err
 	}
@@ -100,6 +123,11 @@ func (s *Server) SetValue(key, value []byte, meta bool) (bool, error) {
 	}
 
 	// wait for the idx to be committed
+	for {
+		if s.raftCommitIdx >= idx {
+			break
+		}
+	}
 
 	log.Info("raft::server::SetValue; done")
 	return true, err
@@ -109,7 +137,7 @@ func (s *Server) SetValue(key, value []byte, meta bool) (bool, error) {
 func (s *Server) DeleteValue(key []byte, meta bool) (bool, error) {
 	log.Info("raft::server::DeleteValue; started")
 
-	_, success, err := s.raft.handleClientDeleteRequest(key, meta)
+	idx, success, err := s.raft.handleClientDeleteRequest(key, meta)
 	if err != nil {
 		return false, err
 	}
@@ -118,6 +146,11 @@ func (s *Server) DeleteValue(key []byte, meta bool) (bool, error) {
 	}
 
 	// wait for idx to be committed
+	for {
+		if s.raftCommitIdx >= idx {
+			break
+		}
+	}
 
 	log.Info("raft::server::DeleteValue; done")
 	return true, err
@@ -126,8 +159,8 @@ func (s *Server) DeleteValue(key []byte, meta bool) (bool, error) {
 // MetaGetValue returns the value of the key from meta storage layer.
 func (s *Server) MetaGetValue(key []byte) ([]byte, bool, error) {
 	log.Info("raft::server::MetaGetValue; started")
-	_, role := s.raft.getNodeState()
-	if role != leader {
+	_, _, role := s.raft.getNodeState()
+	if role != Leader {
 		return nil, false, nil
 	}
 
@@ -139,8 +172,8 @@ func (s *Server) MetaGetValue(key []byte) ([]byte, bool, error) {
 // MetaScan returns an iterator to iterate over all the kv pairs whose key >= target
 func (s *Server) MetaScan(target []byte) (storage.Iterator, bool, error) {
 	log.Info("raft::server::MetaScan; started")
-	_, role := s.raft.getNodeState()
-	if role != leader {
+	_, _, role := s.raft.getNodeState()
+	if role != Leader {
 		return nil, false, nil
 	}
 
@@ -168,7 +201,7 @@ func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest)
 	}
 
 	client := pb.NewIcecaneKVClient(conn)
-	resp, err := client.RequestVote(context.Background(), request) //todo: do we need a different context?
+	resp, err := client.RequestVote(context.Background(), request)
 	if err != nil {
 		log.Error(fmt.Sprintf("raft::server::sendRequestVote; error in grpc request: %v", err))
 	} else {
@@ -191,7 +224,7 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 	}
 
 	client := pb.NewIcecaneKVClient(conn)
-	resp, err := client.AppendEntries(context.Background(), req) //todo: do we need a different context?
+	resp, err := client.AppendEntries(context.Background(), req)
 	if err != nil {
 		log.Error(fmt.Sprintf("raft::server::sendAppendEntries; error in grpc request: %v", err))
 	} else {
@@ -221,6 +254,15 @@ func (s *Server) applyEntry(rl *raftLog) (err error) {
 	}
 
 	return err
+}
+
+// updateRaftIdx updates the raft index in server
+func (s *Server) updateRaftIdx(idx, expected uint64) {
+	for {
+		if success := atomic.CompareAndSwapUint64(&s.raftCommitIdx, expected, idx); success {
+			break
+		}
+	}
 }
 
 //

@@ -23,7 +23,7 @@ type KVServer struct {
 	raftPath string
 
 	// the raft server
-	raftServer *raft.Server
+	RaftServer *raft.Server
 
 	// the key-value storage path
 	kvPath, kvMetaPath string
@@ -41,12 +41,12 @@ type KVServer struct {
 
 // RequestVote is used by the raft candidate to request for votes. The current server has to respond to this req by casting vote or decling.
 func (kvs *KVServer) RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	return kvs.raftServer.RequestVote(ctx, request)
+	return kvs.RaftServer.RequestVote(ctx, request)
 }
 
 // AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
 func (kvs *KVServer) AppendEntries(ctx context.Context, request *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
-	return kvs.raftServer.AppendEntries(ctx, request)
+	return kvs.RaftServer.AppendEntries(ctx, request)
 }
 
 // Get gets the value of a key.
@@ -82,7 +82,7 @@ func (kvs *KVServer) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest
 // Close cleans up the kv server
 func (kvs *KVServer) Close() {
 	log.Info("icecanekv::icecanekv::Close; started")
-	kvs.raftServer.Close()
+	kvs.RaftServer.Close()
 	log.Info("icecanekv::icecanekv::Close; done")
 }
 
@@ -113,7 +113,7 @@ func NewKVServer(kvConfig *common.KVConfig) (*KVServer, error) {
 		kvPath:     kvPath,
 		kvMvcc:     kvMvcc,
 		kvMetaPath: kvMetaPath,
-		raftServer: raftServer,
+		RaftServer: raftServer,
 		kvConfig:   kvConfig,
 	}, nil
 }

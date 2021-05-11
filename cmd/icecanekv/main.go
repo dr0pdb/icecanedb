@@ -38,7 +38,6 @@ import (
 var (
 	configFilePath     = "/etc/icecanekv.yaml"
 	configFilePathFlag = flag.String("configFilePath", "", "overrides the default config file path")
-	debug              = true
 	logFile            = false
 )
 
