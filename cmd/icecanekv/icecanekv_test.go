@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	icecanedbpb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
@@ -44,24 +46,28 @@ var (
 			Port:    "9005",
 		},
 	}
+
+	testDirectory = "/tmp/icecanetesting/"
 )
 
 type icecanekvTestHarness struct {
 	configs     []*common.KVConfig
 	grpcServers []*grpc.Server
 	kvServers   []*icecanekv.KVServer
+	connected   map[uint64]bool
 }
 
 func newRaftServerTestHarness() *icecanekvTestHarness {
 	var kvServers []*icecanekv.KVServer
 	var grpcServers []*grpc.Server
 	var configs []*common.KVConfig
+	connected := make(map[uint64]bool)
 
 	// setup each grpc server
 	for i := uint64(1); i <= 5; i++ {
 		config := &common.KVConfig{
 			ID:       i,
-			DbPath:   fmt.Sprintf("/tmp/icecanetesting/%d", i),
+			DbPath:   fmt.Sprintf("%s/%d", testDirectory, i),
 			LogLevel: "info",
 			Address:  "127.0.0.1",
 			Port:     fmt.Sprint(9000 + i),
@@ -74,6 +80,8 @@ func newRaftServerTestHarness() *icecanekvTestHarness {
 			}
 		}
 		config.Peers = p
+
+		os.RemoveAll(fmt.Sprintf("%s/%d", testDirectory, i))
 
 		server, err := icecanekv.NewKVServer(config)
 		if err != nil {
@@ -98,6 +106,7 @@ func newRaftServerTestHarness() *icecanekvTestHarness {
 		configs = append(configs, config)
 		kvServers = append(kvServers, server)
 		grpcServers = append(grpcServers, grpcServer)
+		connected[i] = true
 	}
 
 	// start the servers parallely
@@ -119,6 +128,7 @@ func newRaftServerTestHarness() *icecanekvTestHarness {
 		configs:     configs,
 		kvServers:   kvServers,
 		grpcServers: grpcServers,
+		connected:   connected,
 	}
 }
 
@@ -126,7 +136,22 @@ func (s *icecanekvTestHarness) teardown() {
 	for i := 0; i < 5; i++ {
 		s.kvServers[i].Close()
 		s.grpcServers[i].Stop()
+		os.RemoveAll(fmt.Sprintf("%s/%d", testDirectory, i+1))
 	}
+}
+
+func (s *icecanekvTestHarness) disconnectPeer(id uint64) {
+	// calls to id should be dropped
+	for i := uint64(1); i <= 5; i++ {
+		s.kvServers[i-1].RaftServer.Th.Drop[id] = true
+	}
+
+	// from id: every call should be dropped
+	for i := uint64(1); i <= 5; i++ {
+		s.kvServers[id-1].RaftServer.Th.Drop[i] = true
+	}
+
+	s.connected[id] = false
 }
 
 // checks if there exists a single leader in the raft cluster
@@ -137,6 +162,11 @@ func (s *icecanekvTestHarness) checkSingleLeader(t *testing.T) (uint64, uint64) 
 		leaderTerm := uint64(0)
 
 		for i := uint64(1); i <= 5; i++ {
+			// a disconnected could be lagging behind
+			if !s.connected[i] {
+				continue
+			}
+
 			diag := s.kvServers[i-1].RaftServer.GetDiagnosticInformation()
 
 			if diag.Role == raft.Leader {
@@ -153,16 +183,30 @@ func (s *icecanekvTestHarness) checkSingleLeader(t *testing.T) (uint64, uint64) 
 			return leaderId, leaderTerm
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	t.Errorf("no leader found")
 	return 0, 0
 }
 
-func TestRaftBasic(t *testing.T) {
+func TestRaftElectionBasic(t *testing.T) {
 	th := newRaftServerTestHarness()
 	defer th.teardown()
 
 	th.checkSingleLeader(t)
+}
+
+func TestRaftElectionLeaderDisconnectBasic(t *testing.T) {
+	th := newRaftServerTestHarness()
+	defer th.teardown()
+
+	leaderID, leaderTerm := th.checkSingleLeader(t)
+	th.disconnectPeer(leaderID)
+
+	time.Sleep(2 * time.Second)
+
+	newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
+	assert.NotEqual(t, newLeaderID, leaderID, fmt.Sprintf("error: newLeaderID still same as previous leaderID. newLeaderID: %d, leaderID: %d", newLeaderID, leaderID))
+	assert.Greater(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm <= leaderTerm.")
 }

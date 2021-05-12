@@ -13,13 +13,13 @@ import (
 )
 
 const (
-	minTimeoutSeconds = 1
-	maxTimeoutSeconds = 2
+	minTimeoutMiliseconds = 1000
+	maxTimeoutMiliSeconds = 1500
 
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
-	MinElectionTimeout = minTimeoutSeconds * time.Second
+	MinElectionTimeout = minTimeoutMiliseconds * time.Millisecond
 	// MaxElectionTimeout is the max duration for which a follower waits before becoming a candidate
-	MaxElectionTimeout = maxTimeoutSeconds * time.Second
+	MaxElectionTimeout = maxTimeoutMiliSeconds * time.Millisecond
 )
 
 // persistent state of the node
@@ -566,7 +566,7 @@ func (r *Raft) startLeader() {
 	log.Info(fmt.Sprintf("raft::raft::startLeader; Became a leader with term: %d", r.currentTerm))
 
 	go func() {
-		ticker := time.NewTicker(400 * time.Millisecond)
+		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
 		for {
@@ -650,7 +650,7 @@ func (r *Raft) startElection() {
 	}
 
 	// allow some time for this election to take place
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// run checker to run another election if this one fails/times out
 	// if election was successful then it's okay since the checker returns if the role is leader/dead

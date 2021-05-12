@@ -31,13 +31,13 @@ type Server struct {
 	// the raft commit idx
 	raftCommitIdx uint64
 
-	th *testHelpers
+	Th *TestHelpers
 }
 
-// testHelpers contains fields that are used in testing.
-type testHelpers struct {
-	// drop the rpc calls if this is true
-	drop bool
+// TestHelpers contains fields that are used in testing.
+type TestHelpers struct {
+	// Drop the rpc calls if this is true
+	Drop map[uint64]bool
 }
 
 type DiagInfo struct {
@@ -190,7 +190,7 @@ func (s *Server) MetaScan(target []byte) (storage.Iterator, bool, error) {
 func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendRequestVote; sending vote request to %d peer", voterID))
 
-	if s.th.drop {
+	if drop, ok := s.Th.Drop[voterID]; ok && drop {
 		return nil, fmt.Errorf("dropping request for testing")
 	}
 
@@ -213,7 +213,7 @@ func (s *Server) sendRequestVote(voterID uint64, request *pb.RequestVoteRequest)
 func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendAppendEntries; sending append entries to peer %d", receiverID))
 
-	if s.th.drop {
+	if drop, ok := s.Th.Drop[receiverID]; ok && drop {
 		return nil, fmt.Errorf("dropping request for testing")
 	}
 
@@ -356,8 +356,8 @@ func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath strin
 		kvMetaStorage:     kvMetaStorage,
 		kvConfig:          kvConfig,
 		clientConnections: common.NewProtectedMapUConn(),
-		th: &testHelpers{
-			drop: false,
+		Th: &TestHelpers{
+			Drop: make(map[uint64]bool),
 		},
 	}
 
