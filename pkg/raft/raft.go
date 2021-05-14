@@ -400,13 +400,13 @@ func (r *Raft) becomeFollower(term uint64) {
 
 	go r.electionTimerChecker()
 
-	log.Info("raft::raft::becomeFollower; done")
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::becomeFollower; done")
 }
 
 // commitEntryRoutine commits the log entries
 // Spins a routine so doesn't block.
 func (r *Raft) commitEntryRoutine() {
-	log.Info("raft::raft::commitEntryRoutine; started")
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::commitEntryRoutine; started")
 
 	go func() {
 		for {
@@ -418,13 +418,13 @@ func (r *Raft) commitEntryRoutine() {
 			r.mu.RUnlock()
 
 			if role != Leader {
-				log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; no longer a leader. current state: %s", role))
+				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::commitEntryRoutine; no longer a leader. current state: %s", role))
 				return
 			}
 
 			for idx := ci + 1; idx <= lastLogIndex; idx++ {
 				rl := r.getLogEntryOrDefault(idx)
-				log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; trying to commit idx: %d", idx))
+				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::commitEntryRoutine; trying to commit idx: %d", idx))
 				if rl.Term == ct {
 					cnt := 1
 
@@ -439,7 +439,7 @@ func (r *Raft) commitEntryRoutine() {
 						r.s.updateRaftIdx(idx, r.commitIndex)
 						r.commitIndex = idx
 						r.mu.Unlock()
-						log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; committed idx: %d", idx))
+						log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::commitEntryRoutine; committed idx: %d", idx))
 					}
 				}
 			}
@@ -459,7 +459,7 @@ func (r *Raft) commitEntryRoutine() {
 // it blocks hence should be a separate routine
 // it's always running in the background till the ch is closed.
 func (r *Raft) applyCommittedEntriesRoutine() {
-	log.Info("raft::raft::applyCommittedEntries; started")
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::applyCommittedEntries; started")
 
 	for range r.istate.applyCommittedEntriesCh {
 		r.mu.RLock()
@@ -476,7 +476,7 @@ func (r *Raft) applyCommittedEntriesRoutine() {
 			rl := r.getLogEntryOrDefault(idx)
 			err := r.s.applyEntry(rl)
 			if err != nil {
-				log.Error(fmt.Sprintf("raft::raft::applyCommittedEntries; error in applying entry. Err: %v", err.Error()))
+				log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::applyCommittedEntries; error in applying entry. Err: %v", err.Error()))
 				// todo: move to dead state
 			}
 
@@ -486,14 +486,14 @@ func (r *Raft) applyCommittedEntriesRoutine() {
 		}
 	}
 
-	log.Info("raft::raft::applyCommittedEntries; done. closing...")
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::applyCommittedEntries; done. closing...")
 }
 
 // sendAppendEntries sends append entry requests to the followers.
 // If there is nothing to send, it sends heartbeats.
 // NOTE: Don't hold the lock while calling this
 func (r *Raft) sendAppendEntries() {
-	log.Info("raft::raft::sendAppendEntries; sending append entry requests to followers")
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::sendAppendEntries; sending append entry requests to followers")
 
 	r.mu.RLock()
 	lastLogIndex := r.lastLogIndex
@@ -533,12 +533,12 @@ func (r *Raft) sendAppendEntries() {
 				resp, err := r.s.sendAppendEntries(receiverID, req)
 
 				if err != nil {
-					log.Error(fmt.Sprintf("raft::raft::sendAppendEntries; error in send append entries %v", err))
+					log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::sendAppendEntries; error in send append entries %v", err))
 					return
 				}
 
 				if resp.Term > currentTerm {
-					log.Info(fmt.Sprintf("raft::raft::sendAppendEntries; append entry response term %d is higher than current term %d. becoming follower", resp.Term, currentTerm))
+					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; append entry response term %d is higher than current term %d. becoming follower", resp.Term, currentTerm))
 					r.setTerm(resp.Term)
 					r.becomeFollower(resp.Term)
 				}
@@ -547,7 +547,7 @@ func (r *Raft) sendAppendEntries() {
 					p.Next = r.lastLogIndex + 1
 					p.Match = r.lastLogIndex
 				} else {
-					log.Info(fmt.Sprintf("raft::raft::sendAppendEntries; response from %d indicates failure. retrying with decremented next index", resp.ResponderId))
+					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; response from %d indicates failure. retrying with decremented next index", resp.ResponderId))
 					p.Next--
 				}
 			}(i)
@@ -572,7 +572,7 @@ func (r *Raft) initializeLeaderVolatileState() {
 func (r *Raft) startLeader() {
 	r.role = Leader
 	r.initializeLeaderVolatileState()
-	log.Info(fmt.Sprintf("raft::raft::startLeader; Became a leader with term: %d", r.currentTerm))
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::startLeader; Became a leader with term: %d", r.currentTerm))
 
 	go func() {
 		ticker := time.NewTicker(50 * time.Millisecond)
@@ -602,7 +602,7 @@ func (r *Raft) startLeader() {
 // it changes the role to a candidate and sends vote requests
 // NOTE: Expects the lock to be held while calling this
 func (r *Raft) startElection() {
-	log.Info("raft::raft::startElection; started")
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startElection; started")
 	r.role = Candidate
 	r.currentTerm += 1
 	r.setVotedFor(r.id)
@@ -630,25 +630,25 @@ func (r *Raft) startElection() {
 					log.Error(fmt.Sprintf("raft::raft::startElection; error response to the vote request: %v", err))
 					return
 				}
-				log.Info(fmt.Sprintf("raft::raft::startElection; Received vote response from %d, granted: %v", resp.VoterId, resp.VoteGranted))
+				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::startElection; Received vote response from %d, granted: %v", resp.VoterId, resp.VoteGranted))
 
 				r.mu.Lock()
 				defer r.mu.Unlock()
 
 				if r.role != Candidate {
-					log.Info(fmt.Sprintf("raft::raft::startElection; No longer a candidate after receiving vote response. state: %s", r.role))
+					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::startElection; No longer a candidate after receiving vote response. state: %s", r.role))
 					return
 				}
 
 				if resp.Term > term {
-					log.Info(fmt.Sprintf("raft::raft::startElection; resp.Term (%d) is higher than saved term (%d). becoming follower..", resp.Term, term))
+					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::startElection; resp.Term (%d) is higher than saved term (%d). becoming follower..", resp.Term, term))
 					r.becomeFollower(resp.Term)
 					return
 				} else {
 					if resp.VoteGranted {
 						count.Increment()
 						if int(count.Get())*2 > len(r.allProgress) {
-							log.Info("raft::raft::startElection; became leader")
+							log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startElection; became leader")
 							r.startLeader()
 							return
 						}
@@ -671,7 +671,7 @@ func (r *Raft) electionTimerChecker() {
 	r.mu.RLock()
 	term := r.currentTerm
 	r.mu.RUnlock()
-	log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; started. timeout = %d term = %d", ts, term))
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::electionTimerChecker; started. timeout = %d term = %d", ts, term))
 
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -683,7 +683,7 @@ func (r *Raft) electionTimerChecker() {
 
 		// no need for election timer in leader/dead state
 		if r.role != Candidate && r.role != Follower {
-			log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; no longer a candidate/follower. state = %s term = %d", r.role, term))
+			log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::electionTimerChecker; no longer a candidate/follower. state = %s term = %d", r.role, term))
 			r.mu.Unlock()
 			return
 		}
@@ -692,13 +692,13 @@ func (r *Raft) electionTimerChecker() {
 		// a. if the follower receives an append entry message with a new term
 		// b. if a candidate receives an append entry and moves back to follower state
 		if r.currentTerm != term {
-			log.Info(fmt.Sprintf("raft::raft::electionTimerChecker; current term doesn't match. exiting. current term = %d term = %d", r.currentTerm, term))
+			log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::electionTimerChecker; current term doesn't match. exiting. current term = %d term = %d", r.currentTerm, term))
 			r.mu.Unlock()
 			return
 		}
 
 		if delta := time.Since(r.istate.lastAppendOrVoteTime); delta >= ts {
-			log.Info("raft::raft::electionTimerChecker; election timeout triggered. starting election")
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::electionTimerChecker; election timeout triggered. starting election")
 			r.startElection()
 			r.mu.Unlock()
 			return
@@ -750,7 +750,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 	}()
 	go r.applyCommittedEntriesRoutine()
 
-	log.Info("raft::raft::NewRaft; done")
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::NewRaft; done")
 	return r
 }
 
@@ -761,33 +761,33 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 // setTerm sets the current term.
 // NOTE: expects caller to hold lock
 func (r *Raft) setTerm(term uint64) {
-	log.Info(fmt.Sprintf("raft::raft::setTerm; setting term: %d", term))
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::setTerm; setting term: %d", term))
 	r.currentTerm = term
 	err := r.raftStorage.Set(termKey, common.U64ToByte(term), &storage.WriteOptions{Sync: true})
 	if err != nil {
-		log.Error(fmt.Sprintf("raft::raft::setTerm; error during persisting current term %v", err.Error()))
+		log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::setTerm; error during persisting current term %v", err.Error()))
 	}
 }
 
 // setVotedFor sets the voted for
 // NOTE: expects caller to hold lock
 func (r *Raft) setVotedFor(id uint64) {
-	log.Info(fmt.Sprintf("raft::raft::setVotedFor; setting votedFor: %d", id))
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::setVotedFor; setting votedFor: %d", id))
 	r.votedFor = id
 	err := r.raftStorage.Set(votedForKey, common.U64ToByte(id), &storage.WriteOptions{Sync: true})
 	if err != nil {
-		log.Error(fmt.Sprintf("raft::raft::setVotedFor; error during persisting votedFor %v", err.Error()))
+		log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::setVotedFor; error during persisting votedFor %v", err.Error()))
 	}
 }
 
 // setLastLogIndex sets the last log index
 // NOTE: expects caller to hold lock
 func (r *Raft) setLastLogIndex(index uint64) {
-	log.Info(fmt.Sprintf("raft::raft::setLastLogIndex; setting last log index: %d", index))
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::setLastLogIndex; setting last log index: %d", index))
 	r.lastLogIndex = index
 	err := r.raftStorage.Set(lastLogIndexKey, common.U64ToByte(index), &storage.WriteOptions{Sync: true})
 	if err != nil {
-		log.Error(fmt.Sprintf("raft::raft::setLastLogIndex; error during persisting last log index %v", err.Error()))
+		log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::setLastLogIndex; error during persisting last log index %v", err.Error()))
 	}
 }
 
@@ -807,7 +807,7 @@ func (r *Raft) getRaftMetaVal(key []byte) uint64 {
 
 // getLogEntryOrDefault returns the raft log at given index or dummy.
 func (r *Raft) getLogEntryOrDefault(idx uint64) *RaftLog {
-	log.Info(fmt.Sprintf("raft::raft::getLogEntryOrDefault; getting log entry with idx: %d", idx))
+	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::getLogEntryOrDefault; getting log entry with idx: %d", idx))
 	rl := &RaftLog{
 		Term: 0,
 	}
@@ -815,11 +815,11 @@ func (r *Raft) getLogEntryOrDefault(idx uint64) *RaftLog {
 	if idx > 0 {
 		b, err := r.raftStorage.Get(common.U64ToByte(idx), &storage.ReadOptions{})
 		if err != nil {
-			log.Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in fetching log entry: %v", err))
+			log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in fetching log entry: %v", err))
 		} else {
 			rl, err = deserializeRaftLog(b)
 			if err != nil {
-				log.Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in deserializing log entry: %v", err))
+				log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in deserializing log entry: %v", err))
 			}
 		}
 	}
