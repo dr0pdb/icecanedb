@@ -67,17 +67,19 @@ func newIcecaneKVTestHarness() *icecanekvTestHarness {
 	// setup each grpc server
 	for i := uint64(1); i <= 5; i++ {
 		config := &common.KVConfig{
-			ID:       i,
-			DbPath:   fmt.Sprintf("%s/%d", testDirectory, i),
-			LogLevel: "info",
-			Address:  "127.0.0.1",
-			Port:     fmt.Sprint(9000 + i),
+			ID:         i,
+			DbPath:     fmt.Sprintf("%s/%d", testDirectory, i),
+			Address:    "127.0.0.1",
+			Port:       fmt.Sprint(9000 + i),
+			LogMVCC:    false,
+			LogRaft:    true,
+			LogStorage: false,
 		}
 
 		var p []common.Peer
-		for j := uint64(0); j < 5; j++ {
+		for j := uint64(1); j <= 5; j++ {
 			if i != j {
-				p = append(p, peers[j])
+				p = append(p, peers[j-1])
 			}
 		}
 		config.Peers = p
@@ -208,8 +210,8 @@ func TestRaftElectionStability(t *testing.T) {
 	for i := 0; i < 15; i++ {
 		time.Sleep(time.Second)
 		newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
-		assert.NotEqual(t, leaderID, newLeaderID, "")
-		assert.NotEqual(t, leaderTerm, newLeaderTerm, "")
+		assert.Equal(t, leaderID, newLeaderID, "leaderid is not equal to newLeader id")
+		assert.Equal(t, leaderTerm, newLeaderTerm, "leader term is not equal to new leader term")
 	}
 }
 
@@ -245,8 +247,10 @@ func TestRaftLeaderWriteSucceeds(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	// check on a follower
-	rl2 := th.kvServers[leaderId%5].RaftServer.GetLogAtIndex(1)
-	assert.Equal(t, test.TestKeys[0], rl2.Key, "follower: saved key and returned key from log is not same")
-	assert.Equal(t, test.TestValues[0], rl2.Value, "follower: saved key and returned key from log is not same")
+	// check on each node
+	for i := 0; i < 5; i++ {
+		rl2 := th.kvServers[i].RaftServer.GetLogAtIndex(1)
+		assert.Equal(t, test.TestKeys[0], rl2.Key, fmt.Sprintf("On id: %d saved key and returned key from log is not same", i+1))
+		assert.Equal(t, test.TestValues[0], rl2.Value, fmt.Sprintf("On id: %d saved key and returned key from log is not same", i+1))
+	}
 }

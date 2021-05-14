@@ -233,6 +233,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 			if lrl.Term == req.PrevLogTerm {
 				for idx, rlb := range req.Entries {
 					// insert at prevLogIndex + idx (0 based indexing) + 1
+					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleAppendEntries; inserting log at index: %+v", uint64(idx+1)+req.PrevLogIndex))
 					err := r.raftStorage.Set(common.U64ToByte(uint64(idx+1)+req.PrevLogIndex), rlb.Entry, nil)
 					if err != nil {
 						success = false // ?
@@ -250,12 +251,12 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 				r.istate.applyCommittedEntriesCh <- struct{}{}
 
 				success = true
-				log.Info("raft::raft::handleAppendEntries; successfully applied append entries")
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; successfully applied append entries")
 			} else {
 				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleAppendEntries; term doesn't match for the PrevLogIndex: %d, req term: %d and log term: %d", req.PrevLogIndex, req.PrevLogTerm, lrl.Term))
 			}
 		} else {
-			log.Info("raft::raft::handleAppendEntries; successfully received heartbeat")
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; successfully received heartbeat")
 			success = true
 		}
 	}
@@ -465,6 +466,8 @@ func (r *Raft) applyCommittedEntriesRoutine() {
 		la := r.lastApplied
 		lli := r.commitIndex
 		r.mu.RUnlock()
+
+		log.WithFields(log.Fields{"lastApplied": la, "commitIndex": lli}).Info("raft::raft::applyCommittedEntries; triggered. ")
 
 		// we simply reapply all the entries.
 		// the paper suggests to check the log entries and only apply those

@@ -41,21 +41,24 @@ type Peer struct {
 
 // KVConfig defines the configuration settings for IcecaneKV
 type KVConfig struct {
-	ID       uint64 `yaml:"id"`
-	DbPath   string `yaml:"dbPath"`
-	LogLevel string `yaml:"logLevel"`
-	Address  string `yaml:"address"`
-	Port     string `yaml:"port"`
+	ID      uint64 `yaml:"id"`
+	DbPath  string `yaml:"dbPath"`
+	Address string `yaml:"address"`
+	Port    string `yaml:"port"`
 
 	// Peers contains the list of all the icecanekv instances excluding this server.
 	Peers []Peer `yaml:"peers"`
+
+	// Logging config
+	LogMVCC    bool
+	LogRaft    bool
+	LogStorage bool
 }
 
 // NewDefaultKVConfig returns a new default key vault configuration.
 func NewDefaultKVConfig() *KVConfig {
 	return &KVConfig{
-		DbPath:   "/var/lib/icecanekv",
-		LogLevel: "info",
+		DbPath: "/var/lib/icecanekv",
 	}
 }
 

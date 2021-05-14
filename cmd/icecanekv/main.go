@@ -39,6 +39,9 @@ var (
 	configFilePath     = "/etc/icecanekv.yaml"
 	configFilePathFlag = flag.String("configFilePath", "", "overrides the default config file path")
 	logFile            = false
+	mvccLog            = flag.Bool("mvccLog", false, "enable mvcc layer logging")
+	raftLog            = flag.Bool("raftLog", false, "enable raft layer logging")
+	storageLog         = flag.Bool("storageLog", false, "enable storage layer logging")
 )
 
 func main() {
@@ -50,6 +53,11 @@ func main() {
 		configFilePath = *configFilePathFlag
 	}
 	conf.LoadFromFile(configFilePath)
+
+	conf.LogMVCC = *mvccLog
+	conf.LogRaft = *raftLog
+	conf.LogStorage = *storageLog
+
 	err := conf.Validate()
 	if err != nil {
 		log.Fatalf("%V", err)
