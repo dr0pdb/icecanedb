@@ -1,4 +1,4 @@
-package main
+package icecanekv
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
-	"github.com/dr0pdb/icecanedb/pkg/icecanekv"
 	icecanedbpb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
 	"github.com/dr0pdb/icecanedb/test"
@@ -54,12 +53,12 @@ var (
 type icecanekvTestHarness struct {
 	configs     []*common.KVConfig
 	grpcServers []*grpc.Server
-	kvServers   []*icecanekv.KVServer
+	kvServers   []*KVServer
 	connected   map[uint64]bool
 }
 
 func newIcecaneKVTestHarness() *icecanekvTestHarness {
-	var kvServers []*icecanekv.KVServer
+	var kvServers []*KVServer
 	var grpcServers []*grpc.Server
 	var configs []*common.KVConfig
 	connected := make(map[uint64]bool)
@@ -86,7 +85,7 @@ func newIcecaneKVTestHarness() *icecanekvTestHarness {
 
 		os.RemoveAll(fmt.Sprintf("%s/%d", testDirectory, i))
 
-		server, err := icecanekv.NewKVServer(config)
+		server, err := NewKVServer(config)
 		if err != nil {
 			log.Fatalf("%V", err)
 		}
@@ -245,6 +244,7 @@ func TestRaftLeaderWriteSucceeds(t *testing.T) {
 	assert.Equal(t, test.TestKeys[0], rl.Key, "leader: saved key and returned key from log is not same")
 	assert.Equal(t, test.TestValues[0], rl.Value, "leader: saved key and returned key from log is not same")
 
+	// allow entry to be replicated on followers
 	time.Sleep(2 * time.Second)
 
 	// check on each node
