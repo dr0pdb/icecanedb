@@ -188,9 +188,9 @@ func (s *Server) GetDiagnosticInformation() *DiagInfo {
 }
 
 // GetLogAtIndex returns the raft log present at the given index
-// Returns an error if nothing is found
-func (s *Server) GetLogAtIndex(idx uint64) {
-
+// Returns default logs if nothing is found
+func (s *Server) GetLogAtIndex(idx uint64) *RaftLog {
+	return s.raft.getLogEntryOrDefault(idx)
 }
 
 //

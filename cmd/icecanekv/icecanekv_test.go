@@ -58,7 +58,7 @@ type icecanekvTestHarness struct {
 	connected   map[uint64]bool
 }
 
-func newRaftServerTestHarness() *icecanekvTestHarness {
+func newIcecaneKVTestHarness() *icecanekvTestHarness {
 	var kvServers []*icecanekv.KVServer
 	var grpcServers []*grpc.Server
 	var configs []*common.KVConfig
@@ -192,14 +192,29 @@ func (s *icecanekvTestHarness) checkSingleLeader(t *testing.T) (uint64, uint64) 
 }
 
 func TestRaftElectionBasic(t *testing.T) {
-	th := newRaftServerTestHarness()
+	th := newIcecaneKVTestHarness()
 	defer th.teardown()
 
 	th.checkSingleLeader(t)
 }
 
+// without network partitions, leader and it's term should remain same
+func TestRaftElectionStability(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderID, leaderTerm := th.checkSingleLeader(t)
+
+	for i := 0; i < 15; i++ {
+		time.Sleep(time.Second)
+		newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
+		assert.NotEqual(t, leaderID, newLeaderID, "")
+		assert.NotEqual(t, leaderTerm, newLeaderTerm, "")
+	}
+}
+
 func TestRaftElectionLeaderDisconnectBasic(t *testing.T) {
-	th := newRaftServerTestHarness()
+	th := newIcecaneKVTestHarness()
 	defer th.teardown()
 
 	leaderID, leaderTerm := th.checkSingleLeader(t)
@@ -213,12 +228,25 @@ func TestRaftElectionLeaderDisconnectBasic(t *testing.T) {
 }
 
 func TestRaftLeaderWriteSucceeds(t *testing.T) {
-	th := newRaftServerTestHarness()
+	th := newIcecaneKVTestHarness()
 	defer th.teardown()
 
 	leaderId, _ := th.checkSingleLeader(t)
 
+	// should be inserted at idx 1
 	success, err := th.kvServers[leaderId-1].RaftServer.SetValue(test.TestKeys[0], test.TestValues[0], false)
 	assert.Nil(t, err, "Unexpected error while writing to leader")
 	assert.True(t, success, "Unexpected failure in writing to leader")
+
+	// changes should be visible on the leader instantly
+	rl := th.kvServers[leaderId-1].RaftServer.GetLogAtIndex(1)
+	assert.Equal(t, test.TestKeys[0], rl.Key, "leader: saved key and returned key from log is not same")
+	assert.Equal(t, test.TestValues[0], rl.Value, "leader: saved key and returned key from log is not same")
+
+	time.Sleep(2 * time.Second)
+
+	// check on a follower
+	rl2 := th.kvServers[leaderId%5].RaftServer.GetLogAtIndex(1)
+	assert.Equal(t, test.TestKeys[0], rl2.Key, "follower: saved key and returned key from log is not same")
+	assert.Equal(t, test.TestValues[0], rl2.Value, "follower: saved key and returned key from log is not same")
 }

@@ -443,6 +443,12 @@ func (r *Raft) commitEntryRoutine() {
 				}
 			}
 
+			r.mu.RLock()
+			if ci != r.commitIndex {
+				r.istate.applyCommittedEntriesCh <- struct{}{}
+			}
+			r.mu.RUnlock()
+
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()
