@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	minTimeoutMiliseconds = 1000
-	maxTimeoutMiliSeconds = 1500
+	minTimeoutMiliseconds = 150
+	maxTimeoutMiliSeconds = 300
 
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
 	MinElectionTimeout = minTimeoutMiliseconds * time.Millisecond
@@ -230,7 +230,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 
 		if len(req.Entries) > 0 {
 			lrl := r.getLogEntryOrDefault(req.PrevLogIndex)
-			if lrl.term == req.PrevLogTerm {
+			if lrl.Term == req.PrevLogTerm {
 				for idx, rlb := range req.Entries {
 					// insert at prevLogIndex + idx (0 based indexing) + 1
 					err := r.raftStorage.Set(common.U64ToByte(uint64(idx+1)+req.PrevLogIndex), rlb.Entry, nil)
@@ -252,7 +252,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 				success = true
 				log.Info("raft::raft::handleAppendEntries; successfully applied append entries")
 			} else {
-				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleAppendEntries; term doesn't match for the PrevLogIndex: %d, req term: %d and log term: %d", req.PrevLogIndex, req.PrevLogTerm, lrl.term))
+				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleAppendEntries; term doesn't match for the PrevLogIndex: %d, req term: %d and log term: %d", req.PrevLogIndex, req.PrevLogTerm, lrl.Term))
 			}
 		} else {
 			log.Info("raft::raft::handleAppendEntries; successfully received heartbeat")
@@ -282,7 +282,7 @@ func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, boo
 		return 0, false, nil
 	}
 
-	var rl *raftLog
+	var rl *RaftLog
 
 	if meta {
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientSetRequest; metaset request")
@@ -314,7 +314,7 @@ func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, bool, e
 		return 0, false, nil
 	}
 
-	var rl *raftLog
+	var rl *RaftLog
 
 	if meta {
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientDeleteRequest; metadelete request")
@@ -340,7 +340,7 @@ func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, bool, e
 // submitRaftLog submits the Raft log
 // NOTE: Expects exclusive lock to be held on the struct
 // returns the index of the log entry / error
-func (r *Raft) submitRaftLog(rl *raftLog) (uint64, error) {
+func (r *Raft) submitRaftLog(rl *RaftLog) (uint64, error) {
 	err := r.raftStorage.Set(common.U64ToByte(r.lastLogIndex+1), rl.toBytes(), nil)
 	if err != nil {
 		log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::submitRaftLog; error in submitting request to the raft storage at idx: %d. err: %v", r.lastLogIndex+1, err))
@@ -377,7 +377,7 @@ func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
 		}
 
 		// we decline if the candidate log is not at least up to date as us.
-		if rl.term > req.LastLogTerm || commitIndex > req.LastLogIndex {
+		if rl.Term > req.LastLogTerm || commitIndex > req.LastLogIndex {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; returning false since candidate log is not up to date.")
 			return false
 		}
@@ -424,7 +424,7 @@ func (r *Raft) commitEntryRoutine() {
 			for idx := ci + 1; idx <= lastLogIndex; idx++ {
 				rl := r.getLogEntryOrDefault(idx)
 				log.Info(fmt.Sprintf("raft::raft::commitEntryRoutine; trying to commit idx: %d", idx))
-				if rl.term == ct {
+				if rl.Term == ct {
 					cnt := 1
 
 					for id, p := range r.allProgress {
@@ -499,7 +499,7 @@ func (r *Raft) sendAppendEntries() {
 				p := r.allProgress[receiverID]
 				lastRl := r.getLogEntryOrDefault(p.Next - 1)
 				prevLogIndex := p.Next - 1
-				prevLogTerm := lastRl.term
+				prevLogTerm := lastRl.Term
 
 				var entries []*pb.LogEntry
 				lim := lastLogIndex
@@ -566,7 +566,7 @@ func (r *Raft) startLeader() {
 	log.Info(fmt.Sprintf("raft::raft::startLeader; Became a leader with term: %d", r.currentTerm))
 
 	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
+		ticker := time.NewTicker(50 * time.Millisecond)
 		defer ticker.Stop()
 
 		for {
@@ -597,6 +597,7 @@ func (r *Raft) startElection() {
 	r.role = Candidate
 	r.currentTerm += 1
 	r.setVotedFor(r.id)
+	r.istate.lastAppendOrVoteTime = time.Now()
 	rl := r.getLogEntryOrDefault(r.lastLogIndex)
 
 	var count common.ProtectedUint64
@@ -612,7 +613,7 @@ func (r *Raft) startElection() {
 					Term:         term,
 					CandidateId:  r.id,
 					LastLogIndex: lastLogIndex,
-					LastLogTerm:  rl.term,
+					LastLogTerm:  rl.Term,
 				}
 
 				resp, err := r.s.sendRequestVote(id, req)
@@ -648,9 +649,6 @@ func (r *Raft) startElection() {
 			}(i)
 		}
 	}
-
-	// allow some time for this election to take place
-	time.Sleep(1 * time.Second)
 
 	// run checker to run another election if this one fails/times out
 	// if election was successful then it's okay since the checker returns if the role is leader/dead
@@ -799,10 +797,10 @@ func (r *Raft) getRaftMetaVal(key []byte) uint64 {
 }
 
 // getLogEntryOrDefault returns the raft log at given index or dummy.
-func (r *Raft) getLogEntryOrDefault(idx uint64) *raftLog {
+func (r *Raft) getLogEntryOrDefault(idx uint64) *RaftLog {
 	log.Info(fmt.Sprintf("raft::raft::getLogEntryOrDefault; getting log entry with idx: %d", idx))
-	rl := &raftLog{
-		term: 0,
+	rl := &RaftLog{
+		Term: 0,
 	}
 
 	if idx > 0 {

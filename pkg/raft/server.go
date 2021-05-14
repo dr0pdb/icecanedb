@@ -63,17 +63,6 @@ func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesReq
 	return s.raft.handleAppendEntries(ctx, request)
 }
 
-// GetDiagnosticInformation returns the diag state of the raft server
-func (s *Server) GetDiagnosticInformation() *DiagInfo {
-	term, commitIdx, role := s.raft.getNodeState()
-
-	return &DiagInfo{
-		Role:          role,
-		RaftCommitIdx: commitIdx,
-		Term:          term,
-	}
-}
-
 // Close cleanups the underlying resources of the raft server.
 func (s *Server) Close() {
 	log.Info("raft::server::Close; started")
@@ -183,6 +172,28 @@ func (s *Server) MetaScan(target []byte) (storage.Iterator, bool, error) {
 }
 
 //
+// Diagnostic calls
+// For testing and debugging
+//
+
+// GetDiagnosticInformation returns the diag state of the raft server
+func (s *Server) GetDiagnosticInformation() *DiagInfo {
+	term, commitIdx, role := s.raft.getNodeState()
+
+	return &DiagInfo{
+		Role:          role,
+		RaftCommitIdx: commitIdx,
+		Term:          term,
+	}
+}
+
+// GetLogAtIndex returns the raft log present at the given index
+// Returns an error if nothing is found
+func (s *Server) GetLogAtIndex(idx uint64) {
+
+}
+
+//
 // raft callbacks
 // either grpc calls are made or changes are made to the storage layer.
 //
@@ -234,17 +245,17 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 }
 
 // applyEntry applies the raft log to the storage and meta engines.
-func (s *Server) applyEntry(rl *raftLog) (err error) {
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v", rl.term, rl.ct))
+func (s *Server) applyEntry(rl *RaftLog) (err error) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v", rl.Term, rl.Ct))
 
-	if rl.ct == setCmd {
-		err = s.kvStorage.Set(rl.key, rl.value, &storage.WriteOptions{Sync: true})
-	} else if rl.ct == deleteCmd {
-		err = s.kvStorage.Delete(rl.key, &storage.WriteOptions{Sync: true})
-	} else if rl.ct == metaSetCmd {
-		err = s.kvMetaStorage.Set(rl.key, rl.value, &storage.WriteOptions{Sync: true})
-	} else if rl.ct == metaDeleteCmd {
-		err = s.kvMetaStorage.Delete(rl.key, &storage.WriteOptions{Sync: true})
+	if rl.Ct == SetCmd {
+		err = s.kvStorage.Set(rl.Key, rl.Value, &storage.WriteOptions{Sync: true})
+	} else if rl.Ct == DeleteCmd {
+		err = s.kvStorage.Delete(rl.Key, &storage.WriteOptions{Sync: true})
+	} else if rl.Ct == MetaSetCmd {
+		err = s.kvMetaStorage.Set(rl.Key, rl.Value, &storage.WriteOptions{Sync: true})
+	} else if rl.Ct == MetaDeleteCmd {
+		err = s.kvMetaStorage.Delete(rl.Key, &storage.WriteOptions{Sync: true})
 	}
 
 	if err != nil {

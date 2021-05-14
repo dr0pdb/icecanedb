@@ -11,6 +11,7 @@ import (
 	"github.com/dr0pdb/icecanedb/pkg/icecanekv"
 	icecanedbpb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
+	"github.com/dr0pdb/icecanedb/test"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -183,7 +184,7 @@ func (s *icecanekvTestHarness) checkSingleLeader(t *testing.T) (uint64, uint64) 
 			return leaderId, leaderTerm
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 	}
 
 	t.Errorf("no leader found")
@@ -209,4 +210,15 @@ func TestRaftElectionLeaderDisconnectBasic(t *testing.T) {
 	newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
 	assert.NotEqual(t, newLeaderID, leaderID, fmt.Sprintf("error: newLeaderID still same as previous leaderID. newLeaderID: %d, leaderID: %d", newLeaderID, leaderID))
 	assert.Greater(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm <= leaderTerm.")
+}
+
+func TestRaftLeaderWriteSucceeds(t *testing.T) {
+	th := newRaftServerTestHarness()
+	defer th.teardown()
+
+	leaderId, _ := th.checkSingleLeader(t)
+
+	success, err := th.kvServers[leaderId-1].RaftServer.SetValue(test.TestKeys[0], test.TestValues[0], false)
+	assert.Nil(t, err, "Unexpected error while writing to leader")
+	assert.True(t, success, "Unexpected failure in writing to leader")
 }
