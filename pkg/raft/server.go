@@ -245,8 +245,8 @@ func (s *Server) sendAppendEntries(receiverID uint64, req *pb.AppendEntriesReque
 }
 
 // applyEntry applies the raft log to the storage and meta engines.
-func (s *Server) applyEntry(rl *RaftLog) (err error) {
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v", rl.Term, rl.Ct))
+func (s *Server) applyEntry(rl *RaftLog, logIndex uint64) (err error) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::applyEntry; term: %d ct: %v logIndex: %d", rl.Term, rl.Ct, logIndex))
 
 	if rl.Ct == SetCmd {
 		err = s.kvStorage.Set(rl.Key, rl.Value, &storage.WriteOptions{Sync: true})

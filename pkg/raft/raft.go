@@ -474,7 +474,7 @@ func (r *Raft) applyCommittedEntriesRoutine() {
 		// which have a conflicting entry (term) at the same index.
 		for idx := la + 1; idx <= lli; idx++ {
 			rl := r.getLogEntryOrDefault(idx)
-			err := r.s.applyEntry(rl)
+			err := r.s.applyEntry(rl, idx)
 			if err != nil {
 				log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::applyCommittedEntries; error in applying entry. Err: %v", err.Error()))
 				// todo: move to dead state
