@@ -141,6 +141,9 @@ func (s *icecanekvTestHarness) teardown() {
 		s.grpcServers[i].Stop()
 		os.RemoveAll(fmt.Sprintf("%s/%d", testDirectory, i+1))
 	}
+
+	// wait for shutdown of each routine. It's important to avoid interferance between multiple tests
+	time.Sleep(1 * time.Second)
 }
 
 func (s *icecanekvTestHarness) disconnectPeer(id uint64) {

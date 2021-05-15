@@ -520,7 +520,7 @@ func (r *Raft) sendAppendEntries() {
 					entries = append(entries, entry)
 				}
 
-				log.WithFields(log.Fields{"id": r.id, "p.Next": p.Next, "lim": lim}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
+				log.WithFields(log.Fields{"id": r.id, "p.Next": p.Next, "lastLogIndex": lim}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
 
 				req := &pb.AppendEntriesRequest{
 					Term:         currentTerm,
@@ -603,7 +603,9 @@ func (r *Raft) startLeader() {
 // NOTE: Expects the lock to be held while calling this
 func (r *Raft) startElection() {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startElection; started")
-	r.role = Candidate
+	if r.role != Dead {
+		r.role = Candidate
+	}
 	r.currentTerm += 1
 	r.setVotedFor(r.id)
 	r.istate.lastAppendOrVoteTime = time.Now()
