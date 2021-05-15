@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	minTimeoutMiliseconds = 150
-	maxTimeoutMiliSeconds = 300
+	minTimeoutMiliseconds = 200
+	maxTimeoutMiliSeconds = 400
 
 	// MinElectionTimeout is the min duration for which a follower waits before becoming a candidate
 	MinElectionTimeout = minTimeoutMiliseconds * time.Millisecond
@@ -511,8 +511,7 @@ func (r *Raft) sendAppendEntries() {
 				prevLogTerm := lastRl.Term
 
 				var entries []*pb.LogEntry
-				lim := lastLogIndex
-				for i := p.Next; i <= lim; i++ {
+				for i := p.Next; i <= lastLogIndex; i++ {
 					rl := r.getLogEntryOrDefault(i)
 					entry := &pb.LogEntry{
 						Entry: rl.toBytes(),
@@ -520,7 +519,7 @@ func (r *Raft) sendAppendEntries() {
 					entries = append(entries, entry)
 				}
 
-				log.WithFields(log.Fields{"id": r.id, "p.Next": p.Next, "lastLogIndex": lim}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
+				log.WithFields(log.Fields{"id": r.id, "p.Next": p.Next, "lastLogIndex": lastLogIndex}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; Number of append entries to peer %d: %d", receiverID, len(entries)))
 
 				req := &pb.AppendEntriesRequest{
 					Term:         currentTerm,
@@ -544,8 +543,8 @@ func (r *Raft) sendAppendEntries() {
 				}
 
 				if resp.Success {
-					p.Next = r.lastLogIndex + 1
-					p.Match = r.lastLogIndex
+					p.Next = lastLogIndex + 1
+					p.Match = lastLogIndex
 				} else {
 					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; response from %d indicates failure. retrying with decremented next index", resp.ResponderId))
 					p.Next--
@@ -616,6 +615,8 @@ func (r *Raft) startElection() {
 
 	term := r.currentTerm
 	lastLogIndex := r.lastLogIndex
+
+	log.WithFields(log.Fields{"id": r.id, "newTerm": term, "lastLogIndex": lastLogIndex}).Info("raft::raft::startElection; sending vote requests to peers")
 
 	for i := range r.allProgress {
 		if i != r.id {
