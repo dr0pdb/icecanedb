@@ -14,6 +14,40 @@ import (
 	"google.golang.org/grpc"
 )
 
+// IcecaneRaftServer is the raft server interface used by the upper layers
+type IcecaneRaftServer interface {
+	// RequestVote is used by the raft candidate to request for votes.
+	RequestVote(ctx context.Context, request *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error)
+
+	// AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
+	AppendEntries(ctx context.Context, request *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error)
+
+	// Scan returns an iterator to iterate over all the kv pairs whose key >= target
+	Scan(target []byte) (storage.Iterator, bool, error)
+
+	// SetValue sets the value of the key and gets it replicated across peers
+	SetValue(key, value []byte, meta bool) (bool, error)
+
+	// DeleteValue deletes the value of the key and gets it replicated across peers
+	DeleteValue(key []byte, meta bool) (bool, error)
+
+	// MetaGetValue returns the value of the key from meta storage layer.
+	MetaGetValue(key []byte) ([]byte, bool, error)
+
+	// MetaScan returns an iterator to iterate over all the kv pairs whose key >= target
+	MetaScan(target []byte) (storage.Iterator, bool, error)
+
+	// GetDiagnosticInformation returns the diag state of the raft server
+	GetDiagnosticInformation() *DiagInfo
+
+	// GetLogAtIndex returns the raft log present at the given index
+	// Returns default logs if nothing is found
+	GetLogAtIndex(idx uint64) *RaftLog
+
+	// Close cleanups the underlying resources of the raft server.
+	Close()
+}
+
 // Server is the icecane kv raft server
 type Server struct {
 	mu   *sync.Mutex
@@ -34,6 +68,8 @@ type Server struct {
 
 	Th *TestHelpers
 }
+
+var _ IcecaneRaftServer = (*Server)(nil)
 
 // TestHelpers contains fields that are used in testing.
 type TestHelpers struct {

@@ -34,7 +34,7 @@ type MVCC struct {
 	activeTxn map[uint64]*Transaction
 
 	// the underlying raft node.
-	rs *raft.Server
+	rs raft.IcecaneRaftServer
 }
 
 //
