@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
@@ -65,7 +66,7 @@ func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesReq
 
 // Close cleanups the underlying resources of the raft server.
 func (s *Server) Close() {
-	log.Info("raft::server::Close; started")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::Close; started")
 
 	// shutdown raft
 	s.raft.close()
@@ -79,7 +80,7 @@ func (s *Server) Close() {
 	s.kvMetaStorage.Close()
 	s.kvStorage.Close()
 
-	log.Info("raft::server::Close; started")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::Close; started")
 }
 
 //
@@ -89,85 +90,93 @@ func (s *Server) Close() {
 
 // Scan returns an iterator to iterate over all the kv pairs whose key >= target
 func (s *Server) Scan(target []byte) (storage.Iterator, bool, error) {
-	log.Info("raft::server::Scan; started")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::Scan; started")
 	_, _, role := s.raft.getNodeState()
 	if role != Leader {
 		return nil, false, nil
 	}
 
 	itr := s.kvStorage.Scan(target)
-	log.Info("raft::server::Scan; done")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::Scan; done")
 	return itr, true, nil
 }
 
 // SetValue sets the value of the key and gets it replicated across peers
 func (s *Server) SetValue(key, value []byte, meta bool) (bool, error) {
-	log.Info("raft::server::SetValue; started")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::SetValue; started")
 	idx, success, err := s.raft.handleClientSetRequest(key, value, meta)
 	if err != nil {
+		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::SetValue; error while setting. err: %+v", err))
 		return false, err
 	}
 	if !success {
+		log.WithFields(log.Fields{"id": s.id}).Error("raft::server::SetValue; unsuccessful write")
 		return success, nil
 	}
 
-	// wait for the idx to be committed
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; waiting for idx %d to be committed", idx))
 	for {
 		if s.raftCommitIdx >= idx {
 			break
 		}
-	}
 
-	log.Info("raft::server::SetValue; done")
+		time.Sleep(10 * time.Millisecond)
+	}
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; successfully committed at %d", idx))
+
 	return true, err
 }
 
 // DeleteValue deletes the value of the key and gets it replicated across peers
 func (s *Server) DeleteValue(key []byte, meta bool) (bool, error) {
-	log.Info("raft::server::DeleteValue; started")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::DeleteValue; started")
 
 	idx, success, err := s.raft.handleClientDeleteRequest(key, meta)
 	if err != nil {
+		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::DeleteValue; error while deleting. err: %+v", err))
 		return false, err
 	}
 	if !success {
+		log.WithFields(log.Fields{"id": s.id}).Error("raft::server::DeleteValue; unsuccessful delete")
 		return success, nil
 	}
 
-	// wait for idx to be committed
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; waiting for idx %d to be committed", idx))
 	for {
 		if s.raftCommitIdx >= idx {
 			break
 		}
-	}
 
-	log.Info("raft::server::DeleteValue; done")
+		time.Sleep(10 * time.Millisecond)
+	}
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; successfully committed at %d", idx))
+
 	return true, err
 }
 
 // MetaGetValue returns the value of the key from meta storage layer.
 func (s *Server) MetaGetValue(key []byte) ([]byte, bool, error) {
-	log.Info("raft::server::MetaGetValue; started")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaGetValue; started")
 	_, _, role := s.raft.getNodeState()
 	if role != Leader {
 		return nil, false, nil
 	}
 
 	val, err := s.kvMetaStorage.Get(key, nil)
-	log.Info("raft::server::MetaGetValue; done")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaGetValue; done")
 	return val, true, err
 }
 
 // MetaScan returns an iterator to iterate over all the kv pairs whose key >= target
 func (s *Server) MetaScan(target []byte) (storage.Iterator, bool, error) {
-	log.Info("raft::server::MetaScan; started")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaScan; started")
 	_, _, role := s.raft.getNodeState()
 	if role != Leader {
 		return nil, false, nil
 	}
 
 	itr := s.kvMetaStorage.Scan(target)
-	log.Info("raft::server::MetaScan; done")
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaScan; done")
 	return itr, true, nil
 }
 
@@ -269,6 +278,7 @@ func (s *Server) applyEntry(rl *RaftLog, logIndex uint64) (err error) {
 
 // updateRaftIdx updates the raft index in server
 func (s *Server) updateRaftIdx(idx, expected uint64) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::updateRaftIdx; updating raftLogIndex from %d to %d", expected, idx))
 	for {
 		if success := atomic.CompareAndSwapUint64(&s.raftCommitIdx, expected, idx); success {
 			break

@@ -579,13 +579,16 @@ func (r *Raft) startLeader() {
 
 		for {
 			r.sendAppendEntries()
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startLeader; waiting for append entry ticker")
 			<-ticker.C
+			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startLeader; got the append entry ticker")
 
 			r.mu.Lock()
 
 			// It could be because one of the responses to the append entry could have a higher term
 			// which would mean this node would be a follower now.
 			if r.role != Leader {
+				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::startLeader; No longer a leader. state: %v, term: %d", r.role, r.currentTerm))
 				r.mu.Unlock()
 				return
 			}
