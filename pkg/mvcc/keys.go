@@ -2,7 +2,6 @@ package mvcc
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/storage"
@@ -28,7 +27,7 @@ func getKey(txnID uint64, keyType keyType, key []byte) []byte {
 
 	switch keyType {
 	case nxtTxnID:
-		return []byte(fmt.Sprintf("nxtTxnID"))
+		return []byte("nxtTxnID")
 	case activeTxn:
 		res := []byte("activeTxn")
 		res = append(res, common.U64ToByte(txnID)...)

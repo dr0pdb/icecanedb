@@ -5,16 +5,6 @@ import (
 	"time"
 )
 
-type setRequest struct {
-	key, value []byte
-	meta       bool
-}
-
-type deleteRequest struct {
-	key  []byte
-	meta bool
-}
-
 func isMajiority(cnt, allcnt int) bool {
 	return cnt*2 > allcnt
 }

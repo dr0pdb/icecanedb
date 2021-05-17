@@ -561,7 +561,7 @@ func (m *MVCC) init() {
 }
 
 // NewMVCC creates a new MVCC transactional layer for the storage
-func NewMVCC(id uint64, rs *raft.Server) *MVCC {
+func NewMVCC(id uint64, rs raft.IcecaneRaftServer) *MVCC {
 	m := &MVCC{
 		id:        id,
 		mu:        new(sync.RWMutex),
