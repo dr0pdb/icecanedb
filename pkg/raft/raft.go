@@ -98,6 +98,9 @@ type Raft struct {
 	// IMP: index starts from 1.
 	raftStorage *storage.Storage
 
+	// in memory cache of the raft log for faster execution
+	memStore map[uint64]*RaftLog
+
 	// lastLogIndex contains the index of the highest log entry stored in raftStorage.
 	// commitIndex <= lastLogIndex
 	lastLogIndex uint64
@@ -240,6 +243,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 						break
 					}
 					r.setLastLogIndex(uint64(idx+1) + req.PrevLogIndex)
+					r.memStore[uint64(idx+1)+req.PrevLogIndex], _ = deserializeRaftLog(rlb.Entry)
 				}
 
 				// update commit index
@@ -348,6 +352,7 @@ func (r *Raft) submitRaftLog(rl *RaftLog) (uint64, error) {
 		return 0, err
 	}
 	r.lastLogIndex += 1
+	r.memStore[r.lastLogIndex] = rl
 	return r.lastLogIndex, nil
 }
 
@@ -731,6 +736,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 		s:            s,
 		maxRaftState: -1,
 		mu:           new(sync.RWMutex),
+		memStore:     make(map[uint64]*RaftLog),
 	}
 
 	// volatile state
@@ -819,6 +825,11 @@ func (r *Raft) getLogEntryOrDefault(idx uint64) *RaftLog {
 	}
 
 	if idx > 0 {
+		// return from cache if it's found
+		if val, ok := r.memStore[idx]; ok {
+			return val
+		}
+
 		b, err := r.raftStorage.Get(common.U64ToByte(idx), &storage.ReadOptions{})
 		if err != nil {
 			log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in fetching log entry: %v", err))
@@ -827,6 +838,7 @@ func (r *Raft) getLogEntryOrDefault(idx uint64) *RaftLog {
 			if err != nil {
 				log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in deserializing log entry: %v", err))
 			}
+			r.memStore[idx] = rl
 		}
 	}
 
