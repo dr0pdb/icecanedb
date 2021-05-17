@@ -12,6 +12,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+/*
+	This implementation closely follows the implementation in this blog series: https://eli.thegreenplace.net/2020/implementing-raft-part-0-introduction/
+*/
+
 const (
 	minTimeoutMiliseconds = 200
 	maxTimeoutMiliSeconds = 400
@@ -152,6 +156,9 @@ type internalState struct {
 
 	// applyCommittedEntriesCh is the signal to apply the committed entries to the state machine
 	applyCommittedEntriesCh chan interface{}
+
+	// triggerAppendEntriesCh triggers the append entry routine to send the append entry
+	triggerAppendEntriesCh chan interface{}
 }
 
 //
@@ -302,6 +309,9 @@ func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, boo
 		return 0, true, err
 	}
 
+	// trigger sending append entries to the followers
+	r.istate.triggerAppendEntriesCh <- struct{}{}
+
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleClientSetRequest; submitted set log at idx: %d", idx))
 	return idx, true, nil
 }
@@ -333,6 +343,9 @@ func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, bool, e
 	if err != nil {
 		return 0, true, err
 	}
+
+	// trigger sending append entries to the followers
+	r.istate.triggerAppendEntriesCh <- struct{}{}
 
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleClientDeleteRequest; submitted delete log at idx: %d", idx))
 	return idx, true, nil
@@ -579,26 +592,52 @@ func (r *Raft) startLeader() {
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::startLeader; Became a leader with term: %d", r.currentTerm))
 
 	go func() {
-		ticker := time.NewTicker(50 * time.Millisecond)
-		defer ticker.Stop()
+		r.sendAppendEntries()
+
+		timer := time.NewTimer(50 * time.Millisecond)
+		defer timer.Stop()
 
 		for {
-			r.sendAppendEntries()
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startLeader; waiting for append entry ticker")
-			<-ticker.C
-			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startLeader; got the append entry ticker")
+			toSend := false
 
-			r.mu.Lock()
+			select {
+			case <-timer.C:
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startLeader; got the append entry ticker")
+				toSend = true
 
-			// It could be because one of the responses to the append entry could have a higher term
-			// which would mean this node would be a follower now.
-			if r.role != Leader {
-				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::startLeader; No longer a leader. state: %v, term: %d", r.role, r.currentTerm))
-				r.mu.Unlock()
-				return
+				timer.Stop()
+				timer.Reset(50 * time.Millisecond)
+			case _, ok := <-r.istate.triggerAppendEntriesCh:
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startLeader; append entries ch triggered")
+				if ok {
+					toSend = true
+				} else {
+					return // channel closed
+				}
+
+				if !timer.Stop() {
+					<-timer.C // drain manually
+				}
+
+				timer.Reset(50 * time.Millisecond)
 			}
 
-			r.mu.Unlock()
+			if toSend {
+				r.mu.Lock()
+
+				// It could be because one of the responses to the append entry could have a higher term
+				// which would mean this node would be a follower now.
+				if r.role != Leader {
+					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::startLeader; No longer a leader. state: %v, term: %d", r.role, r.currentTerm))
+					r.mu.Unlock()
+					return
+				}
+
+				r.mu.Unlock()
+				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::startLeader; sending append entries to followers")
+				r.sendAppendEntries()
+			}
+
 		}
 	}()
 
@@ -731,6 +770,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 			clientResponses:         make(chan bool),
 			lastAppendOrVoteTime:    time.Now(),
 			applyCommittedEntriesCh: make(chan interface{}),
+			triggerAppendEntriesCh:  make(chan interface{}),
 		},
 		kvConfig:     kvConfig,
 		s:            s,
@@ -748,8 +788,6 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 	r.currentTerm = r.getRaftMetaVal(termKey)
 	r.votedFor = r.getRaftMetaVal(votedForKey)
 	r.lastLogIndex = r.getRaftMetaVal(lastLogIndexKey)
-
-	// todo: apply the logs to the state machine.
 
 	// init election timer and apply committed entry routines
 	go func() {
@@ -872,8 +910,10 @@ func initProgress(id uint64, peers []common.Peer) map[uint64]*Progress {
 func (r *Raft) close() {
 	r.mu.Lock()
 	r.role = Dead
-	close(r.istate.applyCommittedEntriesCh)
 	r.mu.Unlock()
+
+	close(r.istate.applyCommittedEntriesCh)
+	close(r.istate.triggerAppendEntriesCh)
 
 	// close raft storage
 	r.raftStorage.Close()
