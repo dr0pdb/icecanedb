@@ -204,7 +204,7 @@ func (s *icecanekvTestHarness) checkSingleLeader(t *testing.T) (uint64, uint64) 
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	t.Errorf("no leader found")
+	assert.Fail(t, "no leader found in leader election")
 	return 0, 0
 }
 
@@ -259,6 +259,28 @@ func TestRaftElectionLeaderDisconnectStability(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
+	for i := 0; i < 15; i++ {
+		time.Sleep(time.Second)
+		newLeaderID2, newLeaderTerm2 := th.checkSingleLeader(t)
+		assert.Equal(t, newLeaderID, newLeaderID2, "newLeaderID is not equal to newLeaderID2")
+		assert.Equal(t, newLeaderTerm, newLeaderTerm2, "newLeaderTerm is not equal to newLeaderTerm2")
+	}
+}
+
+func TestRaftElectionOldLeaderNoInterference(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderID, _ := th.checkSingleLeader(t)
+	th.disconnectPeer(leaderID)
+
+	time.Sleep(2 * time.Second)
+
+	newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
+
+	// reconnect to the network after the new leader is elected
+	th.reconnectPeer(leaderID)
+
 	for i := 0; i < 15; i++ {
 		time.Sleep(time.Second)
 		newLeaderID2, newLeaderTerm2 := th.checkSingleLeader(t)
