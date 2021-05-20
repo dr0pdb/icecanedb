@@ -223,13 +223,15 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 		return nil, fmt.Errorf("node is dead")
 	}
 
-	if req.Term > r.currentTerm {
+	ct := r.currentTerm
+
+	if req.Term > ct {
 		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; append entry request has higher term. becoming follower")
 		r.becomeFollower(req.Term)
 	}
 
 	success := false
-	if req.Term == r.currentTerm {
+	if req.Term == ct {
 		if r.role == Candidate { // Raft guarantees it won't be the leader.
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; found the leader in the same term. becoming follower")
 			r.becomeFollower(req.Term)
@@ -258,8 +260,9 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 					r.commitIndex = common.MinU64(req.LeaderCommit, r.lastLogIndex)
 				}
 
-				// trigger application to storage layer
-				r.istate.applyCommittedEntriesCh <- struct{}{}
+				r.mu.Unlock()
+				r.istate.applyCommittedEntriesCh <- struct{}{} // trigger application to storage layer
+				r.mu.Lock()
 
 				success = true
 				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; successfully applied append entries")
@@ -273,7 +276,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 	}
 
 	resp = &pb.AppendEntriesResponse{
-		Term:        r.currentTerm,
+		Term:        ct,
 		Success:     success,
 		ResponderId: r.id,
 	}
@@ -288,9 +291,9 @@ func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, boo
 	log.WithFields(log.Fields{"id": r.id, "key": string(key), "value": string(value)}).Info("raft::raft::handleClientSetRequest; received set request")
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	if r.role != Leader {
+		r.mu.Unlock()
 		return 0, false, nil
 	}
 
@@ -306,8 +309,10 @@ func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, boo
 
 	idx, err := r.submitRaftLog(rl)
 	if err != nil {
+		r.mu.Unlock()
 		return 0, true, err
 	}
+	r.mu.Unlock()
 
 	// trigger sending append entries to the followers
 	r.istate.triggerAppendEntriesCh <- struct{}{}
