@@ -142,8 +142,8 @@ func (pm *ProtectedMapUConn) Iterate() map[uint64]*grpc.ClientConn {
 	return pm.m
 }
 
-// U64ToByte converts a uint64 to []byte
-func U64ToByte(num uint64) []byte {
+// U64ToByteSlice converts a uint64 to []byte
+func U64ToByteSlice(num uint64) []byte {
 	res := make([]byte, 8)
 
 	// encode term in first 8 bytes
@@ -159,8 +159,8 @@ func U64ToByte(num uint64) []byte {
 	return res
 }
 
-// ByteToU64 converts a byte slice to Uint64. The byte should have been created using U64ToByte
-func ByteToU64(b []byte) uint64 {
+// ByteSliceToU64 converts a byte slice to Uint64. The byte should have been created using U64ToByte
+func ByteSliceToU64(b []byte) uint64 {
 	res := uint64(0)
 
 	res |= uint64(b[0])
@@ -180,7 +180,7 @@ func U64SliceToByteSlice(uslice []uint64) []byte {
 	var res []byte
 
 	for _, val := range uslice {
-		res = append(res, U64ToByte(val)...)
+		res = append(res, U64ToByteSlice(val)...)
 	}
 
 	return res

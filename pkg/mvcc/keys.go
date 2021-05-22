@@ -30,15 +30,15 @@ func getKey(txnID uint64, keyType keyType, key []byte) []byte {
 		return []byte("nxtTxnID")
 	case activeTxn:
 		res := []byte("activeTxn")
-		res = append(res, common.U64ToByte(txnID)...)
+		res = append(res, common.U64ToByteSlice(txnID)...)
 		return res
 	case txnSnapshot:
 		res := []byte("txnSnapshot")
-		res = append(res, common.U64ToByte(txnID)...)
+		res = append(res, common.U64ToByteSlice(txnID)...)
 		return res
 	case txnWrite:
 		res := []byte("txnWrite")
-		res = append(res, common.U64ToByte(txnID)...)
+		res = append(res, common.U64ToByteSlice(txnID)...)
 		res = append(res, key...)
 		return res
 	}
@@ -49,7 +49,7 @@ func getKey(txnID uint64, keyType keyType, key []byte) []byte {
 func getTxnWrite(b []byte) (uint64, []byte) {
 	idb := b[:1]
 	k := b[1:]
-	id := common.ByteToU64(idb)
+	id := common.ByteSliceToU64(idb)
 	return id, k
 }
 

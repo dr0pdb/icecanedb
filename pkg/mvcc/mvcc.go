@@ -365,7 +365,7 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, bool, error) {
 
 	// set next txn id
 	txnKey := []byte(getKey(notUsed, nxtTxnID, nil))
-	_, err = m.rs.SetValue(txnKey, common.U64ToByte(nxtIDUint64+1), true)
+	_, err = m.rs.SetValue(txnKey, common.U64ToByteSlice(nxtIDUint64+1), true)
 	if err != nil {
 		log.Error(fmt.Sprintf("mvcc::mvcc::begin; error in setting next txnKey. err: %v", err.Error()))
 		return nil, isLeader, err
@@ -469,7 +469,7 @@ func (m *MVCC) rollbackTxn(id uint64) (isLeader bool, err error) {
 		// we can with key = "id" + nil. since nil is the smallest,
 		// all the keys with prefix "id" can be scanned with the iterator.
 		// we stop when the value of id doesn't match.
-		itr, isLeader, err := m.rs.MetaScan(common.U64ToByte(id))
+		itr, isLeader, err := m.rs.MetaScan(common.U64ToByteSlice(id))
 		if !isLeader {
 			return false, nil
 		}
@@ -549,7 +549,7 @@ func (m *MVCC) getNextTxnID() (nxtIDUint64 uint64, isLeader bool, err error) {
 			return 0, true, err
 		}
 	} else {
-		nxtIDUint64 = common.ByteToU64(nxtID)
+		nxtIDUint64 = common.ByteSliceToU64(nxtID)
 	}
 
 	log.WithFields(log.Fields{"id": m.id}).Info("mvcc::mvcc::getNextTxnID; done")

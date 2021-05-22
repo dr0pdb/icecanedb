@@ -246,7 +246,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 				for idx, rlb := range req.Entries {
 					// insert at prevLogIndex + idx (0 based indexing) + 1
 					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleAppendEntries; inserting log at index: %+v", uint64(idx+1)+req.PrevLogIndex))
-					err := r.raftStorage.Set(common.U64ToByte(uint64(idx+1)+req.PrevLogIndex), rlb.Entry, nil)
+					err := r.raftStorage.Set(common.U64ToByteSlice(uint64(idx+1)+req.PrevLogIndex), rlb.Entry, nil)
 					if err != nil {
 						success = false // ?
 						break
@@ -364,7 +364,7 @@ func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, bool, e
 // NOTE: Expects exclusive lock to be held on the struct
 // returns the index of the log entry / error
 func (r *Raft) submitRaftLog(rl *RaftLog) (uint64, error) {
-	err := r.raftStorage.Set(common.U64ToByte(r.lastLogIndex+1), rl.toBytes(), nil)
+	err := r.raftStorage.Set(common.U64ToByteSlice(r.lastLogIndex+1), rl.toBytes(), nil)
 	if err != nil {
 		log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::submitRaftLog; error in submitting request to the raft storage at idx: %d. err: %v", r.lastLogIndex+1, err))
 		return 0, err
@@ -389,7 +389,7 @@ func (r *Raft) isUpToDate(req *pb.RequestVoteRequest) bool {
 	// commit Index is 0 when the server just starts.
 	// In this case, the candidate will always be at least up to date as us.
 	if commitIndex > 0 {
-		b, err := r.raftStorage.Get(common.U64ToByte(commitIndex), &storage.ReadOptions{})
+		b, err := r.raftStorage.Get(common.U64ToByteSlice(commitIndex), &storage.ReadOptions{})
 		if err != nil {
 			log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::isUpToDate; return false due to error in getting raft log from storage")
 			return false
@@ -818,7 +818,7 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 func (r *Raft) setTerm(term uint64) {
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::setTerm; setting term: %d", term))
 	r.currentTerm = term
-	err := r.raftStorage.Set(termKey, common.U64ToByte(term), &storage.WriteOptions{Sync: true})
+	err := r.raftStorage.Set(termKey, common.U64ToByteSlice(term), &storage.WriteOptions{Sync: true})
 	if err != nil {
 		log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::setTerm; error during persisting current term %v", err.Error()))
 	}
@@ -829,7 +829,7 @@ func (r *Raft) setTerm(term uint64) {
 func (r *Raft) setVotedFor(id uint64) {
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::setVotedFor; setting votedFor: %d", id))
 	r.votedFor = id
-	err := r.raftStorage.Set(votedForKey, common.U64ToByte(id), &storage.WriteOptions{Sync: true})
+	err := r.raftStorage.Set(votedForKey, common.U64ToByteSlice(id), &storage.WriteOptions{Sync: true})
 	if err != nil {
 		log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::setVotedFor; error during persisting votedFor %v", err.Error()))
 	}
@@ -840,7 +840,7 @@ func (r *Raft) setVotedFor(id uint64) {
 func (r *Raft) setLastLogIndex(index uint64) {
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::setLastLogIndex; setting last log index: %d", index))
 	r.lastLogIndex = index
-	err := r.raftStorage.Set(lastLogIndexKey, common.U64ToByte(index), &storage.WriteOptions{Sync: true})
+	err := r.raftStorage.Set(lastLogIndexKey, common.U64ToByteSlice(index), &storage.WriteOptions{Sync: true})
 	if err != nil {
 		log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::setLastLogIndex; error during persisting last log index %v", err.Error()))
 	}
@@ -857,7 +857,7 @@ func (r *Raft) getRaftMetaVal(key []byte) uint64 {
 		return 0
 	}
 
-	return common.ByteToU64(val)
+	return common.ByteSliceToU64(val)
 }
 
 // getLogEntryOrDefault returns the raft log at given index or dummy.
@@ -873,7 +873,7 @@ func (r *Raft) getLogEntryOrDefault(idx uint64) *RaftLog {
 			return val
 		}
 
-		b, err := r.raftStorage.Get(common.U64ToByte(idx), &storage.ReadOptions{})
+		b, err := r.raftStorage.Get(common.U64ToByteSlice(idx), &storage.ReadOptions{})
 		if err != nil {
 			log.WithFields(log.Fields{"id": r.id}).Error(fmt.Sprintf("raft::raft::getLogEntryOrDefault; error in fetching log entry: %v", err))
 		} else {

@@ -29,8 +29,8 @@ func TestUint64BytesConversion(t *testing.T) {
 	defer test.CleanupTestDirectory(test.TestDirectory)
 
 	n := uint64(121)
-	b := U64ToByte(n)
-	assert.Equal(t, n, ByteToU64(b), fmt.Sprintf("Unexpected error in uint64-bytes comparison; expected %d actual %d", n, ByteToU64(b)))
+	b := U64ToByteSlice(n)
+	assert.Equal(t, n, ByteSliceToU64(b), fmt.Sprintf("Unexpected error in uint64-bytes comparison; expected %d actual %d", n, ByteSliceToU64(b)))
 }
 
 func TestBoolByteConversion(t *testing.T) {

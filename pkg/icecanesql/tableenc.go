@@ -32,8 +32,8 @@ import (
 func encodeTableSchema(table *frontend.TableSpec, id uint64) (key, value []byte, err error) {
 	key = encodeString(table.TableName)
 
-	value = common.U64ToByte(id)
-	value = append(value, common.U64ToByte(uint64(len(table.Columns)))...)
+	value = common.U64ToByteSlice(id)
+	value = append(value, common.U64ToByteSlice(uint64(len(table.Columns)))...)
 
 	for i := 0; i < len(table.Columns); i++ {
 		value = append(value, encodeColumnSpec(table.Columns[i])...)
@@ -53,10 +53,10 @@ func decodeTableSchema(key, value []byte) (table *frontend.TableSpec, err error)
 	}
 
 	// id
-	table.TableId = common.ByteToU64(value[:8])
+	table.TableId = common.ByteSliceToU64(value[:8])
 
 	// columns
-	len := common.ByteToU64(value[8:16])
+	len := common.ByteSliceToU64(value[8:16])
 	table.Columns = make([]*frontend.ColumnSpec, len)
 	value = value[16:]
 	idx := uint64(0) // to be used inside the loop
@@ -77,7 +77,7 @@ func decodeTableSchema(key, value []byte) (table *frontend.TableSpec, err error)
 func encodeString(s string) []byte {
 	res := make([]byte, 0)
 
-	res = append(res, common.U64ToByte(uint64(len(s)))...)
+	res = append(res, common.U64ToByteSlice(uint64(len(s)))...)
 	res = append(res, []byte(s)...)
 
 	return res
@@ -88,7 +88,7 @@ func decodeString(b []byte) (s string, nxtIdx uint64, err error) {
 	if len(b) < 8 {
 		return s, nxtIdx, fmt.Errorf("invalid byte slice for a string")
 	}
-	len := common.ByteToU64(b[:8])
+	len := common.ByteSliceToU64(b[:8])
 	s = string(b[8 : 8+len])
 	return s, 8 + len, nil
 }
@@ -110,31 +110,31 @@ func encodeColumnSpec(cs *frontend.ColumnSpec) []byte {
 	res := make([]byte, 0)
 
 	// encode name
-	res = append(res, common.U64ToByte(uint64(columnSpecFieldName))...)
+	res = append(res, common.U64ToByteSlice(uint64(columnSpecFieldName))...)
 	res = append(res, encodeString(cs.Name)...)
 
 	// encode type
-	res = append(res, common.U64ToByte(uint64(columnSpecFieldType))...)
-	res = append(res, common.U64ToByte(uint64(cs.Type))...)
+	res = append(res, common.U64ToByteSlice(uint64(columnSpecFieldType))...)
+	res = append(res, common.U64ToByteSlice(uint64(cs.Type))...)
 
 	// encode nullable
-	res = append(res, common.U64ToByte(uint64(columnSpecFieldNullable))...)
+	res = append(res, common.U64ToByteSlice(uint64(columnSpecFieldNullable))...)
 	res = append(res, common.BoolToByte(cs.Nullable))
 
 	// encode primary key
-	res = append(res, common.U64ToByte(uint64(columnSpecFieldPrimaryKey))...)
+	res = append(res, common.U64ToByteSlice(uint64(columnSpecFieldPrimaryKey))...)
 	res = append(res, common.BoolToByte(cs.PrimaryKey))
 
 	// encode unique
-	res = append(res, common.U64ToByte(uint64(columnSpecFieldUnique))...)
+	res = append(res, common.U64ToByteSlice(uint64(columnSpecFieldUnique))...)
 	res = append(res, common.BoolToByte(cs.Unique))
 
 	// encode index
-	res = append(res, common.U64ToByte(uint64(columnSpecFieldIndex))...)
+	res = append(res, common.U64ToByteSlice(uint64(columnSpecFieldIndex))...)
 	res = append(res, common.BoolToByte(cs.Index))
 
 	// encode references
-	res = append(res, common.U64ToByte(uint64(columnSpecFieldReferences))...)
+	res = append(res, common.U64ToByteSlice(uint64(columnSpecFieldReferences))...)
 	res = append(res, encodeString(cs.References)...)
 
 	return res
@@ -148,7 +148,7 @@ func decodeColumnSpec(b []byte) (cs *frontend.ColumnSpec, idx uint64, err error)
 	delta := uint64(0)
 
 	// name
-	_ = common.ByteToU64(b[:8])
+	_ = common.ByteSliceToU64(b[:8])
 	cs.Name, delta, err = decodeString(b[8:])
 	if err != nil {
 		return nil, 0, fmt.Errorf("")
@@ -156,32 +156,32 @@ func decodeColumnSpec(b []byte) (cs *frontend.ColumnSpec, idx uint64, err error)
 	idx += 8 + delta
 
 	// type
-	_ = common.ByteToU64(b[idx : idx+8])
-	cs.Type = frontend.ColumnType(common.ByteToU64(b[idx+8 : idx+16]))
+	_ = common.ByteSliceToU64(b[idx : idx+8])
+	cs.Type = frontend.ColumnType(common.ByteSliceToU64(b[idx+8 : idx+16]))
 	idx += 16
 
 	// nullable
-	_ = common.ByteToU64(b[idx : idx+8])
+	_ = common.ByteSliceToU64(b[idx : idx+8])
 	cs.Nullable = common.ByteToBool(b[idx+8])
 	idx += 9
 
 	// primary key
-	_ = common.ByteToU64(b[idx : idx+8])
+	_ = common.ByteSliceToU64(b[idx : idx+8])
 	cs.PrimaryKey = common.ByteToBool(b[idx+8])
 	idx += 9
 
 	// unique
-	_ = common.ByteToU64(b[idx : idx+8])
+	_ = common.ByteSliceToU64(b[idx : idx+8])
 	cs.Unique = common.ByteToBool(b[idx+8])
 	idx += 9
 
 	// index
-	_ = common.ByteToU64(b[idx : idx+8])
+	_ = common.ByteSliceToU64(b[idx : idx+8])
 	cs.Index = common.ByteToBool(b[idx+8])
 	idx += 9
 
 	// references
-	_ = common.ByteToU64(b[idx : idx+8])
+	_ = common.ByteSliceToU64(b[idx : idx+8])
 	cs.References, delta, err = decodeString(b[idx+8:])
 	idx += 8 + delta
 

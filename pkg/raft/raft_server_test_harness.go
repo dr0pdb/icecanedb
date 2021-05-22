@@ -21,21 +21,33 @@ type TestRaftServer struct {
 
 var _ IcecaneRaftServer = (*TestRaftServer)(nil)
 
-func NewTestRaftServer(testDirectory string, isLeader bool) *TestRaftServer {
+func NewTestRaftServer(testDirectory string, isLeader bool, txnComp storage.Comparator) *TestRaftServer {
 	t := &TestRaftServer{
 		testDirectory: testDirectory,
 		IsLeader:      isLeader,
 		mu:            new(sync.Mutex),
 	}
 
-	s, _ := storage.NewStorage(testDirectory, "testdb", &storage.Options{CreateIfNotExist: true})
+	s, _ := storage.NewStorageWithCustomComparator(testDirectory, "testdb", txnComp, &storage.Options{CreateIfNotExist: true})
 	metas, _ := storage.NewStorage(testDirectory, "testdbmeta", &storage.Options{CreateIfNotExist: true})
-	s.Open()
-	metas.Open()
 
 	t.storage = s
 	t.metaStorage = metas
 	return t
+}
+
+func (t *TestRaftServer) Init() error {
+	err := t.storage.Open()
+	if err != nil {
+		return err
+	}
+
+	err = t.metaStorage.Open()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // RequestVote is used by the raft candidate to request for votes.

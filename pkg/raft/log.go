@@ -46,11 +46,11 @@ type RaftLog struct {
 }
 
 func (rl *RaftLog) toBytes() []byte {
-	res := common.U64ToByte(uint64(rl.Ct))
-	res = append(res, common.U64ToByte(rl.Term)...)
-	res = append(res, common.U64ToByte(uint64(len(rl.Key)))...)
+	res := common.U64ToByteSlice(uint64(rl.Ct))
+	res = append(res, common.U64ToByteSlice(rl.Term)...)
+	res = append(res, common.U64ToByteSlice(uint64(len(rl.Key)))...)
 	res = append(res, rl.Key...)
-	res = append(res, common.U64ToByte(uint64(len(rl.Value)))...)
+	res = append(res, common.U64ToByteSlice(uint64(len(rl.Value)))...)
 	res = append(res, rl.Value...)
 	return res
 }
@@ -59,13 +59,13 @@ func deserializeRaftLog(l []byte) (*RaftLog, error) {
 	if len(l) < 32 {
 		return nil, fmt.Errorf("invalid log bytes")
 	}
-	ct := RaftCommandType(common.ByteToU64(l[:8]))
-	term := common.ByteToU64(l[8:16])
+	ct := RaftCommandType(common.ByteSliceToU64(l[:8]))
+	term := common.ByteSliceToU64(l[8:16])
 
-	keylen := common.ByteToU64(l[16:24])
+	keylen := common.ByteSliceToU64(l[16:24])
 	key := l[24 : 24+keylen]
 
-	valueLen := common.ByteToU64(l[24+keylen : 32+keylen])
+	valueLen := common.ByteSliceToU64(l[24+keylen : 32+keylen])
 	var value []byte
 	if valueLen > 0 {
 		value = l[32+keylen:]
