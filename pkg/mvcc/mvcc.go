@@ -469,7 +469,7 @@ func (m *MVCC) rollbackTxn(id uint64) (isLeader bool, err error) {
 		// we can with key = "id" + nil. since nil is the smallest,
 		// all the keys with prefix "id" can be scanned with the iterator.
 		// we stop when the value of id doesn't match.
-		itr, isLeader, err := m.rs.MetaScan(common.U64ToByteSlice(id))
+		itr, isLeader, err := m.rs.MetaScan(getKey(id, txnWrite, []byte{}))
 		if !isLeader {
 			return false, nil
 		}
@@ -495,6 +495,7 @@ func (m *MVCC) rollbackTxn(id uint64) (isLeader bool, err error) {
 				}
 
 				toDelete = append(toDelete, uk)
+				itr.Next()
 			} else {
 				break
 			}

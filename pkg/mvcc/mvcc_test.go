@@ -82,5 +82,5 @@ func TestSingleTxnRollback(t *testing.T) {
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.False(t, rresp.Found, "Error nil but found=true in get request when expected false")
 	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
-	assert.Equal(t, "", rresp.Value, "get response value doesn't match with expected value")
+	assert.Equal(t, []byte(nil), rresp.Value, "get response value doesn't match with expected value")
 }

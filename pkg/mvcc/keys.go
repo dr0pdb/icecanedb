@@ -47,8 +47,9 @@ func getKey(txnID uint64, keyType keyType, key []byte) []byte {
 }
 
 func getTxnWrite(b []byte) (uint64, []byte) {
-	idb := b[:1]
-	k := b[1:]
+	idx := len([]byte("txnWrite"))
+	idb := b[idx : idx+8]
+	k := b[idx+8:]
 	id := common.ByteSliceToU64(idb)
 	return id, k
 }
