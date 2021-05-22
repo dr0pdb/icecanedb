@@ -192,16 +192,10 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 			resp.IsLeader = false
 			return resp, nil
 		}
-		if err != nil {
-			_, ok := err.(icommon.NotFoundError)
-
-			if ok {
-				continue
-			} else {
-				resp.Error = "Serialization Error"
-				log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Error("mvcc::mvcc::Set; found conflicting set")
-				return resp, err
-			}
+		if err == nil {
+			resp.Error = "Serialization Error"
+			log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Error("mvcc::mvcc::Set; found conflicting set")
+			return resp, err
 		}
 	}
 
