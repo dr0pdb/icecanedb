@@ -264,15 +264,9 @@ func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteRes
 			resp.IsLeader = false
 			return resp, nil
 		}
-		if err != nil {
-			_, ok := err.(icommon.NotFoundError)
-
-			if ok {
-				continue
-			} else {
-				resp.Error = "Serialization Error"
-				return resp, err
-			}
+		if err == nil {
+			resp.Error = "Serialization Error"
+			return resp, err
 		}
 	}
 
