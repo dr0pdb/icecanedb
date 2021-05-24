@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"sync"
 
 	icommon "github.com/dr0pdb/icecanedb/internal/common"
@@ -37,6 +38,23 @@ import (
 	This is important for the ACID guarantees.
 
 	Each Key is appended by the txn id that created/modified it.
+
+	MVCC uses TxnKeyComparator in keys.go to order the keys written using MVCC.
+	Rules for sorting:
+	1. Keys are first sorted according to the user key in increasing order
+	2. For the same user key, the keys are ordered in decreasing order of the transaction id that wrote it.
+
+	For eg. If 3 transactions wrote values for 2 user keys, then the effective order would be:
+	UserKey 1
+		Txn 3
+		Txn 2
+		Txn 1
+	UserKey 2
+		Txn 3
+		Txn 2
+		Txn 1
+
+	Assuming that lexicographically UserKey 2 > UserKey 1.
 */
 
 // MVCC is the Multi Version Concurrency Control layer for transactions.
@@ -66,8 +84,12 @@ func (m *MVCC) BeginTxn(ctx context.Context, req *pb.BeginTxnRequest) (*pb.Begin
 		IsLeader: isLeader,
 	}
 
-	if err != nil || !isLeader {
+	if err != nil {
 		return resp, err
+	}
+	if !isLeader {
+		resp.Success = false
+		return resp, nil
 	}
 
 	resp.TxnId = txn.id
@@ -179,28 +201,20 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 	req.TxnId = txnID
 
 	txn := m.activeTxn[txnID]
-	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; check for conflicting sets")
+	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; checking for conflicting sets")
 
-	// Iterate over the snapshot of concurrent txns to see if
-	// one of those txns have written a value for the key which we're trying to write.
-	for ctxn := range txn.concTxns {
-		upkey := getKey(ctxn, txnWrite, req.GetKey())
-
-		// we don't care about the value. We need to check for existence.
-		_, isLeader, err := m.rs.MetaGetValue(upkey)
-		if !isLeader {
-			resp.IsLeader = false
-			return resp, nil
-		}
-		if err == nil {
-			resp.Error = "Serialization Error"
-			log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Error("mvcc::mvcc::Set; found conflicting set")
-			return resp, err
-		}
+	isLeader, err := m.checkForConflictingWrites(txn, txnID, req.GetKey())
+	if !isLeader {
+		resp.IsLeader = false
+		return resp, nil
+	}
+	if err != nil {
+		resp.Error = "Serialization error"
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Warn("mvcc::mvcc::Set; found conflicting set")
+		return resp, nil
 	}
 
 	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; no conflicts. writing now")
-
 	m.mu.Lock()
 
 	// no conflicts. do the write now
@@ -250,24 +264,19 @@ func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteRes
 		return nil, err
 	}
 	req.TxnId = txnID
-
 	txn := m.activeTxn[txnID]
 
-	// Iterate over the snapshot of concurrent txns to see if
-	// one of those txns have written a value for the key which we're trying to write.
-	for ctxn := range txn.concTxns {
-		upkey := getKey(ctxn, txnWrite, req.GetKey())
+	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Delete; checking for conflicting writes")
 
-		// we don't care about the value. We need to check for existence.
-		_, isLeader, err := m.rs.MetaGetValue(upkey)
-		if !isLeader {
-			resp.IsLeader = false
-			return resp, nil
-		}
-		if err == nil {
-			resp.Error = "Serialization Error"
-			return resp, err
-		}
+	isLeader, err := m.checkForConflictingWrites(txn, txnID, req.GetKey())
+	if !isLeader {
+		resp.IsLeader = false
+		return resp, nil
+	}
+	if err != nil {
+		resp.Error = "Serialization error"
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Warn("mvcc::mvcc::Delete; found conflicting write")
+		return resp, nil
 	}
 
 	m.mu.Lock()
@@ -354,6 +363,7 @@ func (m *MVCC) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb
 //
 
 // begin begins a new Transaction
+// holds a lock on the struct.
 func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, bool, error) {
 	log.Info("mvcc::mvcc::begin; started")
 
@@ -428,6 +438,50 @@ func (m *MVCC) ensureTxn(id uint64, mode pb.TxnMode) (uint64, error) {
 
 	log.Info("mvcc::mvcc::ensureTxn; done")
 	return id, nil
+}
+
+// checkForConflictingWrites checks if there is a concurrent write that conflicts with the write being attempted.
+// IMP: Holds lock while execution. Don't hold lock while calling this function.
+func (m *MVCC) checkForConflictingWrites(txn *Transaction, txnID uint64, key []byte) (isLeader bool, err error) {
+	log.WithFields(log.Fields{"id": m.id, "txnID": txnID}).Info("mvcc::mvcc::checkForConflictingWrites; started")
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Iterate over the snapshot of concurrent txns to see if
+	// one of those txns have written a value for the key which we're trying to write.
+	for ctxn := range txn.concTxns {
+		upkey := getKey(ctxn, txnWrite, key)
+
+		// we don't care about the value. We need to check for existence.
+		_, isLeader, err := m.rs.MetaGetValue(upkey)
+		if !isLeader {
+			return false, nil
+		}
+		if err == nil {
+			err = fmt.Errorf("conflicting write")
+			log.WithFields(log.Fields{"id": m.id, "txnID": txnID}).Error("mvcc::mvcc::checkForConflictingWrites; found conflicting set")
+			return true, err
+		}
+	}
+
+	// Iterate over any writes with the same key which were done by txn with higher txn id.
+	// These could not have been included in the snapshot hence a separate check
+	// since for a single user key, the keys are ordered in decreasing order to txn id, we start from max possible txn id
+	itr, isLeader, _ := m.rs.MetaScan(getKey(math.MaxUint64, txnWrite, key))
+	if !isLeader {
+		return false, nil
+	}
+	if itr.Valid() {
+		tid, uk := getTxnWrite(itr.Key())
+		if bytes.Equal(uk, key) && tid > txnID {
+			err = fmt.Errorf("conflicting write")
+			log.WithFields(log.Fields{"id": m.id, "txnID": txnID}).Error(fmt.Sprintf("mvcc::mvcc::checkForConflictingWrites; found conflicting set in a higher txn number: %d", tid))
+			return true, err
+		}
+	}
+
+	return true, nil
 }
 
 // commitTxn commits a txn with the given id
