@@ -198,7 +198,7 @@ func (s *Storage) Scan(target []byte) Iterator {
 	log.WithFields(log.Fields{"target": string(target)}).Info("storage::storage::Scan; started")
 	seqNumber := s.lastSequenceNumber + 1
 	ikey := newInternalKey(target, internalKeyKindSet, seqNumber)
-	itr := s.memtable.Scan(ikey)
+	itr := s.memtable.Scan(ikey, seqNumber)
 	return itr
 }
 

@@ -39,7 +39,7 @@ import (
 
 	Each Key is appended by the txn id that created/modified it.
 
-	MVCC uses TxnKeyComparator in keys.go to order the keys written using MVCC.
+	MVCC uses TxnKeyComparator in keys.go to order the keys written using MVCC in the kv storage.
 	Rules for sorting:
 	1. Keys are first sorted according to the user key in increasing order
 	2. For the same user key, the keys are ordered in decreasing order of the transaction id that wrote it.
@@ -55,6 +55,12 @@ import (
 		Txn 1
 
 	Assuming that lexicographically UserKey 2 > UserKey 1.
+
+	We also store the txn metadata in kv-meta storage. kv-meta storage uses the default (lexicographical) comparator for keys.
+	keys are stored as |"txnWrite" | txn_id (64 bits) | user_key (byte slice of varying length)
+
+	As a result of the above format, meta storage keys are grouped by their transaction id
+	which helps in efficiently retrieving all the writes done by a single txn in case of rollback.
 */
 
 // MVCC is the Multi Version Concurrency Control layer for transactions.
@@ -516,24 +522,24 @@ func (m *MVCC) commitTxn(id uint64) (isLeader bool, err error) {
 
 // rollbackTxn rolls back a txn with the given id
 // acquires an exclusive lock on mvcc
-func (m *MVCC) rollbackTxn(id uint64) (isLeader bool, err error) {
-	log.WithFields(log.Fields{"id": m.id, "txnId": id}).Info("mvcc::mvcc::rollbackTxn; start")
+func (m *MVCC) rollbackTxn(txnID uint64) (isLeader bool, err error) {
+	log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::rollbackTxn; start")
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.activeTxn[id]; ok {
+	if _, ok := m.activeTxn[txnID]; ok {
 		// delete the entries written by this txn.
 		// we can with key = "id" + nil. since nil is the smallest,
 		// all the keys with prefix "id" can be scanned with the iterator.
 		// we stop when the value of id doesn't match.
-		itr, isLeader, err := m.rs.MetaScan(getKey(id, txnWrite, []byte{}))
+		itr, isLeader, err := m.rs.MetaScan(getKey(txnID, txnWrite, []byte(nil)))
 		if !isLeader {
 			return false, nil
 		}
 
 		if err != nil {
-			log.WithFields(log.Fields{"id": m.id, "txnId": id}).Error("mvcc::mvcc::rollbackTxn; error in scan for written keys")
+			log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Error("mvcc::mvcc::rollbackTxn; error in scan for written keys")
 			return true, err
 		}
 		var toDelete [][]byte
@@ -541,14 +547,14 @@ func (m *MVCC) rollbackTxn(id uint64) (isLeader bool, err error) {
 		for {
 			if itr.Valid() {
 				tid, uk := getTxnWrite(itr.Key())
-				if tid != id {
+				if tid != txnID {
 					break
 				}
 
 				// delete in the main storage.
-				_, err := m.rs.DeleteValue(newTxnKey(uk, id), false)
+				_, err := m.rs.DeleteValue(newTxnKey(uk, txnID), false)
 				if err != nil {
-					log.WithFields(log.Fields{"id": m.id, "txnId": id}).Error("mvcc::mvcc::rollbackTxn; error while deleting the written value")
+					log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Error("mvcc::mvcc::rollbackTxn; error while deleting the written value")
 					return true, err
 				}
 
@@ -561,31 +567,31 @@ func (m *MVCC) rollbackTxn(id uint64) (isLeader bool, err error) {
 
 		// delete the keys from meta storage
 		for _, k := range toDelete {
-			_, err = m.rs.DeleteValue(getKey(id, txnWrite, k), true)
+			_, err = m.rs.DeleteValue(getKey(txnID, txnWrite, k), true)
 			if err != nil {
-				log.WithFields(log.Fields{"id": m.id, "txnId": id}).Error("mvcc::mvcc::rollbackTxn; error while deleting the written key in meta")
+				log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Error("mvcc::mvcc::rollbackTxn; error while deleting the written key in meta")
 				return true, err
 			}
 		}
 
 		// delete the key activeTxn from storage.
-		markKey := getKey(id, activeTxn, nil)
+		markKey := getKey(txnID, activeTxn, nil)
 		isLeader, err = m.rs.DeleteValue([]byte(markKey), true)
 		if !isLeader {
 			return false, nil
 		}
 		if err != nil {
-			log.WithFields(log.Fields{"id": m.id, "txnId": id}).Info("mvcc::mvcc::rollbackTxn; error in deleting mark key for txn.")
+			log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::rollbackTxn; error in deleting mark key for txn.")
 			return true, err
 		}
 
-		delete(m.activeTxn, id)
+		delete(m.activeTxn, txnID)
 	} else {
-		log.WithFields(log.Fields{"id": m.id, "txnId": id}).Info("mvcc::mvcc::rollbackTxn; rollback on inactive txn.")
+		log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::rollbackTxn; rollback on inactive txn.")
 		return true, fmt.Errorf("rollback on inactive txn")
 	}
 
-	log.WithFields(log.Fields{"id": m.id, "txnId": id}).Info("mvcc::mvcc::rollbackTxn; rolled back successfully.")
+	log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::rollbackTxn; rolled back successfully.")
 	return true, nil
 }
 

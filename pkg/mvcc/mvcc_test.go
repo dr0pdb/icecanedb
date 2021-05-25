@@ -337,7 +337,7 @@ func TestMultipleTxnConflicting(t *testing.T) {
 			assert.Equal(t, "", sresp.Error, "txn2: Unexpected error resp during set request")
 
 			// read
-			rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[1], TxnId: txn.TxnId})
+			rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 			assert.Nil(t, err, "txn2: Unexpected error during get request")
 			assert.True(t, rresp.Found, "txn2: Error nil and found=false in get request")
 			assert.Equal(t, "", rresp.Error, "txn2: Unexpected error resp during get request")
@@ -349,7 +349,7 @@ func TestMultipleTxnConflicting(t *testing.T) {
 			assert.True(t, cresp.Success, "Error nil and success=false in commit request")
 
 			// read after commit without passing txn id
-			rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[1]})
+			rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 			assert.Nil(t, err, "txn2: Unexpected error during get request")
 			assert.True(t, rresp.Found, "txn2: Error nil and found=false in get request")
 			assert.Equal(t, "", rresp.Error, "txn2: Unexpected error resp during get request")
