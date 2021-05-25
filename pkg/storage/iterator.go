@@ -76,7 +76,11 @@ func (si *KeyValueIterator) Next() {
 		k := si.Key()
 		if !bytes.Equal(si.prevUserKey, k) && si.seqNum() <= si.querySeqNum {
 			si.prevUserKey = k
-			return
+
+			// if it's a delete, then we should go to the next user key
+			if si.keyKind() != internalKeyKindDelete {
+				return
+			}
 		}
 
 		si.itr.Next()
@@ -106,6 +110,12 @@ func (si *KeyValueIterator) seqNum() uint64 {
 	return ikey.sequenceNumber()
 }
 
+func (si *KeyValueIterator) keyKind() internalKeyKind {
+	// extract the seq num out of the internal key
+	ikey := internalKey(si.itr.Key())
+	return ikey.kind()
+}
+
 func newKeyValueIterator(itr *SkipListIterator, sn uint64) *KeyValueIterator {
 	kvItr := &KeyValueIterator{
 		itr:         itr,
@@ -113,7 +123,13 @@ func newKeyValueIterator(itr *SkipListIterator, sn uint64) *KeyValueIterator {
 	}
 
 	if itr.Valid() {
-		kvItr.prevUserKey = internalKey(itr.Key()).userKey()
+		ikey := internalKey(itr.Key())
+		kvItr.prevUserKey = ikey.userKey()
+
+		// skip over the first key if it has a delete kind
+		if ikey.kind() == internalKeyKindDelete {
+			kvItr.Next()
+		}
 	}
 
 	return kvItr
