@@ -66,6 +66,51 @@ func TestSingleTxnGetSet(t *testing.T) {
 	assert.Equal(t, test.TestValues[0], rresp.Value, "get response value doesn't match with expected value")
 }
 
+func TestCRUDImplicitTxns(t *testing.T) {
+	h := newMvccTestHarness(testDirectory, true)
+	err := h.init()
+	assert.Nil(t, err, "Unexpected error while initiating test harness")
+	defer h.cleanup()
+
+	// write
+	sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{Key: test.TestKeys[0], Value: test.TestValues[0]})
+	assert.Nil(t, err, "Unexpected error during set request")
+	assert.True(t, sresp.Success, "Error nil but success=false in set request")
+	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+
+	// read
+	rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
+	assert.Nil(t, err, "Unexpected error during get request")
+	assert.True(t, rresp.Found, "Error nil but found=false in get request")
+	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Equal(t, test.TestValues[0], rresp.Value, "get response value doesn't match with expected value")
+
+	// update
+	sresp, err = h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{Key: test.TestKeys[0], Value: test.TestValues[1]})
+	assert.Nil(t, err, "Unexpected error during set request")
+	assert.True(t, sresp.Success, "Error nil but success=false in set request")
+	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+
+	// read updated value
+	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
+	assert.Nil(t, err, "Unexpected error during get request")
+	assert.True(t, rresp.Found, "Error nil but found=false in get request")
+	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Equal(t, test.TestValues[1], rresp.Value, "get response value doesn't match with expected value")
+
+	// delete
+	dresp, err := h.mvcc.Delete(context.Background(), &icecanedbpb.DeleteRequest{Key: test.TestKeys[0]})
+	assert.Nil(t, err, "Unexpected error during delete request")
+	assert.True(t, dresp.Success, "Error nil but success=false in delete request")
+	assert.Equal(t, "", dresp.Error, "Unexpected error resp during delete request")
+
+	// read after deleting value
+	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
+	assert.Nil(t, err, "Unexpected error during get request")
+	assert.False(t, rresp.Found, "Error nil but found=true in get request. Expected value to not be found")
+	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+}
+
 func TestSingleTxnCRUD(t *testing.T) {
 	h := newMvccTestHarness(testDirectory, true)
 	err := h.init()
