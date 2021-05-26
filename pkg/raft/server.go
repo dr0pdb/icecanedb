@@ -131,8 +131,6 @@ func (s *Server) Close() {
 	// close storage layers
 	s.kvMetaStorage.Close()
 	s.kvStorage.Close()
-
-	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::Close; started")
 }
 
 //
@@ -149,7 +147,6 @@ func (s *Server) Scan(target []byte) (storage.Iterator, bool, error) {
 	}
 
 	itr := s.kvStorage.Scan(target)
-	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::Scan; done")
 	return itr, true, nil
 }
 
@@ -215,7 +212,6 @@ func (s *Server) MetaGetValue(key []byte) ([]byte, bool, error) {
 	}
 
 	val, err := s.kvMetaStorage.Get(key, nil)
-	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaGetValue; done")
 	return val, true, err
 }
 
@@ -228,7 +224,6 @@ func (s *Server) MetaScan(target []byte) (storage.Iterator, bool, error) {
 	}
 
 	itr := s.kvMetaStorage.Scan(target)
-	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaScan; done")
 	return itr, true, nil
 }
 
@@ -437,6 +432,5 @@ func NewRaftServer(kvConfig *common.KVConfig, raftPath, kvPath, kvMetaPath strin
 	raft := NewRaft(kvConfig, raftStorage, s, ready)
 	s.raft = raft
 
-	log.Info("raft::server::NewRaftServer; done")
 	return s, nil
 }

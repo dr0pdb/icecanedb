@@ -38,8 +38,6 @@ func (wb *WriteBatch) Set(key, value []byte) {
 	} else {
 		log.Error("storage::write_batch: Set; error in incrementing count")
 	}
-
-	log.Info("storage::write_batch: Set; done")
 }
 
 // Delete adds a delete entry for the given key in the write batch.
@@ -54,8 +52,6 @@ func (wb *WriteBatch) Delete(key []byte) {
 		wb.data = append(wb.data, byte(internalKeyKindDelete))
 		wb.appendStr(key)
 	}
-
-	log.Info("storage::write_batch: Delete; done")
 }
 
 func (wb *WriteBatch) getSeqNumData() []byte {
@@ -134,7 +130,6 @@ func (bi *batchIterator) next() (kind internalKeyKind, ukey []byte, value []byte
 		}
 	}
 
-	log.Info("storage::write_batch: next; done")
 	return kind, ukey, value, true
 }
 
@@ -158,6 +153,5 @@ func (bi *batchIterator) nextString() (s []byte, ok bool) {
 	}
 
 	s, *bi = tmp[:u], tmp[u:]
-	log.Info("storage::write_batch: nextString; done")
 	return s, true
 }

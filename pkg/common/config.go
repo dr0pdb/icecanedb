@@ -48,11 +48,6 @@ type KVConfig struct {
 
 	// Peers contains the list of all the icecanekv instances excluding this server.
 	Peers []Peer `yaml:"peers"`
-
-	// Logging config
-	LogMVCC    bool
-	LogRaft    bool
-	LogStorage bool
 }
 
 // NewDefaultKVConfig returns a new default key vault configuration.

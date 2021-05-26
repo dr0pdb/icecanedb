@@ -55,7 +55,7 @@ func (s *SkipList) Get(key []byte) *SkipListNode {
 	log.WithFields(log.Fields{
 		"key":  string(key),
 		"next": next,
-	}).Info("SkipList: get; done. returning next node")
+	}).Debug("SkipList: get; done. returning next node")
 
 	return next
 }
@@ -81,7 +81,7 @@ func (s *SkipList) Set(key, value []byte) *SkipListNode {
 			"key":      string(key),
 			"value":    string(value),
 			"oldvalue": string(element.getValue()),
-		}).Info("SkipList: Set; Found an existing key. Overriding the existing value.")
+		}).Debug("SkipList: Set; Found an existing key. Overriding the existing value.")
 
 		element.value = value
 		return element
@@ -90,7 +90,7 @@ func (s *SkipList) Set(key, value []byte) *SkipListNode {
 	log.WithFields(log.Fields{
 		"key":   string(key),
 		"value": string(value),
-	}).Info("SkipList: Set; Inserting the key with the value.")
+	}).Debug("SkipList: Set; Inserting the key with the value.")
 
 	element = &SkipListNode{
 		key:   key,
@@ -180,7 +180,7 @@ func (s *SkipList) getEqualOrGreater(key []byte) *SkipListNode {
 	if next == nil {
 		log.WithFields(log.Fields{
 			"key": string(key),
-		}).Info("SkipList: getEqualOrGreater; no node found.")
+		}).Debug("SkipList: getEqualOrGreater; no node found.")
 	}
 
 	return next

@@ -29,7 +29,7 @@ func (m *Memtable) Get(ikey []byte) ([]byte, bool, error) {
 		if skipNode != nil && m.comparator.Compare(internalKey(skipNode.getKey()).userKey(), internalKey(ikey).userKey()) == 0 {
 			log.WithFields(log.Fields{
 				"ikey": string(ikey),
-			}).Info("memtable: Get; Key not found in the memtable. Found delete entry in the memtable.")
+			}).Debug("memtable: Get; Key not found in the memtable. Found delete entry in the memtable.")
 
 			return []byte{}, true, common.NewNotFoundError("Key not found.")
 		}

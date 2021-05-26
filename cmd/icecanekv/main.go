@@ -39,9 +39,7 @@ var (
 	configFilePath     = "/etc/icecanekv.yaml"
 	configFilePathFlag = flag.String("configFilePath", "", "overrides the default config file path")
 	logFile            = false
-	mvccLog            = flag.Bool("mvccLog", false, "enable mvcc layer logging")
-	raftLog            = flag.Bool("raftLog", false, "enable raft layer logging")
-	storageLog         = flag.Bool("storageLog", false, "enable storage layer logging")
+	logLevel           = flag.String("logLevel", "", "sets the log level. Options: info, warn, debug, error. Default: info")
 )
 
 func main() {
@@ -54,10 +52,6 @@ func main() {
 	}
 	conf.LoadFromFile(configFilePath)
 
-	conf.LogMVCC = *mvccLog
-	conf.LogRaft = *raftLog
-	conf.LogStorage = *storageLog
-
 	err := conf.Validate()
 	if err != nil {
 		log.Fatalf("%V", err)
@@ -69,6 +63,19 @@ func main() {
 			log.SetOutput(f)
 			defer f.Close()
 		}
+	}
+	if logLevel != nil {
+		level := log.InfoLevel
+
+		switch *logLevel {
+		case "warn":
+			level = log.WarnLevel
+
+		case "debug":
+			level = log.DebugLevel
+		}
+
+		log.SetLevel(level)
 	}
 
 	server, err := icecanekv.NewKVServer(conf)

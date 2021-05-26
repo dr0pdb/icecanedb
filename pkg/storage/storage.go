@@ -83,7 +83,7 @@ func (s *Storage) Open() error {
 		}
 	}()
 
-	log.WithFields(log.Fields{"storage": s}).Info("storage::storage::Open; reading db file")
+	log.WithFields(log.Fields{"storage": s}).Debug("storage::storage::Open; reading db file")
 
 	// read log file, populate data in memtable
 	lgr := newLogRecordReader(logFile)
@@ -121,7 +121,7 @@ func (s *Storage) Open() error {
 		}
 	}
 
-	log.WithFields(log.Fields{"storage": s}).Info("storage::storage::Open; done reading db file")
+	log.WithFields(log.Fields{"storage": s}).Debug("storage::storage::Open; done reading db file")
 
 	s.logWriter = newLogRecordWriter(logFile)
 	s.logFile, logFile = logFile, nil
@@ -136,8 +136,6 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 		"key": string(key),
 	}).Info("storage::storage::Get")
 
-	log.Info("storage::storage::Get; looking in memtable")
-
 	seqNumber := s.lastSequenceNumber + 1
 
 	if opts != nil {
@@ -148,15 +146,10 @@ func (s *Storage) Get(key []byte, opts *ReadOptions) ([]byte, error) {
 
 	ikey := newInternalKey(key, internalKeyKindSet, seqNumber)
 
-	value, conclusive, err := s.memtable.Get(ikey)
+	value, _, err := s.memtable.Get(ikey)
 	if err == nil {
-		log.WithFields(log.Fields{"value": value}).Info("storage::storage::Get; found key in memtable")
+		log.WithFields(log.Fields{"value": value}).Debug("storage::storage::Get; found key in memtable")
 		return value, nil
-	}
-
-	if !conclusive {
-		log.Info("storage::storage::Get; memtable data unconclusive")
-		// TODO: read from sst files if and when they're implemented.
 	}
 
 	return nil, err
@@ -220,19 +213,13 @@ func (s *Storage) GetLatestSeqForKey(key []byte) uint64 {
 		"key": string(key),
 	}).Info("storage::storage::GetLatestSeqForKey; started")
 
-	log.Info("storage::storage::GetLatestSeqForKey; looking in memtable")
-
 	seqNumber := s.lastSequenceNumber + 1
 	ikey := newInternalKey(key, internalKeyKindSet, seqNumber)
 
-	value, conclusive, err := s.memtable.GetLatestSeqForKey(ikey)
+	value, _, err := s.memtable.GetLatestSeqForKey(ikey)
 	if err == nil && value != 0 {
-		log.WithFields(log.Fields{"value": value}).Info("storage::storage::GetLatestSeqForKey; found seq number for key in memtable")
+		log.WithFields(log.Fields{"value": value}).Debug("storage::storage::GetLatestSeqForKey; found seq number for key in memtable")
 		return value
-	}
-
-	if !conclusive {
-		// TODO: read from sst files.
 	}
 
 	return 0
@@ -264,20 +251,20 @@ func (s *Storage) Close() (err error) {
 		}
 	}
 
-	log.Info("storage::storage::Close; done")
 	return nil
 }
 
 // append appends a snapshot to the storage.
 func (s *Storage) appendSnapshot(snap *Snapshot) {
 	log.Info("storage::storage::appendSnapshot; start")
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	snap.prev = s.snapshotDummy.prev
 	snap.prev.next = snap
 	snap.next = &s.snapshotDummy
 	snap.next.prev = snap
-	log.Info("storage::storage::appendSnapshot; done")
 }
 
 // apply applies a writeBatch atomically according to write options.
@@ -285,12 +272,12 @@ func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 	log.Info("storage::storage::apply; started")
 
 	if len(wb.data) == 0 {
-		log.Info("storage::storage::apply; empty write batch.")
+		log.Debug("storage::storage::apply; empty write batch.")
 		return nil
 	}
 
 	cnt := wb.getCount()
-	log.Info(fmt.Sprintf("storage::storage::apply; write batch of count %d.", cnt))
+	log.Debug(fmt.Sprintf("storage::storage::apply; write batch of count %d.", cnt))
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -299,7 +286,7 @@ func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 	wb.setSeqNum(seqNum)
 	s.lastSequenceNumber += uint64(cnt)
 
-	log.Info("storage::storage::apply; writing batch to log file")
+	log.Debug("storage::storage::apply; writing batch to log file")
 
 	// write batch to log file
 	w, err := s.logWriter.next()
@@ -318,7 +305,7 @@ func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 		}
 	}
 
-	log.Info("storage::storage::apply; writing batch to memtable")
+	log.Debug("storage::storage::apply; writing batch to memtable")
 
 	// write/update in memtable
 	for itr := wb.getIterator(); ; seqNum++ {
@@ -335,7 +322,6 @@ func (s *Storage) apply(wb *WriteBatch, opts *WriteOptions) error {
 		panic("storage: inconsistent batch count in write batch")
 	}
 
-	log.Info("storage::storage::apply; done")
 	return nil
 }
 

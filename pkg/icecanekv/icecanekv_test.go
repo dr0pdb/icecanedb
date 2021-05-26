@@ -67,13 +67,10 @@ func newIcecaneKVTestHarness() *icecanekvTestHarness {
 	// setup each grpc server
 	for i := uint64(1); i <= 5; i++ {
 		config := &common.KVConfig{
-			ID:         i,
-			DbPath:     fmt.Sprintf("%s/%d", testDirectory, i),
-			Address:    "127.0.0.1",
-			Port:       fmt.Sprint(9000 + i),
-			LogMVCC:    false,
-			LogRaft:    true,
-			LogStorage: false,
+			ID:      i,
+			DbPath:  fmt.Sprintf("%s/%d", testDirectory, i),
+			Address: "127.0.0.1",
+			Port:    fmt.Sprint(9000 + i),
 		}
 
 		var p []common.Peer

@@ -64,10 +64,10 @@ func newLogRecordReader(r io.Reader) *logRecordReader {
 // nextChunk sets the payload in buf[lo:hi].
 // In case it is the last chunk of the current block, it loads the next block in the buffer.
 func (lrr *logRecordReader) nextChunk(first bool) error {
-	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Info("storage::logrecord: nextChunk; started.")
+	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Debug("storage::logrecord: nextChunk; started.")
 	for {
 		if lrr.hi+headerSize <= lrr.sz {
-			log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Info("storage::logrecord: nextChunk; reading chunk from buffer")
+			log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Debug("storage::logrecord: nextChunk; reading chunk from buffer")
 			checksum := binary.LittleEndian.Uint32(lrr.buf[lrr.hi : lrr.hi+4]) // need to change this after checksum implementation.
 			length := binary.LittleEndian.Uint16(lrr.buf[lrr.hi+4 : lrr.hi+6])
 			chunkType := lrr.buf[lrr.hi+6]
@@ -76,19 +76,19 @@ func (lrr *logRecordReader) nextChunk(first bool) error {
 				if first {
 					continue
 				}
-				return errors.New("buffer zeroed out..")
+				return errors.New("buffer zeroed out")
 			}
 
 			lrr.lo = lrr.hi + headerSize
 			lrr.hi = lrr.hi + headerSize + int(length)
 			if lrr.hi > lrr.sz {
-				return errors.New("hi greater than sz. invalid position of hi.")
+				return errors.New("hi greater than sz. invalid position of hi")
 			}
 
 			if first {
 				if chunkType != fullChunkType && chunkType != firstChunkType {
 					// we wanted first this chunk is not the first. so keep looping
-					log.Info("storage::logrecord: nextChunk; expected first chunk of a record but this is not. skipping..")
+					log.Debug("storage::logrecord: nextChunk; expected first chunk of a record but this is not. skipping..")
 					continue
 				}
 			}
@@ -99,13 +99,13 @@ func (lrr *logRecordReader) nextChunk(first bool) error {
 
 		if lrr.sz < blockSize && lrr.nextCalled {
 			if lrr.hi != lrr.sz {
-				log.Info("storage::logrecord: nextChunk; expecting the contents to be till hi but the content is only till sz")
+				log.Error("storage::logrecord: nextChunk; expecting the contents to be till hi but the content is only till sz")
 				return io.ErrUnexpectedEOF
 			}
 			return io.EOF
 		}
 
-		log.Info("storage::logrecord: nextChunk; we have reached the end of the current block, so read the next block to buf and reset lo, hi and sz.")
+		log.Debug("storage::logrecord: nextChunk; we have reached the end of the current block, so read the next block to buf and reset lo, hi and sz.")
 		sz, err := io.ReadFull(lrr.r, lrr.buf[:])
 		if err != nil && err != io.ErrUnexpectedEOF {
 			log.Error("storage::logrecord: nextChunk; Unexpected error while reading from log file")
@@ -116,7 +116,7 @@ func (lrr *logRecordReader) nextChunk(first bool) error {
 }
 
 func (lrr *logRecordReader) next() (io.Reader, error) {
-	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Info("storage::logrecord: next; started.")
+	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Debug("storage::logrecord: next; started.")
 	lrr.seq++
 	if lrr.err != nil {
 		return nil, lrr.err
@@ -128,7 +128,7 @@ func (lrr *logRecordReader) next() (io.Reader, error) {
 	if lrr.err != nil {
 		return nil, lrr.err
 	}
-	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Info("storage::logrecord: next; done.")
+	log.WithFields(log.Fields{"seq": lrr.seq, "lo": lrr.lo, "hi": lrr.hi}).Debug("storage::logrecord: next; done.")
 	return singleLogRecordReader{lrr, lrr.seq}, nil
 }
 
@@ -138,7 +138,7 @@ type singleLogRecordReader struct {
 }
 
 func (slrr singleLogRecordReader) Read(p []byte) (int, error) {
-	log.WithFields(log.Fields{"seq": slrr.seq}).Info("storage::logrecord: Read; started.")
+	log.WithFields(log.Fields{"seq": slrr.seq}).Debug("storage::logrecord: Read; started.")
 	r := slrr.r
 
 	if r.seq != slrr.seq {
@@ -153,7 +153,7 @@ func (slrr singleLogRecordReader) Read(p []byte) (int, error) {
 
 	// skip empty chunks
 	for r.lo == r.hi {
-		log.Info("storage::logrecord: Read; skipping empty chunk.")
+		log.Debug("storage::logrecord: Read; skipping empty chunk.")
 		if r.isLast {
 			return 0, io.EOF
 		}
@@ -162,7 +162,7 @@ func (slrr singleLogRecordReader) Read(p []byte) (int, error) {
 			return 0, r.err
 		}
 	}
-	log.WithFields(log.Fields{"r.lo": r.lo, "r.hi": r.hi}).Info("storage::logrecord: Read; copy from r.buf to p")
+	log.WithFields(log.Fields{"r.lo": r.lo, "r.hi": r.hi}).Debug("storage::logrecord: Read; copy from r.buf to p")
 	n := copy(p, r.buf[r.lo:r.hi])
 	r.lo = n
 	return n, nil
@@ -207,7 +207,7 @@ type logRecordWriter struct {
 
 // fillHeaders fill the header entry in the buffer for the current chunk.
 func (lrw *logRecordWriter) fillHeaders(lastChunk bool) {
-	log.WithFields(log.Fields{"lastChunk": lastChunk, "seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: fillHeaders; fillHeaders called.")
+	log.WithFields(log.Fields{"lastChunk": lastChunk, "seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Debug("storage::logrecord: fillHeaders; fillHeaders called.")
 
 	if lrw.err != nil {
 		log.WithFields(log.Fields{"error": lrw.err.Error()}).Error("storage::logrecord: fillHeaders; existing background error found in the log record writer.")
@@ -235,12 +235,10 @@ func (lrw *logRecordWriter) fillHeaders(lastChunk bool) {
 
 	binary.LittleEndian.PutUint32(lrw.buf[lrw.lo:lrw.lo+4], 0)                                  // checksum 0 for now.
 	binary.LittleEndian.PutUint16(lrw.buf[lrw.lo+4:lrw.lo+6], uint16(lrw.hi-lrw.lo-headerSize)) // length of payload
-
-	log.Info("storage::logrecord: fillHeaders; fillHeaders done.")
 }
 
 func (lrw *logRecordWriter) writePending() {
-	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: writePending; writePending called.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Debug("storage::logrecord: writePending; writePending called.")
 
 	if lrw.err != nil {
 		log.Error("storage::logrecord: writePending; found existing error.")
@@ -257,37 +255,33 @@ func (lrw *logRecordWriter) writePending() {
 		return
 	}
 	lrw.sofar = lrw.hi
-
-	log.Info("storage::logrecord: writePending; done.")
 }
 
 func (lrw *logRecordWriter) writeBlock() {
-	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: writeBlock; start.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Debug("storage::logrecord: writeBlock; start.")
 
 	_, lrw.err = lrw.w.Write(lrw.buf[lrw.sofar:])
 	lrw.lo = 0
 	lrw.hi = headerSize
 	lrw.sofar = 0
 	lrw.blockNumber++
-	log.Info("storage::logrecord: writeBlock; done.")
 }
 
 func (lrw *logRecordWriter) flush() error {
-	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: flush; start.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Debug("storage::logrecord: flush; start.")
 	lrw.seq++
 	lrw.writePending()
 
 	if lrw.err != nil {
-		log.Info("storage::logrecord: flush; error in writing pending. returning without flushing")
+		log.Error("storage::logrecord: flush; error in writing pending. returning without flushing")
 		return lrw.err
 	}
 
 	if lrw.f != nil {
-		log.Info("storage::logrecord: flush; flushing.")
+		log.Debug("storage::logrecord: flush; flushing.")
 		lrw.err = lrw.f.Flush()
 	}
 
-	log.Info("storage::logrecord: flush; done.")
 	return lrw.err
 }
 
@@ -320,10 +314,10 @@ func (lrw *logRecordWriter) next() (io.Writer, error) {
 		return nil, lrw.err
 	}
 
-	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: next; next called on the log record writer.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Debug("storage::logrecord: next; next called on the log record writer.")
 
 	if lrw.pending {
-		log.Info("storage::logrecord: next; found pending chunk. It's corresponding writer will be invalidated.")
+		log.Debug("storage::logrecord: next; found pending chunk. It's corresponding writer will be invalidated.")
 		lrw.fillHeaders(true)
 	}
 
@@ -334,7 +328,7 @@ func (lrw *logRecordWriter) next() (io.Writer, error) {
 	// check if there is enough size to fit in at least the header and one byte of data.
 	// check the link at the start for more.
 	if lrw.hi > blockSize {
-		log.Info("storage::logrecord: next; not enough space in current block.")
+		log.Debug("storage::logrecord: next; not enough space in current block.")
 
 		// fill the rest with zeroes
 		for x := lrw.lo; x < blockSize; x++ {
@@ -356,7 +350,7 @@ func (lrw *logRecordWriter) next() (io.Writer, error) {
 }
 
 func (lrw *logRecordWriter) close() error {
-	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Info("storage::logrecord: close; start.")
+	log.WithFields(log.Fields{"seq": lrw.seq, "lo": lrw.lo, "hi": lrw.hi}).Debug("storage::logrecord: close; start.")
 
 	lrw.seq++
 	lrw.writePending()
@@ -377,7 +371,7 @@ type singleLogRecordWriter struct {
 
 // Write writes a slice of byte to the writer by splitting it into blocks of blocksize.
 func (slrw singleLogRecordWriter) Write(p []byte) (int, error) {
-	log.WithFields(log.Fields{"p": string(p)}).Info("storage::logrecord: Write; start.")
+	log.WithFields(log.Fields{"p": string(p)}).Debug("storage::logrecord: Write; start.")
 	w := slrw.w
 
 	if w.seq != slrw.seq {
@@ -407,6 +401,5 @@ func (slrw singleLogRecordWriter) Write(p []byte) (int, error) {
 		p = p[n:]
 	}
 
-	log.Info("storage::logrecord: Write; done.")
 	return tot, nil
 }
