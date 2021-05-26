@@ -150,11 +150,14 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 			tid := tk.txnID()
 			if _, ok := txn.concTxns[tid]; !ok {
 				log.WithFields(log.Fields{"txnID": req.TxnId, "tid": tid}).Info("mvcc::mvcc::Get; found a value for the key")
+
+				resp.Found = false
 				if len(itr.Value()) > 0 {
-					resp.Value = itr.Value()
-					resp.Found = true
-				} else {
-					resp.Found = false
+					tVal := txnValue(itr.Value())
+					if !tVal.getDeleteFlag() {
+						resp.Value = tVal.getUserValue()
+						resp.Found = true
+					}
 				}
 
 				break
@@ -225,7 +228,8 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 
 	// no conflicts. do the write now
 	tKey := newTxnKey(req.GetKey(), req.TxnId)
-	_, err = m.rs.SetValue(tKey, req.GetValue(), false)
+	tVal := newSetTxnValue(req.GetValue())
+	_, err = m.rs.SetValue(tKey, tVal, false)
 	if err != nil {
 		// log it
 
@@ -290,7 +294,8 @@ func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteRes
 
 	// no conflicts. do the write now
 	tKey := newTxnKey(req.GetKey(), req.TxnId)
-	_, err = m.rs.DeleteValue(tKey, false)
+	tVal := newDeleteTxnValue()
+	_, err = m.rs.SetValue(tKey, tVal, false)
 	if err != nil {
 		// log it
 		m.mu.Unlock()
