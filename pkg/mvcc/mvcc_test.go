@@ -45,13 +45,13 @@ func TestSingleTxnGetSet(t *testing.T) {
 	sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[0], Value: test.TestValues[0]})
 	assert.Nil(t, err, "Unexpected error during set request")
 	assert.True(t, sresp.Success, "Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 	// read
 	rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 	// commit
@@ -63,7 +63,7 @@ func TestSingleTxnGetSet(t *testing.T) {
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 }
 
@@ -77,39 +77,39 @@ func TestCRUDImplicitTxns(t *testing.T) {
 	sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{Key: test.TestKeys[0], Value: test.TestValues[0]})
 	assert.Nil(t, err, "Unexpected error during set request")
 	assert.True(t, sresp.Success, "Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 	// read
 	rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 	// update
 	sresp, err = h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{Key: test.TestKeys[0], Value: test.TestValues[1]})
 	assert.Nil(t, err, "Unexpected error during set request")
 	assert.True(t, sresp.Success, "Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 	// read updated value
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 	// delete
 	dresp, err := h.mvcc.Delete(context.Background(), &icecanedbpb.DeleteRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during delete request")
 	assert.True(t, dresp.Success, "Error nil but success=false in delete request")
-	assert.Equal(t, "", dresp.Error, "Unexpected error resp during delete request")
+	assert.Nil(t, dresp.Error, "Unexpected error resp during delete request")
 
 	// read after deleting value
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.False(t, rresp.Found, "Error nil but found=true in get request. Expected value to not be found")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 }
 
 func TestSingleTxnCRUD(t *testing.T) {
@@ -126,39 +126,39 @@ func TestSingleTxnCRUD(t *testing.T) {
 	sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[0], Value: test.TestValues[0]})
 	assert.Nil(t, err, "Unexpected error during set request")
 	assert.True(t, sresp.Success, "Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 	// read
 	rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 	// update
 	sresp, err = h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[0], Value: test.TestValues[1]})
 	assert.Nil(t, err, "Unexpected error during set request")
 	assert.True(t, sresp.Success, "Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 	// read updated value
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 	// delete
 	dresp, err := h.mvcc.Delete(context.Background(), &icecanedbpb.DeleteRequest{TxnId: txn.TxnId, Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during delete request")
 	assert.True(t, dresp.Success, "Error nil but success=false in delete request")
-	assert.Equal(t, "", dresp.Error, "Unexpected error resp during delete request")
+	assert.Nil(t, dresp.Error, "Unexpected error resp during delete request")
 
 	// read after deleting value
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.False(t, rresp.Found, "Error nil but found=true in get request. Expected value to not be found")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 
 	// commit
 	cresp, err := h.mvcc.CommitTxn(context.Background(), &icecanedbpb.CommitTxnRequest{TxnId: txn.TxnId})
@@ -169,7 +169,7 @@ func TestSingleTxnCRUD(t *testing.T) {
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.False(t, rresp.Found, "Error nil but found=true in get request. expected value to not be found")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 }
 
 func TestSingleTxnRollback(t *testing.T) {
@@ -186,13 +186,13 @@ func TestSingleTxnRollback(t *testing.T) {
 	sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[0], Value: test.TestValues[0]})
 	assert.Nil(t, err, "Unexpected error during set request")
 	assert.True(t, sresp.Success, "Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 	// read
 	rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 	// rollback
@@ -204,8 +204,8 @@ func TestSingleTxnRollback(t *testing.T) {
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.False(t, rresp.Found, "Error nil but found=true in get request when expected false")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
-	assert.Equal(t, []byte(nil), rresp.Kv.Value, "get response value doesn't match with expected value")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.GetKv(), "get response value doesn't match with expected value")
 }
 
 func TestMultipleTxnSequential(t *testing.T) {
@@ -225,13 +225,13 @@ func TestMultipleTxnSequential(t *testing.T) {
 	sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[0], Value: test.TestValues[0]})
 	assert.Nil(t, err, "txn1: Unexpected error during set request")
 	assert.True(t, sresp.Success, "txn1: Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "txn1: Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "txn1: Unexpected error resp during set request")
 
 	// read
 	rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 	assert.Nil(t, err, "txn1: Unexpected error during get request")
 	assert.True(t, rresp.Found, "txn1: Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "txn1: Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "txn1: Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "txn1: get response value doesn't match with expected value")
 
 	// commit
@@ -243,7 +243,7 @@ func TestMultipleTxnSequential(t *testing.T) {
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "txn1: Unexpected error during get request")
 	assert.True(t, rresp.Found, "txn1: Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "txn1: Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "txn1: Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "txn1: get response value doesn't match with expected value")
 
 	// begin txn2
@@ -254,13 +254,13 @@ func TestMultipleTxnSequential(t *testing.T) {
 	sresp, err = h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn2.TxnId, Key: test.TestKeys[0], Value: test.TestValues[1]})
 	assert.Nil(t, err, "txn2: Unexpected error during set request")
 	assert.True(t, sresp.Success, "txn2: Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "txn2: Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "txn2: Unexpected error resp during set request")
 
 	// read
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn2.TxnId})
 	assert.Nil(t, err, "txn2: Unexpected error during get request")
 	assert.True(t, rresp.Found, "txn2: Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "txn2: Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "txn2: Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "txn2: get response value doesn't match with expected value")
 
 	// commit
@@ -272,7 +272,7 @@ func TestMultipleTxnSequential(t *testing.T) {
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "txn2: Unexpected error during get request")
 	assert.True(t, rresp.Found, "txn2: Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "txn2: Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "txn2: Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "txn2: get response value doesn't match with expected value")
 }
 
@@ -298,13 +298,13 @@ func TestMultipleTxnNonConflicting(t *testing.T) {
 		sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[0], Value: test.TestValues[0]})
 		assert.Nil(t, err, "txn1: Unexpected error during set request")
 		assert.True(t, sresp.Success, "txn1: Error nil but success=false in set request")
-		assert.Equal(t, "", sresp.Error, "txn1: Unexpected error resp during set request")
+		assert.Nil(t, sresp.Error, "txn1: Unexpected error resp during set request")
 
 		// read
 		rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 		assert.Nil(t, err, "txn1: Unexpected error during get request")
 		assert.True(t, rresp.Found, "txn1: Error nil but found=false in get request")
-		assert.Equal(t, "", rresp.Error, "txn1: Unexpected error resp during get request")
+		assert.Nil(t, rresp.Error, "txn1: Unexpected error resp during get request")
 		assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "txn1: get response value doesn't match with expected value")
 
 		// commit
@@ -316,7 +316,7 @@ func TestMultipleTxnNonConflicting(t *testing.T) {
 		rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 		assert.Nil(t, err, "txn1: Unexpected error during get request")
 		assert.True(t, rresp.Found, "txn1: Error nil but found=false in get request")
-		assert.Equal(t, "", rresp.Error, "txn1: Unexpected error resp during get request")
+		assert.Nil(t, rresp.Error, "txn1: Unexpected error resp during get request")
 		assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "txn1: get response value doesn't match with expected value")
 	}()
 
@@ -332,13 +332,13 @@ func TestMultipleTxnNonConflicting(t *testing.T) {
 		sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[1], Value: test.TestValues[1]})
 		assert.Nil(t, err, "txn2: Unexpected error during set request")
 		assert.True(t, sresp.Success, "txn2: Error nil but success=false in set request")
-		assert.Equal(t, "", sresp.Error, "txn2: Unexpected error resp during set request")
+		assert.Nil(t, sresp.Error, "txn2: Unexpected error resp during set request")
 
 		// read
 		rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[1], TxnId: txn.TxnId})
 		assert.Nil(t, err, "txn2: Unexpected error during get request")
 		assert.True(t, rresp.Found, "txn2: Error nil but found=false in get request")
-		assert.Equal(t, "", rresp.Error, "txn2: Unexpected error resp during get request")
+		assert.Nil(t, rresp.Error, "txn2: Unexpected error resp during get request")
 		assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "txn2: get response value doesn't match with expected value")
 
 		// commit
@@ -350,7 +350,7 @@ func TestMultipleTxnNonConflicting(t *testing.T) {
 		rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[1]})
 		assert.Nil(t, err, "txn2: Unexpected error during get request")
 		assert.True(t, rresp.Found, "txn2: Error nil but found=false in get request")
-		assert.Equal(t, "", rresp.Error, "txn2: Unexpected error resp during get request")
+		assert.Nil(t, rresp.Error, "txn2: Unexpected error resp during get request")
 		assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "txn2: get response value doesn't match with expected value")
 	}()
 
@@ -360,14 +360,14 @@ func TestMultipleTxnNonConflicting(t *testing.T) {
 	rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[1]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 	// read in another thread after both are committed
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 }
 
@@ -402,13 +402,13 @@ func TestMultipleTxnConflicting(t *testing.T) {
 			successOne = true
 			assert.Nil(t, err, "txn1: Unexpected error during set request")
 			assert.True(t, sresp.Success, "txn1: Error nil but success=false in set request")
-			assert.Equal(t, "", sresp.Error, "txn1: Unexpected error resp during set request")
+			assert.Nil(t, sresp.Error, "txn1: Unexpected error resp during set request")
 
 			// read
 			rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 			assert.Nil(t, err, "txn1: Unexpected error during get request")
 			assert.True(t, rresp.Found, "txn1: Error nil but found=false in get request")
-			assert.Equal(t, "", rresp.Error, "txn1: Unexpected error resp during get request")
+			assert.Nil(t, rresp.Error, "txn1: Unexpected error resp during get request")
 			assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "txn1: get response value doesn't match with expected value")
 
 			// commit
@@ -420,7 +420,7 @@ func TestMultipleTxnConflicting(t *testing.T) {
 			rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 			assert.Nil(t, err, "txn1: Unexpected error during get request")
 			assert.True(t, rresp.Found, "txn1: Error nil but found=false in get request")
-			assert.Equal(t, "", rresp.Error, "txn1: Unexpected error resp during get request")
+			assert.Nil(t, rresp.Error, "txn1: Unexpected error resp during get request")
 			assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "txn1: get response value doesn't match with expected value")
 		} else {
 			rollResp, err := h.mvcc.RollbackTxn(context.Background(), &icecanedbpb.RollbackTxnRequest{TxnId: txn.TxnId})
@@ -440,13 +440,13 @@ func TestMultipleTxnConflicting(t *testing.T) {
 
 			assert.Nil(t, err, "txn2: Unexpected error during set request")
 			assert.True(t, sresp.Success, "txn2: Error nil and success=false in set request")
-			assert.Equal(t, "", sresp.Error, "txn2: Unexpected error resp during set request")
+			assert.Nil(t, sresp.Error, "txn2: Unexpected error resp during set request")
 
 			// read
 			rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 			assert.Nil(t, err, "txn2: Unexpected error during get request")
 			assert.True(t, rresp.Found, "txn2: Error nil and found=false in get request")
-			assert.Equal(t, "", rresp.Error, "txn2: Unexpected error resp during get request")
+			assert.Nil(t, rresp.Error, "txn2: Unexpected error resp during get request")
 			assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "txn2: get response value doesn't match with expected value")
 
 			// commit
@@ -458,7 +458,7 @@ func TestMultipleTxnConflicting(t *testing.T) {
 			rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 			assert.Nil(t, err, "txn2: Unexpected error during get request")
 			assert.True(t, rresp.Found, "txn2: Error nil and found=false in get request")
-			assert.Equal(t, "", rresp.Error, "txn2: Unexpected error resp during get request")
+			assert.Nil(t, rresp.Error, "txn2: Unexpected error resp during get request")
 			assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "txn2: get response value doesn't match with expected value")
 		} else {
 			rollResp, err := h.mvcc.RollbackTxn(context.Background(), &icecanedbpb.RollbackTxnRequest{TxnId: txn.TxnId})
@@ -476,13 +476,13 @@ func TestMultipleTxnConflicting(t *testing.T) {
 		rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 		assert.Nil(t, err, "Unexpected error during get request")
 		assert.True(t, rresp.Found, "Error nil but found=false in get request")
-		assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+		assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 		assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 	} else {
 		rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[1]})
 		assert.Nil(t, err, "Unexpected error during get request")
 		assert.True(t, rresp.Found, "Error nil but found=false in get request")
-		assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+		assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 		assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "get response value doesn't match with expected value")
 	}
 }
@@ -497,7 +497,7 @@ func TestSnapshotIsolation(t *testing.T) {
 	sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{Key: test.TestKeys[0], Value: test.TestValues[0]})
 	assert.Nil(t, err, "Unexpected error during set request")
 	assert.True(t, sresp.Success, "Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 	// begin txn
 	txn, err := h.mvcc.BeginTxn(context.Background(), &icecanedbpb.BeginTxnRequest{Mode: icecanedbpb.TxnMode_ReadWrite})
@@ -507,20 +507,20 @@ func TestSnapshotIsolation(t *testing.T) {
 	sresp, err = h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{Key: test.TestKeys[0], Value: test.TestValues[1]})
 	assert.Nil(t, err, "Unexpected error during set request")
 	assert.True(t, sresp.Success, "Error nil but success=false in set request")
-	assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 	// read through the txn should read the older value due to snapshot isolation
 	rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0], TxnId: txn.TxnId})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 	// read without the txn should read the latest value
 	rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: test.TestKeys[0]})
 	assert.Nil(t, err, "Unexpected error during get request")
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
-	assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "get response value doesn't match with expected value")
 }
 
@@ -546,39 +546,39 @@ func TestTxn100NonConflictingTxns(t *testing.T) {
 			sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: testKeys[idx], Value: test.TestValues[0]})
 			assert.Nil(t, err, "Unexpected error during set request")
 			assert.True(t, sresp.Success, "Error nil but success=false in set request")
-			assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+			assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 			// read
 			rresp, err := h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: testKeys[idx], TxnId: txn.TxnId})
 			assert.Nil(t, err, "Unexpected error during get request")
 			assert.True(t, rresp.Found, "Error nil but found=false in get request")
-			assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 			assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 			// update
 			sresp, err = h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: testKeys[idx], Value: test.TestValues[1]})
 			assert.Nil(t, err, "Unexpected error during set request")
 			assert.True(t, sresp.Success, "Error nil but success=false in set request")
-			assert.Equal(t, "", sresp.Error, "Unexpected error resp during set request")
+			assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
 
 			// read updated value
 			rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: testKeys[idx], TxnId: txn.TxnId})
 			assert.Nil(t, err, "Unexpected error during get request")
 			assert.True(t, rresp.Found, "Error nil but found=false in get request")
-			assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 			assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "get response value doesn't match with expected value")
 
 			// delete
 			dresp, err := h.mvcc.Delete(context.Background(), &icecanedbpb.DeleteRequest{TxnId: txn.TxnId, Key: testKeys[idx]})
 			assert.Nil(t, err, "Unexpected error during delete request")
 			assert.True(t, dresp.Success, "Error nil but success=false in delete request")
-			assert.Equal(t, "", dresp.Error, "Unexpected error resp during delete request")
+			assert.Nil(t, dresp.Error, "Unexpected error resp during delete request")
 
 			// read after deleting value
 			rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: testKeys[idx], TxnId: txn.TxnId})
 			assert.Nil(t, err, "Unexpected error during get request")
 			assert.False(t, rresp.Found, "Error nil but found=true in get request. Expected value to not be found")
-			assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 
 			// commit
 			cresp, err := h.mvcc.CommitTxn(context.Background(), &icecanedbpb.CommitTxnRequest{TxnId: txn.TxnId})
@@ -589,7 +589,7 @@ func TestTxn100NonConflictingTxns(t *testing.T) {
 			rresp, err = h.mvcc.Get(context.Background(), &icecanedbpb.GetRequest{Key: testKeys[idx]})
 			assert.Nil(t, err, "Unexpected error during get request")
 			assert.False(t, rresp.Found, "Error nil but found=true in get request. expected value to not be found")
-			assert.Equal(t, "", rresp.Error, "Unexpected error resp during get request")
+			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 		}(i)
 	}
 }
