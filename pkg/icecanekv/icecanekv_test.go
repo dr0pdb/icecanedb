@@ -309,9 +309,8 @@ func TestRaftLeaderWriteSucceeds(t *testing.T) {
 	leaderId, _ := th.checkSingleLeader(t)
 
 	// should be inserted at idx 1
-	success, err := th.kvServers[leaderId-1].RaftServer.SetValue(test.TestKeys[0], test.TestValues[0], false)
+	err := th.kvServers[leaderId-1].RaftServer.SetValue(test.TestKeys[0], test.TestValues[0], false)
 	assert.Nil(t, err, "Unexpected error while writing to leader")
-	assert.True(t, success, "Unexpected failure in writing to leader")
 
 	// changes should be visible on the leader instantly
 	rl := th.kvServers[leaderId-1].RaftServer.GetLogAtIndex(1)
@@ -339,9 +338,8 @@ func TestRaftLeaderWriteSucceedsWithNewLeader(t *testing.T) {
 	leaderId, leaderTerm := th.checkSingleLeader(t)
 
 	// should be inserted at idx 1
-	success, err := th.kvServers[leaderId-1].RaftServer.SetValue(test.TestKeys[0], test.TestValues[0], false)
+	err := th.kvServers[leaderId-1].RaftServer.SetValue(test.TestKeys[0], test.TestValues[0], false)
 	assert.Nil(t, err, "Unexpected error while writing to leader")
-	assert.True(t, success, "Unexpected failure in writing to leader")
 
 	// changes should be visible on the leader instantly
 	rl := th.kvServers[leaderId-1].RaftServer.GetLogAtIndex(1)
@@ -367,9 +365,8 @@ func TestRaftLeaderWriteSucceedsWithNewLeader(t *testing.T) {
 	assert.Greater(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm <= leaderTerm")
 
 	// should be inserted at idx 2
-	success, err = th.kvServers[newLeaderID-1].RaftServer.SetValue(test.TestKeys[1], test.TestValues[1], false)
+	err = th.kvServers[newLeaderID-1].RaftServer.SetValue(test.TestKeys[1], test.TestValues[1], false)
 	assert.Nil(t, err, "Unexpected error while writing to new leader")
-	assert.True(t, success, "Unexpected failure in writing to new leader")
 
 	// changes should be visible on the leader instantly
 	rl = th.kvServers[newLeaderID-1].RaftServer.GetLogAtIndex(2)

@@ -49,6 +49,16 @@ func (kvs *KVServer) AppendEntries(ctx context.Context, request *pb.AppendEntrie
 	return kvs.RaftServer.AppendEntries(ctx, request)
 }
 
+// PeerSet is invoked by a raft peer to set the kv if this node is a leader
+func (kvs *KVServer) PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerSetResponse, error) {
+	return kvs.RaftServer.PeerSet(ctx, req)
+}
+
+// PeerDelete is invoked by a raft peer to delete a kv if this node is a leader
+func (kvs *KVServer) PeerDelete(ctx context.Context, req *pb.PeerDeleteRequest) (*pb.PeerDeleteResponse, error) {
+	return kvs.RaftServer.PeerDelete(ctx, req)
+}
+
 // Get gets the value of a key.
 func (kvs *KVServer) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
 	return kvs.kvMvcc.Get(ctx, req)

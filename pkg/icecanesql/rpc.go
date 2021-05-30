@@ -64,31 +64,25 @@ func (r *rpcRepository) createAndStoreConn() error {
 
 // set makes a Set RPC call to the kv store
 func (r *rpcRepository) set(key, value []byte) (bool, error) {
-	for {
-		err := r.createAndStoreConn()
-		if err != nil {
-			return false, err
-		}
-
-		client := pb.NewIcecaneKVClient(r.leaderConn)
-		req := &pb.SetRequest{
-			Key:   key,
-			Value: value,
-		}
-
-		resp, err := client.Set(context.Background(), req)
-		if err != nil {
-			log.Error(fmt.Sprintf("icecanesql::rpc::set; error in grpc request: %v", err))
-			return false, err
-		} else if resp.Error != "" {
-			log.Error(fmt.Sprintf("icecanesql::rpc::set; error response from the kv server: %v", resp.Error))
-			return false, fmt.Errorf(resp.Error)
-		} else if !resp.IsLeader {
-			log.Info("icecanesql::rpc::set; leader id different; updating and retrying...")
-			// todo: change leader
-			continue
-		}
-
-		return resp.Success, nil
+	err := r.createAndStoreConn()
+	if err != nil {
+		return false, err
 	}
+
+	client := pb.NewIcecaneKVClient(r.leaderConn)
+	req := &pb.SetRequest{
+		Key:   key,
+		Value: value,
+	}
+
+	resp, err := client.Set(context.Background(), req)
+	if err != nil {
+		log.Error(fmt.Sprintf("icecanesql::rpc::set; error in grpc request: %v", err))
+		return false, err
+	} else if resp.Error != nil {
+		log.Error(fmt.Sprintf("icecanesql::rpc::set; error response from the kv server: %v", resp.Error))
+		return false, fmt.Errorf(resp.Error.Message)
+	}
+
+	return resp.Success, nil
 }

@@ -17,6 +17,7 @@
 package raft
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -38,20 +39,26 @@ type IcecaneRaftServer interface {
 	// AppendEntries is invoked by leader to replicate log entries; also used as heartbeat
 	AppendEntries(ctx context.Context, request *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error)
 
-	// Scan returns an iterator to iterate over all the kv pairs whose key >= target
-	Scan(target []byte) (storage.Iterator, bool, error)
+	// PeerSet is invoked by a raft peer to set the kv if this node is a leader
+	PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerSetResponse, error)
+
+	// PeerDelete is invoked by a raft peer to delete a kv if this node is a leader
+	PeerDelete(ctx context.Context, req *pb.PeerDeleteRequest) (*pb.PeerDeleteResponse, error)
+
+	// ScanValues returns an iterator to iterate over all the kv pairs whose key >= target
+	ScanValues(target []byte) (storage.Iterator, error)
 
 	// SetValue sets the value of the key and gets it replicated across peers
-	SetValue(key, value []byte, meta bool) (bool, error)
+	SetValue(key, value []byte, meta bool) error
 
 	// DeleteValue deletes the value of the key and gets it replicated across peers
-	DeleteValue(key []byte, meta bool) (bool, error)
+	DeleteValue(key []byte, meta bool) error
 
 	// MetaGetValue returns the value of the key from meta storage layer.
-	MetaGetValue(key []byte) ([]byte, bool, error)
+	MetaGetValue(key []byte) ([]byte, error)
 
 	// MetaScan returns an iterator to iterate over all the kv pairs whose key >= target
-	MetaScan(target []byte) (storage.Iterator, bool, error)
+	MetaScan(target []byte) (storage.Iterator, error)
 
 	// GetDiagnosticInformation returns the diag state of the raft server
 	GetDiagnosticInformation() *DiagInfo
@@ -116,6 +123,42 @@ func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesReq
 	return s.raft.handleAppendEntries(ctx, request)
 }
 
+// PeerSet is invoked by a raft peer to set the kv if this node is a leader
+func (s *Server) PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerSetResponse, error) {
+	resp := &pb.PeerSetResponse{
+		Success:  false,
+		IsLeader: true,
+	}
+
+	_, _, role := s.raft.getNodeState()
+	if role != Leader {
+		resp.IsLeader = false
+		return resp, nil
+	}
+
+	// todo: do the set
+
+	return resp, nil
+}
+
+// PeerDelete is invoked by a raft peer to delete a kv if this node is a leader
+func (s *Server) PeerDelete(ctx context.Context, req *pb.PeerDeleteRequest) (*pb.PeerDeleteResponse, error) {
+	resp := &pb.PeerDeleteResponse{
+		Success:  false,
+		IsLeader: true,
+	}
+
+	_, _, role := s.raft.getNodeState()
+	if role != Leader {
+		resp.IsLeader = false
+		return resp, nil
+	}
+
+	// todo: do the delete
+
+	return resp, nil
+}
+
 // Close cleanups the underlying resources of the raft server.
 func (s *Server) Close() {
 	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::Close; started")
@@ -139,92 +182,136 @@ func (s *Server) Close() {
 //
 
 // Scan returns an iterator to iterate over all the kv pairs whose key >= target
-func (s *Server) Scan(target []byte) (storage.Iterator, bool, error) {
-	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::Scan; started")
-	_, _, role := s.raft.getNodeState()
-	if role != Leader {
-		return nil, false, nil
-	}
+func (s *Server) ScanValues(target []byte) (storage.Iterator, error) {
+	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::ScanValues; started")
+
+	// TODO: Ensure that we have the latest values (due to async application of raft logs)
+	// wait for it if it's not
 
 	itr := s.kvStorage.Scan(target)
-	return itr, true, nil
+	return itr, nil
 }
 
 // SetValue sets the value of the key and gets it replicated across peers
-func (s *Server) SetValue(key, value []byte, meta bool) (bool, error) {
+func (s *Server) SetValue(key, value []byte, meta bool) error {
 	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::SetValue; started")
-	idx, success, err := s.raft.handleClientSetRequest(key, value, meta)
-	if err != nil {
-		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::SetValue; error while setting. err: %+v", err))
-		return false, err
-	}
-	if !success {
-		log.WithFields(log.Fields{"id": s.id}).Error("raft::server::SetValue; unsuccessful write")
-		return success, nil
-	}
 
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; waiting for idx %d to be committed", idx))
-	for {
-		if s.raftCommitIdx >= idx {
-			break
+	_, _, role := s.raft.getNodeState()
+	if role == Leader {
+		idx, err := s.raft.handleClientSetRequest(key, value, meta)
+		if err != nil {
+			log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::SetValue; error while setting. err: %+v", err))
+			return err
 		}
 
-		time.Sleep(10 * time.Millisecond)
-	}
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; successfully committed at %d", idx))
+		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; waiting for idx %d to be committed", idx))
+		for {
+			if s.raftCommitIdx >= idx {
+				break
+			}
 
-	return true, err
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		// check to see if the entry committed is the same as we requested
+		// this is required since the leader might have changed right after the set was done
+		rl := s.GetLogAtIndex(idx)
+		if rl.Ct != SetCmd || !bytes.Equal(rl.Key, key) || !bytes.Equal(rl.Value, value) {
+			log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::SetValue; different log committed at idx: %d", idx))
+			return fmt.Errorf("raft internal error: different log committed at the index")
+		}
+
+		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; successfully committed at %d", idx))
+	} else {
+		// call raft peer on behalf of the client
+		for i := range s.kvConfig.Peers {
+			p := s.kvConfig.Peers[i]
+			isLeader, err := s.sendPeerSetRequest(p.ID, key, value, meta)
+			if isLeader {
+				if err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 // DeleteValue deletes the value of the key and gets it replicated across peers
-func (s *Server) DeleteValue(key []byte, meta bool) (bool, error) {
+func (s *Server) DeleteValue(key []byte, meta bool) error {
 	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::DeleteValue; started")
 
-	idx, success, err := s.raft.handleClientDeleteRequest(key, meta)
-	if err != nil {
-		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::DeleteValue; error while deleting. err: %+v", err))
-		return false, err
-	}
-	if !success {
-		log.WithFields(log.Fields{"id": s.id}).Error("raft::server::DeleteValue; unsuccessful delete")
-		return success, nil
-	}
-
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; waiting for idx %d to be committed", idx))
-	for {
-		if s.raftCommitIdx >= idx {
-			break
+	_, _, role := s.raft.getNodeState()
+	if role == Leader {
+		idx, err := s.raft.handleClientDeleteRequest(key, meta)
+		if err != nil {
+			log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::DeleteValue; error while deleting. err: %+v", err))
+			return err
 		}
 
-		time.Sleep(10 * time.Millisecond)
-	}
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; successfully committed at %d", idx))
+		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; waiting for idx %d to be committed", idx))
+		for {
+			if s.raftCommitIdx >= idx {
+				break
+			}
 
-	return true, err
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		// check to see if the entry committed is the same as we requested
+		// this is required since the leader might have changed right after the set was done
+		rl := s.GetLogAtIndex(idx)
+		if rl.Ct != DeleteCmd || !bytes.Equal(rl.Key, key) {
+			log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::DeleteValue; different log committed at idx: %d", idx))
+			return fmt.Errorf("raft internal error: different log committed at the index")
+		}
+
+		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; successfully committed at %d", idx))
+	} else {
+		// call raft peer on behalf of the client
+		for i := range s.kvConfig.Peers {
+			p := s.kvConfig.Peers[i]
+			isLeader, err := s.sendPeerDeleteRequest(p.ID, key, meta)
+			if isLeader {
+				if err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 // MetaGetValue returns the value of the key from meta storage layer.
-func (s *Server) MetaGetValue(key []byte) ([]byte, bool, error) {
+func (s *Server) MetaGetValue(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaGetValue; started")
-	_, _, role := s.raft.getNodeState()
-	if role != Leader {
-		return nil, false, nil
-	}
+
+	// TODO: Ensure that we have the latest values (due to async application of raft logs)
+	// wait for it if it's not
 
 	val, err := s.kvMetaStorage.Get(key, nil)
-	return val, true, err
+	return val, err
 }
 
 // MetaScan returns an iterator to iterate over all the kv pairs whose key >= target
-func (s *Server) MetaScan(target []byte) (storage.Iterator, bool, error) {
+func (s *Server) MetaScan(target []byte) (storage.Iterator, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaScan; started")
-	_, _, role := s.raft.getNodeState()
-	if role != Leader {
-		return nil, false, nil
-	}
+
+	// TODO: Ensure that we have the latest values (due to async application of raft logs)
+	// wait for it if it's not
 
 	itr := s.kvMetaStorage.Scan(target)
-	return itr, true, nil
+	return itr, nil
+}
+
+// GetLogAtIndex returns the raft log present at the given index
+// Returns default logs if nothing is found
+func (s *Server) GetLogAtIndex(idx uint64) *RaftLog {
+	return s.raft.getLogEntryOrDefault(idx)
 }
 
 //
@@ -243,10 +330,71 @@ func (s *Server) GetDiagnosticInformation() *DiagInfo {
 	}
 }
 
-// GetLogAtIndex returns the raft log present at the given index
-// Returns default logs if nothing is found
-func (s *Server) GetLogAtIndex(idx uint64) *RaftLog {
-	return s.raft.getLogEntryOrDefault(idx)
+func (s *Server) sendPeerSetRequest(peerID uint64, key, value []byte, meta bool) (bool, error) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendPeerSetRequest; sending set request to peer %d", peerID))
+
+	if drop, ok := s.Th.Drop[peerID]; ok && drop {
+		return true, fmt.Errorf("dropping request for testing")
+	}
+
+	conn, err := s.getOrCreateClientConnection(peerID)
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::sendPeerSetRequest; error in getting conn: %v", err))
+		return true, err
+	}
+
+	client := pb.NewIcecaneKVClient(conn)
+	request := &pb.PeerSetRequest{
+		Key:   key,
+		Value: value,
+		Meta:  meta,
+	}
+	resp, err := client.PeerSet(context.Background(), request)
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::sendPeerSetRequest; error in grpc request: %v", err))
+		return true, err
+	}
+	if !resp.IsLeader {
+		return false, nil
+	}
+	if !resp.Success {
+		return true, fmt.Errorf("unsuccessful write")
+	}
+
+	return true, err
+}
+
+func (s *Server) sendPeerDeleteRequest(peerID uint64, key []byte, meta bool) (bool, error) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::sendPeerDeleteRequest; sending set request to peer %d", peerID))
+
+	if drop, ok := s.Th.Drop[peerID]; ok && drop {
+		return true, fmt.Errorf("dropping request for testing")
+	}
+
+	conn, err := s.getOrCreateClientConnection(peerID)
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::sendPeerDeleteRequest; error in getting conn: %v", err))
+		return true, err
+	}
+
+	client := pb.NewIcecaneKVClient(conn)
+	request := &pb.PeerDeleteRequest{
+		Key:  key,
+		Meta: meta,
+	}
+	resp, err := client.PeerDelete(context.Background(), request)
+	if err != nil {
+		log.Error(fmt.Sprintf("raft::server::sendPeerDeleteRequest; error in grpc request: %v", err))
+		return true, err
+	}
+	if !resp.IsLeader {
+		return false, nil
+	}
+	if !resp.Success {
+		return true, fmt.Errorf("unsuccessful write")
+	}
+
+	return true, err
 }
 
 //

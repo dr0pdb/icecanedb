@@ -26,9 +26,11 @@ type IcecaneKVClient interface {
 	BeginTxn(ctx context.Context, in *BeginTxnRequest, opts ...grpc.CallOption) (*BeginTxnResponse, error)
 	CommitTxn(ctx context.Context, in *CommitTxnRequest, opts ...grpc.CallOption) (*CommitTxnResponse, error)
 	RollbackTxn(ctx context.Context, in *RollbackTxnRequest, opts ...grpc.CallOption) (*RollbackTxnResponse, error)
-	// Raft commands b/w two kv servers.
+	// Raft commands b/w two kv servers. Not to be used by the client
 	RequestVote(ctx context.Context, in *RequestVoteRequest, opts ...grpc.CallOption) (*RequestVoteResponse, error)
 	AppendEntries(ctx context.Context, in *AppendEntriesRequest, opts ...grpc.CallOption) (*AppendEntriesResponse, error)
+	PeerSet(ctx context.Context, in *PeerSetRequest, opts ...grpc.CallOption) (*PeerSetResponse, error)
+	PeerDelete(ctx context.Context, in *PeerDeleteRequest, opts ...grpc.CallOption) (*PeerDeleteResponse, error)
 }
 
 type icecaneKVClient struct {
@@ -120,6 +122,24 @@ func (c *icecaneKVClient) AppendEntries(ctx context.Context, in *AppendEntriesRe
 	return out, nil
 }
 
+func (c *icecaneKVClient) PeerSet(ctx context.Context, in *PeerSetRequest, opts ...grpc.CallOption) (*PeerSetResponse, error) {
+	out := new(PeerSetResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/PeerSet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *icecaneKVClient) PeerDelete(ctx context.Context, in *PeerDeleteRequest, opts ...grpc.CallOption) (*PeerDeleteResponse, error) {
+	out := new(PeerDeleteResponse)
+	err := c.cc.Invoke(ctx, "/icecanedbpb.IcecaneKV/PeerDelete", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IcecaneKVServer is the server API for IcecaneKV service.
 // All implementations must embed UnimplementedIcecaneKVServer
 // for forward compatibility
@@ -132,9 +152,11 @@ type IcecaneKVServer interface {
 	BeginTxn(context.Context, *BeginTxnRequest) (*BeginTxnResponse, error)
 	CommitTxn(context.Context, *CommitTxnRequest) (*CommitTxnResponse, error)
 	RollbackTxn(context.Context, *RollbackTxnRequest) (*RollbackTxnResponse, error)
-	// Raft commands b/w two kv servers.
+	// Raft commands b/w two kv servers. Not to be used by the client
 	RequestVote(context.Context, *RequestVoteRequest) (*RequestVoteResponse, error)
 	AppendEntries(context.Context, *AppendEntriesRequest) (*AppendEntriesResponse, error)
+	PeerSet(context.Context, *PeerSetRequest) (*PeerSetResponse, error)
+	PeerDelete(context.Context, *PeerDeleteRequest) (*PeerDeleteResponse, error)
 	mustEmbedUnimplementedIcecaneKVServer()
 }
 
@@ -168,6 +190,12 @@ func (UnimplementedIcecaneKVServer) RequestVote(context.Context, *RequestVoteReq
 }
 func (UnimplementedIcecaneKVServer) AppendEntries(context.Context, *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AppendEntries not implemented")
+}
+func (UnimplementedIcecaneKVServer) PeerSet(context.Context, *PeerSetRequest) (*PeerSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PeerSet not implemented")
+}
+func (UnimplementedIcecaneKVServer) PeerDelete(context.Context, *PeerDeleteRequest) (*PeerDeleteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PeerDelete not implemented")
 }
 func (UnimplementedIcecaneKVServer) mustEmbedUnimplementedIcecaneKVServer() {}
 
@@ -344,6 +372,42 @@ func _IcecaneKV_AppendEntries_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IcecaneKV_PeerSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).PeerSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/PeerSet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).PeerSet(ctx, req.(*PeerSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IcecaneKV_PeerDelete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerDeleteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IcecaneKVServer).PeerDelete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/icecanedbpb.IcecaneKV/PeerDelete",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IcecaneKVServer).PeerDelete(ctx, req.(*PeerDeleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IcecaneKV_ServiceDesc is the grpc.ServiceDesc for IcecaneKV service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -386,6 +450,14 @@ var IcecaneKV_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AppendEntries",
 			Handler:    _IcecaneKV_AppendEntries_Handler,
+		},
+		{
+			MethodName: "PeerSet",
+			Handler:    _IcecaneKV_PeerSet_Handler,
+		},
+		{
+			MethodName: "PeerDelete",
+			Handler:    _IcecaneKV_PeerDelete_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

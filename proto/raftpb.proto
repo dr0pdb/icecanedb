@@ -72,3 +72,24 @@ message LogEntry {
   // command.
   bytes entry = 1;
 }
+
+message PeerSetRequest {
+  bytes key = 1;
+  bytes value = 2;
+  bool meta = 3;
+}
+
+message PeerSetResponse {
+  bool success = 1;
+  bool isLeader = 2;
+}
+
+message PeerDeleteRequest {
+  bytes key = 1;
+  bool meta = 2;
+}
+
+message PeerDeleteResponse {
+  bool success = 1;
+  bool isLeader = 2;
+}

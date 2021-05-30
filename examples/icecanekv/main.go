@@ -41,36 +41,28 @@ func setup() {
 }
 
 func set(key, value []byte, txnID uint64) (*pb.SetResponse, error) {
-	for {
-		conn, err := getOrCreateClientConnection(leaderID)
-		if err != nil {
-			log.Error(fmt.Sprintf("error in getting conn: %v", err))
-			return nil, err
-		}
-
-		client := pb.NewIcecaneKVClient(conn)
-
-		req := &pb.SetRequest{
-			Key:   key,
-			Value: value,
-			TxnId: txnID,
-		}
-
-		resp, err := client.Set(context.Background(), req)
-		if err != nil {
-			log.Error(fmt.Sprintf("error in grpc request: %v", err))
-		} else {
-			log.Info(fmt.Sprintf("received resp from peer %d, result: %v", leaderID, resp))
-		}
-
-		if !resp.Success && !resp.IsLeader {
-			log.Info("different leader. updating")
-			// todo: change leader
-			continue
-		}
-
-		return resp, err
+	conn, err := getOrCreateClientConnection(leaderID)
+	if err != nil {
+		log.Error(fmt.Sprintf("error in getting conn: %v", err))
+		return nil, err
 	}
+
+	client := pb.NewIcecaneKVClient(conn)
+
+	req := &pb.SetRequest{
+		Key:   key,
+		Value: value,
+		TxnId: txnID,
+	}
+
+	resp, err := client.Set(context.Background(), req)
+	if err != nil {
+		log.Error(fmt.Sprintf("error in grpc request: %v", err))
+	} else {
+		log.Info(fmt.Sprintf("received resp from peer %d, result: %v", leaderID, resp))
+	}
+
+	return resp, err
 }
 
 func setNoTxn(key, value []byte) (*pb.SetResponse, error) {
@@ -97,12 +89,6 @@ func get(key []byte, txnID uint64) (*pb.GetResponse, error) {
 			log.Error(fmt.Sprintf("error in grpc request: %v", err))
 		} else {
 			log.Info(fmt.Sprintf("received resp from peer %d, result: %v", leaderID, resp))
-		}
-
-		if !resp.IsLeader {
-			log.Info("different leader. updating")
-			// todo: change leader
-			continue
 		}
 
 		return resp, err
@@ -133,12 +119,6 @@ func delete(key []byte, txnID uint64) (*pb.DeleteResponse, error) {
 			log.Error(fmt.Sprintf("error in grpc request: %v", err))
 		} else {
 			log.Info(fmt.Sprintf("received resp from peer %d, result: %v", leaderID, resp))
-		}
-
-		if !resp.IsLeader {
-			log.Info("different leader. updating")
-			// todo: change leader
-			continue
 		}
 
 		return resp, err

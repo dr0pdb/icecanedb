@@ -3,6 +3,26 @@ package icecanedbpb;
 
 option go_package = "protogen/icecanedbpb";
 
+enum IcecaneErrorType {
+  // An internal error that couldn't be resolved
+  InternalError = 0;
+
+  // Something was not found
+  NotFound = 1;
+
+  // Transaction serialization error due to a conflicting write
+  SerializationError = 2;
+} 
+
+message IcecaneError {
+  IcecaneErrorType type = 1;
+
+  // indicates if the client can retry this operation
+  bool retryable = 2;
+
+  string message = 3;
+}
+
 message GetRequest {
   Context context = 1;
   bytes key = 2;
@@ -15,9 +35,8 @@ message GetRequest {
 message GetResponse {
   // An empty value with found = true indicates deletion.
   bytes value = 1;
-  string error = 2;
+  IcecaneError error = 2;
   bool found = 3;
-  bool is_leader = 4;
 }
 
 message SetRequest {
@@ -32,8 +51,7 @@ message SetRequest {
 
 message SetResponse {
   bool success = 1;
-  string error = 2;
-  bool is_leader = 3;
+  IcecaneError error = 2;
 }
 
 message DeleteRequest {
@@ -47,8 +65,7 @@ message DeleteRequest {
 
 message DeleteResponse {
   bool success = 1;
-  string error = 2;
-  bool is_leader = 3;
+  IcecaneError error = 2;
 }
 
 // TxnMode defines the mode of the txn.
@@ -66,7 +83,7 @@ message BeginTxnRequest {
 message BeginTxnResponse {
   bool success = 1;
   uint64 txn_id = 2;
-  bool is_leader = 3;
+  IcecaneError error = 4;
 }
 
 message CommitTxnRequest {
@@ -76,8 +93,7 @@ message CommitTxnRequest {
 
 message CommitTxnResponse {
   bool success = 1;
-  bool is_leader = 2;
-  string error = 3;
+  IcecaneError error = 3;
 }
 
 message RollbackTxnRequest {
@@ -87,8 +103,7 @@ message RollbackTxnRequest {
 
 message RollbackTxnResponse {
   bool success = 1;
-  bool is_leader = 2;
-  string error = 3;
+  IcecaneError error = 3;
 }
 
 message ScanRequest {}

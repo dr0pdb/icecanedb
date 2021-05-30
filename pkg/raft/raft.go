@@ -287,14 +287,14 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 // handleClientSetRequest handles the set request
 // NOTE: holds exclusive lock to the raft struct
 // returns false if the node is not the leader
-func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, bool, error) {
+func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, error) {
 	log.WithFields(log.Fields{"id": r.id, "key": string(key), "value": string(value)}).Info("raft::raft::handleClientSetRequest; received set request")
 
 	r.mu.Lock()
 
 	if r.role != Leader {
 		r.mu.Unlock()
-		return 0, false, nil
+		return 0, fmt.Errorf("no longer a leader")
 	}
 
 	var rl *RaftLog
@@ -308,30 +308,29 @@ func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, boo
 	}
 
 	idx, err := r.submitRaftLog(rl)
-	if err != nil {
-		r.mu.Unlock()
-		return 0, true, err
-	}
 	r.mu.Unlock()
+	if err != nil {
+		return 0, err
+	}
 
 	// trigger sending append entries to the followers
 	r.istate.triggerAppendEntriesCh <- struct{}{}
 
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleClientSetRequest; submitted set log at idx: %d", idx))
-	return idx, true, nil
+	return idx, nil
 }
 
 // handleClientDeleteRequest handles the delete request
 // NOTE: holds exclusive lock to the raft struct
 // returns false if the node is not the leader
-func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, bool, error) {
+func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, error) {
 	log.WithFields(log.Fields{"id": r.id, "key": string(key)}).Info("raft::raft::handleClientDeleteRequest; received delete request")
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	if r.role != Leader {
-		return 0, false, nil
+		r.mu.Unlock()
+		return 0, fmt.Errorf("no longer a leader")
 	}
 
 	var rl *RaftLog
@@ -345,15 +344,16 @@ func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, bool, e
 	}
 
 	idx, err := r.submitRaftLog(rl)
+	r.mu.Unlock()
 	if err != nil {
-		return 0, true, err
+		return 0, err
 	}
 
 	// trigger sending append entries to the followers
 	r.istate.triggerAppendEntriesCh <- struct{}{}
 
 	log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleClientDeleteRequest; submitted delete log at idx: %d", idx))
-	return idx, true, nil
+	return idx, nil
 }
 
 //

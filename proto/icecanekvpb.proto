@@ -17,7 +17,9 @@ service IcecaneKV {
   rpc CommitTxn(CommitTxnRequest) returns (CommitTxnResponse) {}
   rpc RollbackTxn(RollbackTxnRequest) returns (RollbackTxnResponse) {}
 
-  // Raft commands b/w two kv servers.
+  // Raft commands b/w two kv servers. Not to be used by the client
   rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse) {}
   rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse) {}
+  rpc PeerSet(PeerSetRequest) returns (PeerSetResponse) {}
+  rpc PeerDelete(PeerDeleteRequest) returns (PeerDeleteResponse) {}
 }

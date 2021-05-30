@@ -18,6 +18,7 @@ package raft
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 
@@ -77,25 +78,25 @@ func (t *TestRaftServer) AppendEntries(ctx context.Context, request *pb.AppendEn
 }
 
 // Scan returns an iterator to iterate over all the kv pairs whose key >= target
-func (t *TestRaftServer) Scan(target []byte) (storage.Iterator, bool, error) {
+func (t *TestRaftServer) ScanValues(target []byte) (storage.Iterator, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if !t.IsLeader {
-		return nil, false, nil
+		return nil, fmt.Errorf("not a leader")
 	}
 
 	it := t.storage.Scan(target)
-	return it, true, nil
+	return it, nil
 }
 
 // SetValue sets the value of the key and gets it replicated across peers
-func (t *TestRaftServer) SetValue(key, value []byte, meta bool) (bool, error) {
+func (t *TestRaftServer) SetValue(key, value []byte, meta bool) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if !t.IsLeader {
-		return false, nil
+		return fmt.Errorf("not a leader")
 	}
 
 	var err error
@@ -105,16 +106,16 @@ func (t *TestRaftServer) SetValue(key, value []byte, meta bool) (bool, error) {
 		err = t.storage.Set(key, value, &storage.WriteOptions{Sync: true})
 	}
 
-	return err == nil, err
+	return err
 }
 
 // DeleteValue deletes the value of the key and gets it replicated across peers
-func (t *TestRaftServer) DeleteValue(key []byte, meta bool) (bool, error) {
+func (t *TestRaftServer) DeleteValue(key []byte, meta bool) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if !t.IsLeader {
-		return false, nil
+		return fmt.Errorf("not a leader")
 	}
 
 	var err error
@@ -124,33 +125,25 @@ func (t *TestRaftServer) DeleteValue(key []byte, meta bool) (bool, error) {
 		err = t.storage.Delete(key, &storage.WriteOptions{Sync: true})
 	}
 
-	return err == nil, err
+	return err
 }
 
 // MetaGetValue returns the value of the key from meta storage layer.
-func (t *TestRaftServer) MetaGetValue(key []byte) ([]byte, bool, error) {
+func (t *TestRaftServer) MetaGetValue(key []byte) ([]byte, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if !t.IsLeader {
-		return nil, false, nil
-	}
-
 	val, err := t.metaStorage.Get(key, nil)
-	return val, true, err
+	return val, err
 }
 
 // MetaScan returns an iterator to iterate over all the kv pairs whose key >= target
-func (t *TestRaftServer) MetaScan(target []byte) (storage.Iterator, bool, error) {
+func (t *TestRaftServer) MetaScan(target []byte) (storage.Iterator, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if !t.IsLeader {
-		return nil, false, nil
-	}
-
 	it := t.metaStorage.Scan(target)
-	return it, true, nil
+	return it, nil
 }
 
 // GetDiagnosticInformation returns the diag state of the raft server
@@ -161,6 +154,16 @@ func (t *TestRaftServer) GetDiagnosticInformation() *DiagInfo {
 // GetLogAtIndex returns the raft log present at the given index
 // Returns default logs if nothing is found
 func (t *TestRaftServer) GetLogAtIndex(idx uint64) *RaftLog {
+	panic("not implemented")
+}
+
+// PeerSet is invoked by a raft peer to set the kv if this node is a leader
+func (t *TestRaftServer) PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerSetResponse, error) {
+	panic("not implemented")
+}
+
+// PeerDelete is invoked by a raft peer to delete a kv if this node is a leader
+func (t *TestRaftServer) PeerDelete(ctx context.Context, req *pb.PeerDeleteRequest) (*pb.PeerDeleteResponse, error) {
 	panic("not implemented")
 }
 
