@@ -27,6 +27,7 @@ import (
 	"github.com/dr0pdb/icecanedb/pkg/common"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
 	"github.com/dr0pdb/icecanedb/pkg/raft"
+	"github.com/dr0pdb/icecanedb/pkg/storage"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -112,69 +113,98 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 	}
 	req.TxnId = txnID
 
-	txn := m.activeTxnsCache[txnID]
-
-	tk := newTxnKey(req.GetKey(), req.GetTxnId())
+	tk := newTxnKey(req.GetKey(), txnID)
 	itr, err := m.rs.ScanValues(tk)
-
 	if err != nil {
-		resp.Error = &pb.IcecaneError{} // todo
-		log.WithFields(log.Fields{"txnID": req.TxnId}).Error(fmt.Sprintf("mvcc::mvcc::Get; error in scan: %v", err.Error()))
-		return resp, nil
+		log.WithFields(log.Fields{"txnID": txnID}).Error(fmt.Sprintf("mvcc::mvcc::Get; error in scan: %v", err.Error()))
+		return nil, err
 	}
 
-	// iterate through the kv pairs sorted (decreasing) by txnID.
-	// skip the ones which were active during the txn init.
-	for {
-		if itr.Valid() {
-			log.WithFields(log.Fields{"txnID": req.TxnId}).Info("mvcc::mvcc::Get; valid node on the iterator")
-			tk := TxnKey(itr.Key())
-			uk := tk.userKey()
-			if !bytes.Equal(uk, req.GetKey()) {
-				break
-			}
-
-			tid := tk.txnID()
-			if _, ok := txn.concTxns[tid]; !ok {
-				log.WithFields(log.Fields{"txnID": req.TxnId, "tid": tid}).Info("mvcc::mvcc::Get; found a value for the key")
-
-				resp.Found = false
-				if len(itr.Value()) > 0 {
-					tVal := txnValue(itr.Value())
-					if !tVal.getDeleteFlag() {
-						resp.Kv = &pb.KeyValuePair{
-							Key:   uk,
-							Value: tVal.getUserValue(),
-						}
-						resp.Found = true
-					}
-				}
-
-				break
-			} else {
-				log.WithFields(log.Fields{"txnID": req.TxnId, "tid": tid}).Info("mvcc::mvcc::Get; found a conflicting txn; skipping")
-				itr.Next()
-			}
-		} else {
-			break
-		}
+	k, v, found, err := m.getValueForTxn(itr, req.GetKey(), txnID)
+	if err != nil {
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId, "err": err.Error()}).Error("mvcc::mvcc::Get; error while getting value")
+		return nil, err
 	}
 
+	resp.Found = found
 	if resp.Found {
+		resp.Kv = &pb.KeyValuePair{
+			Key:   k,
+			Value: v,
+		}
+
 		log.WithFields(log.Fields{"txnID": req.TxnId, "value": string(resp.Kv.Value)}).Info("mvcc::mvcc::Get; found value")
 	}
 
 	if inlinedTxn {
 		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Get; inlined txn. committing..")
-		err = m.commitTxn(req.TxnId)
-		if err != nil {
-			// todo: handle
-		}
+		m.commitTxn(req.TxnId)
 	}
 
 	if err != nil {
 		resp.Error = &pb.IcecaneError{} // todo
 	}
+	return resp, nil
+}
+
+// Scan returns the list of kv pairs >= startKey for the given transaction
+func (m *MVCC) Scan(ctx context.Context, req *pb.ScanRequest) (*pb.ScanResponse, error) {
+	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Scan; started")
+
+	resp := &pb.ScanResponse{}
+	inlinedTxn := (req.TxnId == 0)
+
+	txnID, err := m.ensureTxn(req.TxnId, pb.TxnMode_ReadOnly)
+	if err != nil {
+		return nil, err
+	}
+	req.TxnId = txnID
+	count := int32(0)
+
+	tk := newTxnKey(req.StartKey, txnID)
+	itr, err := m.rs.ScanValues(tk)
+	if err != nil {
+		log.WithFields(log.Fields{"id": m.id, "txnID": txnID}).Error(fmt.Sprintf("mvcc::mvcc::Scan; error in scan: %v", err.Error()))
+		return nil, err
+	}
+
+	prevUk := []byte("")
+	results := make([]*pb.KeyValuePair, 0)
+
+	for {
+		if count > req.MaxReadings || !itr.Valid() {
+			break
+		}
+
+		tk := TxnKey(itr.Key())
+		k, v, found, err := m.getValueForTxn(itr, tk.userKey(), txnID)
+		if err != nil {
+			return nil, err
+		}
+
+		if found {
+			results = append(results, &pb.KeyValuePair{Key: k, Value: v})
+			prevUk = k
+			count++
+		}
+
+		itr.Next()
+
+		for {
+			if !itr.Valid() || !bytes.Equal(TxnKey(itr.Key()).userKey(), prevUk) {
+				break
+			}
+
+			itr.Next()
+		}
+	}
+
+	if inlinedTxn {
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Get; inlined txn. committing..")
+		m.commitTxn(req.TxnId)
+	}
+
+	resp.Entries = results
 	return resp, nil
 }
 
@@ -388,6 +418,44 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, error) {
 
 	log.Info("mvcc::mvcc::begin; done")
 	return txn, nil
+}
+
+func (m *MVCC) getValueForTxn(itr storage.Iterator, key []byte, txnID uint64) (k, v []byte, found bool, err error) {
+	txn := m.activeTxnsCache[txnID]
+
+	// iterate through the kv pairs sorted (decreasing) by txnID.
+	// skip the ones which were active during the txn init.
+	for {
+		if itr.Valid() {
+			log.WithFields(log.Fields{"txnID": txnID}).Info("mvcc::mvcc::getValueForTxn; valid node on the iterator")
+			tk := TxnKey(itr.Key())
+			uk := tk.userKey()
+			if !bytes.Equal(uk, key) {
+				break
+			}
+
+			tid := tk.txnID()
+			if _, ok := txn.concTxns[tid]; !ok {
+				log.WithFields(log.Fields{"txnID": txnID, "tid": tid}).Info("mvcc::mvcc::getValueForTxn; found a value for the key")
+
+				if len(itr.Value()) > 0 {
+					tVal := txnValue(itr.Value())
+					if !tVal.getDeleteFlag() {
+						return uk, tVal.getUserValue(), true, nil
+					}
+				}
+
+				return uk, nil, false, nil
+			} else {
+				log.WithFields(log.Fields{"txnID": txnID, "tid": tid}).Info("mvcc::mvcc::getValueForTxn; found a conflicting txn; skipping")
+				itr.Next()
+			}
+		} else {
+			break
+		}
+	}
+
+	return nil, nil, false, nil
 }
 
 // ensureTxn ensures a txn exists.

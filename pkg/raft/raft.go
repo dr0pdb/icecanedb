@@ -258,11 +258,11 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 				// update commit index
 				if req.LeaderCommit > r.commitIndex {
 					r.commitIndex = common.MinU64(req.LeaderCommit, r.lastLogIndex)
-				}
 
-				r.mu.Unlock()
-				r.istate.applyCommittedEntriesCh <- struct{}{} // trigger application to storage layer
-				r.mu.Lock()
+					r.mu.Unlock()
+					r.istate.applyCommittedEntriesCh <- struct{}{} // trigger application to storage layer
+					r.mu.Lock()
+				}
 
 				success = true
 				log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleAppendEntries; successfully applied append entries")

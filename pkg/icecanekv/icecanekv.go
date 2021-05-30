@@ -64,6 +64,11 @@ func (kvs *KVServer) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetRespon
 	return kvs.kvMvcc.Get(ctx, req)
 }
 
+// Scan returns a list of key value pairs starting from the given key
+func (kvs *KVServer) Scan(ctx context.Context, req *pb.ScanRequest) (*pb.ScanResponse, error) {
+	return kvs.kvMvcc.Scan(ctx, req)
+}
+
 // Set sets the value of a key.
 func (kvs *KVServer) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
 	return kvs.kvMvcc.Set(ctx, req)
