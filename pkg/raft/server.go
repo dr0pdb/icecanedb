@@ -87,7 +87,8 @@ type Server struct {
 	clientConnections *common.ProtectedMapUConn
 
 	// the raft commit idx
-	raftCommitIdx uint64
+	raftCommitIdx  uint64
+	raftAppliedIdx uint64
 
 	Th *TestHelpers
 }
@@ -103,7 +104,8 @@ type TestHelpers struct {
 type DiagInfo struct {
 	Role State
 
-	RaftCommitIdx uint64
+	RaftCommitIdx  uint64
+	RaftAppliedIdx uint64
 
 	Term uint64
 }
@@ -143,9 +145,9 @@ func (s *Server) PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerS
 		return nil, err
 	}
 
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerSet; waiting for idx %d to be committed", idx))
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerSet; waiting for idx %d to be committed and applied", idx))
 	for {
-		if s.raftCommitIdx >= idx {
+		if s.raftAppliedIdx >= idx {
 			break
 		}
 
@@ -185,9 +187,9 @@ func (s *Server) PeerDelete(ctx context.Context, req *pb.PeerDeleteRequest) (*pb
 		return nil, err
 	}
 
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerDelete; waiting for idx %d to be committed", idx))
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerDelete; waiting for idx %d to be committed and applied", idx))
 	for {
-		if s.raftCommitIdx >= idx {
+		if s.raftAppliedIdx >= idx {
 			break
 		}
 
@@ -232,7 +234,7 @@ func (s *Server) Close() {
 func (s *Server) ScanValues(target []byte) (storage.Iterator, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::ScanValues; started")
 
-	// TODO: Ensure that we have the latest values (due to async application of raft logs)
+	// TODO: Ensure that we have the latest values (once we move to async application of raft logs)
 	// wait for it if it's not
 
 	itr := s.kvStorage.Scan(target)
@@ -251,9 +253,9 @@ func (s *Server) SetValue(key, value []byte, meta bool) error {
 			return err
 		}
 
-		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; waiting for idx %d to be committed", idx))
+		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; waiting for idx %d to be committed and applied", idx))
 		for {
-			if s.raftCommitIdx >= idx {
+			if s.raftAppliedIdx >= idx {
 				break
 			}
 
@@ -298,9 +300,9 @@ func (s *Server) DeleteValue(key []byte, meta bool) error {
 			return err
 		}
 
-		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; waiting for idx %d to be committed", idx))
+		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; waiting for idx %d to be committed and applied", idx))
 		for {
-			if s.raftCommitIdx >= idx {
+			if s.raftAppliedIdx >= idx {
 				break
 			}
 
@@ -337,7 +339,7 @@ func (s *Server) DeleteValue(key []byte, meta bool) error {
 func (s *Server) MetaGetValue(key []byte) ([]byte, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaGetValue; started")
 
-	// TODO: Ensure that we have the latest values (due to async application of raft logs)
+	// TODO: Ensure that we have the latest values (once we move to async application of raft logs)
 	// wait for it if it's not
 
 	val, err := s.kvMetaStorage.Get(key, nil)
@@ -348,7 +350,7 @@ func (s *Server) MetaGetValue(key []byte) ([]byte, error) {
 func (s *Server) MetaScan(target []byte) (storage.Iterator, error) {
 	log.WithFields(log.Fields{"id": s.id}).Info("raft::server::MetaScan; started")
 
-	// TODO: Ensure that we have the latest values (due to async application of raft logs)
+	// TODO: Ensure that we have the latest values (once we move to async application of raft logs)
 	// wait for it if it's not
 
 	itr := s.kvMetaStorage.Scan(target)
@@ -371,9 +373,10 @@ func (s *Server) GetDiagnosticInformation() *DiagInfo {
 	term, commitIdx, role := s.raft.getNodeState()
 
 	return &DiagInfo{
-		Role:          role,
-		RaftCommitIdx: commitIdx,
-		Term:          term,
+		Role:           role,
+		RaftCommitIdx:  commitIdx,
+		Term:           term,
+		RaftAppliedIdx: s.raftAppliedIdx,
 	}
 }
 
@@ -512,6 +515,9 @@ func (s *Server) applyEntry(rl *RaftLog, logIndex uint64) (err error) {
 	if err != nil {
 		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::applyEntry; error while applying entry. err: %v", err.Error()))
 	} else {
+		s.mu.Lock()
+		s.raft.lastApplied = logIndex
+		s.mu.Unlock()
 		log.WithFields(log.Fields{"id": s.id}).Info("raft::server::applyEntry; done")
 	}
 
