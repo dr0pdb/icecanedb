@@ -125,6 +125,7 @@ func (s *Server) AppendEntries(ctx context.Context, request *pb.AppendEntriesReq
 
 // PeerSet is invoked by a raft peer to set the kv if this node is a leader
 func (s *Server) PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerSetResponse, error) {
+	log.WithFields(log.Fields{"id": s.id, "req": req}).Info("raft::server::PeerSet; started")
 	resp := &pb.PeerSetResponse{
 		Success:  false,
 		IsLeader: true,
@@ -136,13 +137,37 @@ func (s *Server) PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerS
 		return resp, nil
 	}
 
-	// todo: do the set
+	idx, err := s.raft.handleClientSetRequest(req.Key, req.Value, req.Meta)
+	if err != nil {
+		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::PeerSet; error while setting. err: %+v", err))
+		return nil, err
+	}
+
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerSet; waiting for idx %d to be committed", idx))
+	for {
+		if s.raftCommitIdx >= idx {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// check to see if the entry committed is the same as we requested
+	// this is required since the leader might have changed right after the set was done
+	rl := s.GetLogAtIndex(idx)
+	if rl.Ct != SetCmd || !bytes.Equal(rl.Key, req.Key) || !bytes.Equal(rl.Value, req.Value) {
+		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::PeerSet; different log committed at idx: %d", idx))
+		return nil, fmt.Errorf("raft internal error: different log committed at the index")
+	}
+
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerSet; successfully committed at %d", idx))
 
 	return resp, nil
 }
 
 // PeerDelete is invoked by a raft peer to delete a kv if this node is a leader
 func (s *Server) PeerDelete(ctx context.Context, req *pb.PeerDeleteRequest) (*pb.PeerDeleteResponse, error) {
+	log.WithFields(log.Fields{"id": s.id, "req": req}).Info("raft::server::PeerDelete; started")
 	resp := &pb.PeerDeleteResponse{
 		Success:  false,
 		IsLeader: true,
@@ -154,8 +179,30 @@ func (s *Server) PeerDelete(ctx context.Context, req *pb.PeerDeleteRequest) (*pb
 		return resp, nil
 	}
 
-	// todo: do the delete
+	idx, err := s.raft.handleClientDeleteRequest(req.Key, req.Meta)
+	if err != nil {
+		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::PeerDelete; error while deleting. err: %+v", err))
+		return nil, err
+	}
 
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerDelete; waiting for idx %d to be committed", idx))
+	for {
+		if s.raftCommitIdx >= idx {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// check to see if the entry committed is the same as we requested
+	// this is required since the leader might have changed right after the set was done
+	rl := s.GetLogAtIndex(idx)
+	if rl.Ct != DeleteCmd || !bytes.Equal(rl.Key, req.Key) {
+		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::PeerDelete; different log committed at idx: %d", idx))
+		return nil, fmt.Errorf("raft internal error: different log committed at the index")
+	}
+
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerDelete; successfully committed at %d", idx))
 	return resp, nil
 }
 
