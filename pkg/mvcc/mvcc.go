@@ -70,8 +70,8 @@ type MVCC struct {
 
 	mu *sync.RWMutex
 
-	// active transactions
-	activeTxn map[uint64]*Transaction
+	// cache of active transactions
+	activeTxnsCache map[uint64]*Transaction
 
 	// the underlying raft node
 	rs raft.IcecaneRaftServer
@@ -112,7 +112,7 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 	}
 	req.TxnId = txnID
 
-	txn := m.activeTxn[txnID]
+	txn := m.activeTxnsCache[txnID]
 
 	tk := newTxnKey(req.GetKey(), req.GetTxnId())
 	itr, err := m.rs.ScanValues(tk)
@@ -142,7 +142,10 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 				if len(itr.Value()) > 0 {
 					tVal := txnValue(itr.Value())
 					if !tVal.getDeleteFlag() {
-						resp.Value = tVal.getUserValue()
+						resp.Kv = &pb.KeyValuePair{
+							Key:   uk,
+							Value: tVal.getUserValue(),
+						}
 						resp.Found = true
 					}
 				}
@@ -158,7 +161,7 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 	}
 
 	if resp.Found {
-		log.WithFields(log.Fields{"txnID": req.TxnId, "value": string(resp.Value)}).Info("mvcc::mvcc::Get; found value")
+		log.WithFields(log.Fields{"txnID": req.TxnId, "value": string(resp.Kv.Value)}).Info("mvcc::mvcc::Get; found value")
 	}
 
 	if inlinedTxn {
@@ -194,7 +197,7 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 	}
 	req.TxnId = txnID
 
-	txn := m.activeTxn[txnID]
+	txn := m.activeTxnsCache[txnID]
 	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; checking for conflicting sets")
 
 	err = m.checkForConflictingWrites(txn, txnID, req.GetKey())
@@ -253,7 +256,7 @@ func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteRes
 		return nil, err
 	}
 	req.TxnId = txnID
-	txn := m.activeTxn[txnID]
+	txn := m.activeTxnsCache[txnID]
 
 	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Delete; checking for conflicting writes")
 
@@ -361,7 +364,7 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, error) {
 	// snapshot of active txns at the moment of creation.
 	cTxns := make(map[uint64]bool)
 	var cTxnsS []uint64
-	for k := range m.activeTxn {
+	for k := range m.activeTxnsCache {
 		cTxns[k] = true
 		cTxnsS = append(cTxnsS, k)
 	}
@@ -381,7 +384,7 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, error) {
 	}
 
 	txn := newTransaction(nxtIDUint64, cTxns, mode)
-	m.activeTxn[txn.id] = txn
+	m.activeTxnsCache[txn.id] = txn
 
 	log.Info("mvcc::mvcc::begin; done")
 	return txn, nil
@@ -401,12 +404,12 @@ func (m *MVCC) ensureTxn(id uint64, mode pb.TxnMode) (uint64, error) {
 
 		id = txnID.id
 	} else {
-		m.mu.RLock()
-		defer m.mu.RUnlock()
-
-		if _, ok := m.activeTxn[id]; !ok {
-			return id, fmt.Errorf("error: inactive transaction")
+		txn, err := m.getTxn(id)
+		if err != nil {
+			return 0, err
 		}
+
+		id = txn.id
 	}
 
 	log.Info("mvcc::mvcc::ensureTxn; done")
@@ -459,7 +462,7 @@ func (m *MVCC) commitTxn(id uint64) (err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.activeTxn[id]; ok {
+	if _, ok := m.activeTxnsCache[id]; ok {
 		// delete the key activeTxn from storage.
 		markKey := getKey(id, activeTxn, nil)
 		err = m.rs.DeleteValue([]byte(markKey), true)
@@ -468,7 +471,7 @@ func (m *MVCC) commitTxn(id uint64) (err error) {
 			return err
 		}
 
-		delete(m.activeTxn, id)
+		delete(m.activeTxnsCache, id)
 	} else {
 		log.WithFields(log.Fields{"id": m.id, "txnId": id}).Info("mvcc::mvcc::commitTxn; commit on inactive txn.")
 		return fmt.Errorf("commit on inactive txn")
@@ -486,7 +489,7 @@ func (m *MVCC) rollbackTxn(txnID uint64) (err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.activeTxn[txnID]; ok {
+	if _, ok := m.activeTxnsCache[txnID]; ok {
 		// delete the entries written by this txn.
 		// we can with key = "id" + nil. since nil is the smallest,
 		// all the keys with prefix "id" can be scanned with the iterator.
@@ -537,7 +540,7 @@ func (m *MVCC) rollbackTxn(txnID uint64) (err error) {
 			return err
 		}
 
-		delete(m.activeTxn, txnID)
+		delete(m.activeTxnsCache, txnID)
 	} else {
 		log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::rollbackTxn; rollback on inactive txn.")
 		return fmt.Errorf("rollback on inactive txn")
@@ -545,6 +548,22 @@ func (m *MVCC) rollbackTxn(txnID uint64) (err error) {
 
 	log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::rollbackTxn; rolled back successfully.")
 	return nil
+}
+
+// getTxn returns the txn with the given id if it's active
+// Note: Don't hold lock while calling this
+func (m *MVCC) getTxn(txnID uint64) (*Transaction, error) {
+	log.WithFields(log.Fields{"id": m.id}).Info("mvcc::mvcc::getTxn; start")
+	m.mu.RLock()
+	if txn, ok := m.activeTxnsCache[txnID]; ok {
+		m.mu.RUnlock()
+		return txn, nil
+	}
+	m.mu.RUnlock()
+
+	// todo: fetch from disk
+
+	return nil, nil
 }
 
 // getNextTxnID returns the next available txn id.
@@ -571,16 +590,17 @@ func (m *MVCC) getNextTxnID() (nxtIDUint64 uint64, err error) {
 }
 
 func (m *MVCC) init() {
-	// todo: abort active txns after crash.
+	// todo: abort active txns created by this node after crash.
+	// this also means that we need to store which node created a txn
 }
 
 // NewMVCC creates a new MVCC transactional layer for the storage
 func NewMVCC(id uint64, rs raft.IcecaneRaftServer) *MVCC {
 	m := &MVCC{
-		id:        id,
-		mu:        new(sync.RWMutex),
-		activeTxn: make(map[uint64]*Transaction),
-		rs:        rs,
+		id:              id,
+		mu:              new(sync.RWMutex),
+		activeTxnsCache: make(map[uint64]*Transaction),
+		rs:              rs,
 	}
 
 	m.init()

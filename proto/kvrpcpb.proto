@@ -23,6 +23,11 @@ message IcecaneError {
   string message = 3;
 }
 
+message KeyValuePair {
+  bytes key = 1;
+  bytes value = 2;
+}
+
 message GetRequest {
   Context context = 1;
   bytes key = 2;
@@ -33,8 +38,7 @@ message GetRequest {
 }
 
 message GetResponse {
-  // An empty value with found = true indicates deletion.
-  bytes value = 1;
+  KeyValuePair kv = 1;
   IcecaneError error = 2;
   bool found = 3;
 }
@@ -106,9 +110,16 @@ message RollbackTxnResponse {
   IcecaneError error = 3;
 }
 
-message ScanRequest {}
+message ScanRequest {
+  bytes start_key = 1;
+  int32 max_readings = 2;
+  uint64 txn_id = 3;
+}
 
-message ScanResponse {}
+message ScanResponse {
+  repeated KeyValuePair entries = 1;
+  IcecaneError error = 2;
+}
 
 // Context is the metadata that is present in every request.
 message Context {}

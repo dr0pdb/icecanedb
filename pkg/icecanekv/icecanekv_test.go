@@ -420,7 +420,7 @@ func TestMvccCrudBasic(t *testing.T) {
 	assert.NotNil(t, getResp, "Get response unexpectedly null while getting key-value from leader")
 	assert.Equal(t, "", getResp.Error, "Unexpected error resp while getting key-value from leader")
 	assert.True(t, getResp.Found, "Value not found for the key while getting key-value from leader")
-	assert.Equal(t, test.TestValues[0], getResp.GetValue(), "Unexpected error resp while getting key-value from leader")
+	assert.Equal(t, test.TestValues[0], getResp.Kv.GetValue(), "Unexpected error resp while getting key-value from leader")
 
 	// update a new value for the key
 	req = &icecanedbpb.SetRequest{
@@ -441,7 +441,7 @@ func TestMvccCrudBasic(t *testing.T) {
 	assert.NotNil(t, getResp, "Get response unexpectedly null while getting key-value from leader")
 	assert.Equal(t, "", getResp.Error, "Unexpected error resp while getting key-value from leader")
 	assert.True(t, getResp.Found, "Value not found for the key while getting key-value from leader")
-	assert.Equal(t, test.TestUpdatedValues[0], getResp.GetValue(), "Unexpected error resp while getting key-value from leader")
+	assert.Equal(t, test.TestUpdatedValues[0], getResp.Kv.GetValue(), "Unexpected error resp while getting key-value from leader")
 
 	// delete the kv pair
 	deleteReq := &icecanedbpb.DeleteRequest{
@@ -499,7 +499,7 @@ func TestMvccCommitDurable(t *testing.T) {
 	assert.NotNil(t, getResp, "Get response unexpectedly null while getting key-value from leader")
 	assert.Equal(t, "", getResp.Error, "Unexpected error resp while getting key-value from leader")
 	assert.True(t, getResp.Found, "Value not found for the key while getting key-value from leader")
-	assert.Equal(t, test.TestValues[0], getResp.GetValue(), "Unexpected error resp while getting key-value from leader")
+	assert.Equal(t, test.TestValues[0], getResp.Kv.GetValue(), "Unexpected error resp while getting key-value from leader")
 
 	// get req without txn id shouldn't read the value as it's not committed yet
 	getReq = &icecanedbpb.GetRequest{
@@ -528,7 +528,7 @@ func TestMvccCommitDurable(t *testing.T) {
 	assert.NotNil(t, getResp, "Get response unexpectedly null while getting key-value from leader")
 	assert.Equal(t, "", getResp.Error, "Unexpected error resp while getting key-value from leader")
 	assert.True(t, getResp.Found, "Value not found for the key while getting key-value from leader")
-	assert.Equal(t, test.TestValues[0], getResp.GetValue(), "Unexpected error resp while getting key-value from leader")
+	assert.Equal(t, test.TestValues[0], getResp.Kv.GetValue(), "Unexpected error resp while getting key-value from leader")
 }
 
 // TODO: fix this. This times out right now
@@ -556,7 +556,7 @@ func TestMvccGetSetWithLeaderChange(t *testing.T) {
 	assert.NotNil(t, getResp, "Get response unexpectedly null while getting key-value from leader")
 	assert.Equal(t, "", getResp.Error, "Unexpected error resp while getting key-value from leader")
 	assert.True(t, getResp.Found, "Value not found for the key while getting key-value from leader")
-	assert.Equal(t, test.TestValues[0], getResp.GetValue(), "Unexpected error resp while getting key-value from leader")
+	assert.Equal(t, test.TestValues[0], getResp.Kv.GetValue(), "Unexpected error resp while getting key-value from leader")
 
 	th.disconnectPeer(leaderId)
 
