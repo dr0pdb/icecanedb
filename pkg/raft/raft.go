@@ -214,7 +214,7 @@ func (r *Raft) handleRequestVote(ctx context.Context, req *pb.RequestVoteRequest
 // appendEntries is invoked by leader to replicate log entries; also used as heartbeat
 // NOTE: Holds the internal lock of raft.
 func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (resp *pb.AppendEntriesResponse, err error) {
-	log.WithFields(log.Fields{"id": r.id, "leaderID": req.LeaderId, "leaderTerm": req.Term}).Info("raft::raft::handleAppendEntries; received grpc request to append entries;")
+	log.WithFields(log.Fields{"id": r.id, "leaderID": req.LeaderId, "leaderTerm": req.Term, "num_entries": len(req.Entries)}).Info("raft::raft::handleAppendEntries; received grpc request to append entries;")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -238,7 +238,7 @@ func (r *Raft) handleAppendEntries(ctx context.Context, req *pb.AppendEntriesReq
 		}
 
 		r.istate.lastAppendOrVoteTime = time.Now()
-		log.Info(fmt.Sprintf("raft::raft::handleAppendEntries; request info: %+v", req))
+		log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::handleAppendEntries; request info: %+v", req))
 
 		if len(req.Entries) > 0 {
 			lrl := r.getLogEntryOrDefault(req.PrevLogIndex)
@@ -300,10 +300,10 @@ func (r *Raft) handleClientSetRequest(key, value []byte, meta bool) (uint64, err
 	var rl *RaftLog
 
 	if meta {
-		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientSetRequest; metaset request")
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientSetRequest; type is metaset")
 		rl = newMetaSetRaftLog(r.currentTerm, key, value)
 	} else {
-		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientSetRequest; set request")
+		log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::handleClientSetRequest; type is set")
 		rl = newSetRaftLog(r.currentTerm, key, value)
 	}
 
@@ -364,6 +364,7 @@ func (r *Raft) handleClientDeleteRequest(key []byte, meta bool) (uint64, error) 
 // NOTE: Expects exclusive lock to be held on the struct
 // returns the index of the log entry / error
 func (r *Raft) submitRaftLog(rl *RaftLog) (uint64, error) {
+	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::submitRaftLog; start")
 	err := r.raftStorage.Set(common.U64ToByteSlice(r.lastLogIndex+1), rl.toBytes(), nil)
 	if err != nil {
 		log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::submitRaftLog; error in submitting request to the raft storage at idx: %d. err: %v", r.lastLogIndex+1, err))
@@ -426,58 +427,6 @@ func (r *Raft) becomeFollower(term uint64) {
 	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::becomeFollower; done")
 }
 
-// commitEntryRoutine commits the log entries
-// Spins a routine so doesn't block.
-func (r *Raft) commitEntryRoutine() {
-	log.WithFields(log.Fields{"id": r.id}).Info("raft::raft::commitEntryRoutine; started")
-
-	go func() {
-		for {
-			r.mu.RLock()
-			role := r.role
-			ci := r.commitIndex
-			lastLogIndex := r.lastLogIndex
-			ct := r.currentTerm
-			r.mu.RUnlock()
-
-			if role != Leader {
-				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::commitEntryRoutine; no longer a leader. current state: %s", role))
-				return
-			}
-
-			for idx := ci + 1; idx <= lastLogIndex; idx++ {
-				rl := r.getLogEntryOrDefault(idx)
-				log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::commitEntryRoutine; trying to commit idx: %d", idx))
-				if rl.Term == ct {
-					cnt := 1
-
-					for id, p := range r.allProgress {
-						if r.id != id && p.Match >= idx {
-							cnt++
-						}
-					}
-
-					if isMajiority(cnt, len(r.allProgress)) {
-						r.mu.Lock()
-						r.s.updateRaftIdx(idx, r.commitIndex)
-						r.commitIndex = idx
-						r.mu.Unlock()
-						log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::commitEntryRoutine; committed idx: %d", idx))
-					}
-				}
-			}
-
-			r.mu.RLock()
-			if ci != r.commitIndex {
-				r.istate.applyCommittedEntriesCh <- struct{}{}
-			}
-			r.mu.RUnlock()
-
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
-}
-
 // applyCommittedEntries applies the already committed entries that haven't been applied yet.
 // it blocks hence should be a separate routine
 // it's always running in the background till the ch is closed.
@@ -528,6 +477,7 @@ func (r *Raft) sendAppendEntries() {
 		if i != r.id {
 			go func(receiverID uint64) {
 				// we have to send entries from index p.Next to r.lastLogIndex
+				// todo: if the follower is too far behind, it might make sense to limit the number of entries in a request.
 				p := r.allProgress[receiverID]
 				lastRl := r.getLogEntryOrDefault(p.Next - 1)
 				prevLogIndex := p.Next - 1
@@ -559,18 +509,58 @@ func (r *Raft) sendAppendEntries() {
 					return
 				}
 
+				r.mu.Lock()
+
 				if resp.Term > currentTerm {
 					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; append entry response term %d is higher than current term %d. becoming follower", resp.Term, currentTerm))
 					r.setTerm(resp.Term)
 					r.becomeFollower(resp.Term)
+					r.mu.Unlock()
+					return
+				}
+
+				if len(entries) == 0 {
+					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; heartbeat sent and processed successfully to %d", receiverID))
+					r.mu.Unlock()
+					return
 				}
 
 				if resp.Success {
-					p.Next = lastLogIndex + 1
-					p.Match = lastLogIndex
+					r.allProgress[receiverID].Next = lastLogIndex + 1
+					r.allProgress[receiverID].Match = lastLogIndex
+
+					trigger := false
+					for i := r.commitIndex + 1; i <= r.lastLogIndex; i++ {
+						rl := r.getLogEntryOrDefault(i)
+
+						if rl.Term == r.currentTerm {
+							cnt := 1
+
+							for peer := range r.kvConfig.Peers {
+								if r.allProgress[r.kvConfig.Peers[peer].ID].Match >= i {
+									cnt++
+								}
+							}
+
+							if isMajiority(cnt, len(r.allProgress)) {
+								r.commitIndex = i
+								trigger = true
+								log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; successfully committed index: %d", i))
+								r.s.updateRaftIdx(i)
+							}
+						}
+					}
+
+					r.mu.Unlock()
+
+					if trigger {
+						r.istate.applyCommittedEntriesCh <- struct{}{}
+					}
 				} else {
+					// todo: while this is correct, it is extremely inefficient. the responding peer should return the conflict index and we can set Next to that
 					log.WithFields(log.Fields{"id": r.id}).Info(fmt.Sprintf("raft::raft::sendAppendEntries; response from %d indicates failure. retrying with decremented next index", resp.ResponderId))
-					p.Next--
+					r.allProgress[receiverID].Next--
+					r.mu.Unlock()
 				}
 			}(i)
 		}
@@ -645,8 +635,6 @@ func (r *Raft) startLeader() {
 
 		}
 	}()
-
-	go r.commitEntryRoutine()
 }
 
 // startElection starts a leader election
@@ -774,8 +762,8 @@ func NewRaft(kvConfig *common.KVConfig, raftStorage *storage.Storage, s *Server,
 			clientRequests:          make(chan interface{}),
 			clientResponses:         make(chan bool),
 			lastAppendOrVoteTime:    time.Now(),
-			applyCommittedEntriesCh: make(chan interface{}),
-			triggerAppendEntriesCh:  make(chan interface{}),
+			applyCommittedEntriesCh: make(chan interface{}, 10),
+			triggerAppendEntriesCh:  make(chan interface{}, 1),
 		},
 		kvConfig:     kvConfig,
 		s:            s,

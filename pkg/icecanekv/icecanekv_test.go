@@ -393,7 +393,7 @@ func TestRaftLeaderWriteSucceedsWithNewLeader(t *testing.T) {
 }
 
 //
-// MVCC tests
+// MVCC + Raft tests
 //
 
 func TestMvccCrudBasic(t *testing.T) {

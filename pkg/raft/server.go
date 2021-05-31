@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	common "github.com/dr0pdb/icecanedb/pkg/common"
@@ -516,7 +515,7 @@ func (s *Server) applyEntry(rl *RaftLog, logIndex uint64) (err error) {
 		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::applyEntry; error while applying entry. err: %v", err.Error()))
 	} else {
 		s.mu.Lock()
-		s.raft.lastApplied = logIndex
+		s.raftAppliedIdx = logIndex
 		s.mu.Unlock()
 		log.WithFields(log.Fields{"id": s.id}).Info("raft::server::applyEntry; done")
 	}
@@ -525,13 +524,13 @@ func (s *Server) applyEntry(rl *RaftLog, logIndex uint64) (err error) {
 }
 
 // updateRaftIdx updates the raft index in server
-func (s *Server) updateRaftIdx(idx, expected uint64) {
-	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::updateRaftIdx; updating raftLogIndex from %d to %d", expected, idx))
-	for {
-		if success := atomic.CompareAndSwapUint64(&s.raftCommitIdx, expected, idx); success {
-			break
-		}
+func (s *Server) updateRaftIdx(idx uint64) {
+	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::updateRaftIdx; updating raftLogIndex from %d to %d", s.raftCommitIdx, idx))
+	s.mu.Lock()
+	if idx > s.raftCommitIdx {
+		s.raftCommitIdx = idx
 	}
+	s.mu.Unlock()
 }
 
 //
