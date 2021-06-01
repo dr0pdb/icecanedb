@@ -156,7 +156,7 @@ func (s *Server) PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerS
 	// check to see if the entry committed is the same as we requested
 	// this is required since the leader might have changed right after the set was done
 	rl := s.GetLogAtIndex(idx)
-	if rl.Ct != SetCmd || !bytes.Equal(rl.Key, req.Key) || !bytes.Equal(rl.Value, req.Value) {
+	if (rl.Ct != SetCmd && rl.Ct != MetaSetCmd) || !bytes.Equal(rl.Key, req.Key) || !bytes.Equal(rl.Value, req.Value) {
 		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::PeerSet; different log committed at idx: %d", idx))
 		return nil, fmt.Errorf("raft internal error: different log committed at the index")
 	}
@@ -198,7 +198,7 @@ func (s *Server) PeerDelete(ctx context.Context, req *pb.PeerDeleteRequest) (*pb
 	// check to see if the entry committed is the same as we requested
 	// this is required since the leader might have changed right after the set was done
 	rl := s.GetLogAtIndex(idx)
-	if rl.Ct != DeleteCmd || !bytes.Equal(rl.Key, req.Key) {
+	if (rl.Ct != DeleteCmd && rl.Ct != MetaDeleteCmd) || !bytes.Equal(rl.Key, req.Key) {
 		log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::PeerDelete; different log committed at idx: %d", idx))
 		return nil, fmt.Errorf("raft internal error: different log committed at the index")
 	}
@@ -264,13 +264,15 @@ func (s *Server) SetValue(key, value []byte, meta bool) error {
 		// check to see if the entry committed is the same as we requested
 		// this is required since the leader might have changed right after the set was done
 		rl := s.GetLogAtIndex(idx)
-		if rl.Ct != SetCmd || !bytes.Equal(rl.Key, key) || !bytes.Equal(rl.Value, value) {
+		if (rl.Ct != SetCmd && rl.Ct != MetaSetCmd) || !bytes.Equal(rl.Key, key) || !bytes.Equal(rl.Value, value) {
 			log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::SetValue; different log committed at idx: %d", idx))
 			return fmt.Errorf("raft internal error: different log committed at the index")
 		}
 
 		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::SetValue; successfully committed at %d", idx))
 	} else {
+		success := false
+
 		// call raft peer on behalf of the client
 		for i := range s.kvConfig.Peers {
 			p := s.kvConfig.Peers[i]
@@ -279,8 +281,14 @@ func (s *Server) SetValue(key, value []byte, meta bool) error {
 				if err != nil {
 					return err
 				}
+
+				success = true
 				break
 			}
+		}
+
+		if !success {
+			return fmt.Errorf("unsuccessful write")
 		}
 	}
 
@@ -311,13 +319,15 @@ func (s *Server) DeleteValue(key []byte, meta bool) error {
 		// check to see if the entry committed is the same as we requested
 		// this is required since the leader might have changed right after the set was done
 		rl := s.GetLogAtIndex(idx)
-		if rl.Ct != DeleteCmd || !bytes.Equal(rl.Key, key) {
+		if (rl.Ct != DeleteCmd && rl.Ct != MetaDeleteCmd) || !bytes.Equal(rl.Key, key) {
 			log.WithFields(log.Fields{"id": s.id}).Error(fmt.Sprintf("raft::server::DeleteValue; different log committed at idx: %d", idx))
 			return fmt.Errorf("raft internal error: different log committed at the index")
 		}
 
 		log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::DeleteValue; successfully committed at %d", idx))
 	} else {
+		success := false
+
 		// call raft peer on behalf of the client
 		for i := range s.kvConfig.Peers {
 			p := s.kvConfig.Peers[i]
@@ -326,8 +336,13 @@ func (s *Server) DeleteValue(key []byte, meta bool) error {
 				if err != nil {
 					return err
 				}
+				success = true
 				break
 			}
+		}
+
+		if !success {
+			return fmt.Errorf("unsuccessful write")
 		}
 	}
 
