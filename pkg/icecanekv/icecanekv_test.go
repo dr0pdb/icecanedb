@@ -205,6 +205,15 @@ func (s *icecanekvTestHarness) checkSingleLeader(t *testing.T) (uint64, uint64) 
 	return 0, 0
 }
 
+func (s *icecanekvTestHarness) checkNoLeader(t *testing.T) {
+	for i := uint64(1); i <= 5; i++ {
+		if s.connected[i] {
+			info := s.kvServers[i-1].RaftServer.GetDiagnosticInformation()
+			assert.NotEqual(t, raft.Leader, info.Role, "found a leader when expected no one")
+		}
+	}
+}
+
 //
 // Raft tests
 //
@@ -239,6 +248,60 @@ func TestRaftElectionLeaderDisconnectBasic(t *testing.T) {
 	th.disconnectPeer(leaderID)
 
 	time.Sleep(2 * time.Second)
+
+	newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
+	assert.NotEqual(t, newLeaderID, leaderID, fmt.Sprintf("error: newLeaderID still same as previous leaderID. newLeaderID: %d, leaderID: %d", newLeaderID, leaderID))
+	assert.Greater(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm <= leaderTerm.")
+}
+
+// disconnect majiority of nodes to loose quorum and reconnect one to gain quorum
+func TestRaftElectionQuorumLossRegain(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderID, leaderTerm := th.checkSingleLeader(t)
+
+	toDisconnect := []uint64{1, 2, 3}
+	if leaderID >= 4 {
+		toDisconnect[2] = leaderID
+	}
+
+	for i := range toDisconnect {
+		th.disconnectPeer(toDisconnect[i])
+	}
+
+	time.Sleep(2 * time.Second)
+	th.checkNoLeader(t)
+
+	// should gain quorum
+	th.reconnectPeer(toDisconnect[0])
+	time.Sleep(1 * time.Second)
+
+	newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
+	assert.NotEqual(t, newLeaderID, leaderID, fmt.Sprintf("error: newLeaderID still same as previous leaderID. newLeaderID: %d, leaderID: %d", newLeaderID, leaderID))
+	assert.Greater(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm <= leaderTerm.")
+}
+
+// disconnect all of nodes to loose quorum and reconnect all to get a new leader
+func TestRaftElectionDisconnectAll(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderID, leaderTerm := th.checkSingleLeader(t)
+	th.disconnectPeer(leaderID)
+
+	for i := uint64(1); i <= 5; i++ {
+		th.disconnectPeer(i)
+	}
+
+	time.Sleep(2 * time.Second)
+	th.checkNoLeader(t)
+
+	// should gain quorum
+	for i := uint64(1); i <= 5; i++ {
+		th.reconnectPeer(i)
+	}
+	time.Sleep(1 * time.Second)
 
 	newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
 	assert.NotEqual(t, newLeaderID, leaderID, fmt.Sprintf("error: newLeaderID still same as previous leaderID. newLeaderID: %d, leaderID: %d", newLeaderID, leaderID))
@@ -302,7 +365,61 @@ func TestRaftElectionLeaderDisconnectLessThanTimeout(t *testing.T) {
 	assert.Equal(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm != leaderTerm.")
 }
 
-func TestRaftLeaderWriteSucceeds(t *testing.T) {
+// disconnect a follower which will make itself a candidate, then reconnect and assert that election happened
+func TestRaftElectionFollowerDisconnectNewElection(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderID, leaderTerm := th.checkSingleLeader(t)
+	toDisconnect := uint64(1)
+	if leaderID == 1 {
+		toDisconnect = 2
+	}
+
+	th.disconnectPeer(toDisconnect)
+	time.Sleep(2 * time.Second)
+
+	th.reconnectPeer(toDisconnect)
+	time.Sleep(2 * time.Second)
+
+	// an increase in the term means that a new election took place. Leader could remain the same
+	_, newLeaderTerm := th.checkSingleLeader(t)
+	assert.Greater(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm <= leaderTerm.")
+}
+
+// keep loosing and regaining quorum and check for leader
+func TestRaftElectionDisconnectMultiple(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	for times := 0; times < 5; times++ {
+		leaderID, leaderTerm := th.checkSingleLeader(t)
+		th.disconnectPeer(leaderID)
+
+		toDisconnect := []uint64{1, 2, 3}
+		if leaderID >= 4 {
+			toDisconnect[2] = leaderID
+		}
+
+		for i := range toDisconnect {
+			th.disconnectPeer(toDisconnect[i])
+		}
+
+		time.Sleep(2 * time.Second)
+		th.checkNoLeader(t)
+
+		for i := range toDisconnect {
+			th.reconnectPeer(toDisconnect[i])
+		}
+		time.Sleep(1 * time.Second)
+
+		newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
+		assert.NotEqual(t, newLeaderID, leaderID, fmt.Sprintf("error: newLeaderID still same as previous leaderID. newLeaderID: %d, leaderID: %d", newLeaderID, leaderID))
+		assert.Greater(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm <= leaderTerm.")
+	}
+}
+
+func TestRaftSingleWriteLeaderSucceeds(t *testing.T) {
 	th := newIcecaneKVTestHarness()
 	defer th.teardown()
 
@@ -312,13 +429,50 @@ func TestRaftLeaderWriteSucceeds(t *testing.T) {
 	err := th.kvServers[leaderId-1].RaftServer.SetValue(test.TestKeys[0], test.TestValues[0], false)
 	assert.Nil(t, err, "Unexpected error while writing to leader")
 
-	// changes should be visible on the leader instantly
-	rl := th.kvServers[leaderId-1].RaftServer.GetLogAtIndex(1)
-	assert.Equal(t, test.TestKeys[0], rl.Key, "leader: saved key and returned key from log is not same")
-	assert.Equal(t, test.TestValues[0], rl.Value, "leader: saved key and returned key from log is not same")
+	// check on each node
+	for i := 0; i < 5; i++ {
+		rl2 := th.kvServers[i].RaftServer.GetLogAtIndex(1)
+		assert.Equal(t, test.TestKeys[0], rl2.Key, fmt.Sprintf("On id: %d saved key and returned key from log is not same", i+1))
+		assert.Equal(t, test.TestValues[0], rl2.Value, fmt.Sprintf("On id: %d saved key and returned key from log is not same", i+1))
+	}
+}
 
-	// allow entry to be replicated on followers
-	time.Sleep(2 * time.Second)
+// multiple writes should succeed on a single leader
+func TestRaftMultipleWriteLeaderSucceeds(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderId, _ := th.checkSingleLeader(t)
+
+	for entry := 0; entry < 5; entry++ {
+		err := th.kvServers[leaderId-1].RaftServer.SetValue(test.TestKeys[entry], test.TestValues[entry], false)
+		assert.Nil(t, err, "Unexpected error while writing to leader")
+	}
+
+	// check on each node
+	for node := 0; node < 5; node++ {
+		for idx := uint64(1); idx <= 5; idx++ {
+			rl2 := th.kvServers[node].RaftServer.GetLogAtIndex(idx)
+			assert.Equal(t, test.TestKeys[idx-1], rl2.Key, fmt.Sprintf("On id: %d saved key and returned key from log is not same", node+1))
+			assert.Equal(t, test.TestValues[idx-1], rl2.Value, fmt.Sprintf("On id: %d saved key and returned key from log is not same", node+1))
+		}
+	}
+}
+
+// the set request on a non-leader should be routed to a leader and successfully committed and applied
+func TestRaftSingleWriteNonLeaderSucceeds(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderId, _ := th.checkSingleLeader(t)
+	nonLeaderId := 1
+	if nonLeaderId == int(leaderId) {
+		nonLeaderId = 2
+	}
+
+	// should be inserted at idx 1
+	err := th.kvServers[nonLeaderId-1].RaftServer.SetValue(test.TestKeys[0], test.TestValues[0], false)
+	assert.Nil(t, err, "Unexpected error while writing to non leader")
 
 	// check on each node
 	for i := 0; i < 5; i++ {
@@ -328,10 +482,42 @@ func TestRaftLeaderWriteSucceeds(t *testing.T) {
 	}
 }
 
+// multiple writes should succeed on different non leaders
+func TestRaftMultipleWriteNonLeaderSucceeds(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderId, _ := th.checkSingleLeader(t)
+
+	id := uint64(1)
+	for entry := 0; entry < 5; entry++ {
+		if id == leaderId {
+			id++
+		}
+
+		err := th.kvServers[id-1].RaftServer.SetValue(test.TestKeys[entry], test.TestValues[entry], false)
+		assert.Nil(t, err, "Unexpected error while writing to non leader")
+
+		id++
+		if id > 5 {
+			id = 1
+		}
+	}
+
+	// check on each node
+	for node := 0; node < 5; node++ {
+		for idx := uint64(1); idx <= 5; idx++ {
+			rl2 := th.kvServers[node].RaftServer.GetLogAtIndex(idx)
+			assert.Equal(t, test.TestKeys[idx-1], rl2.Key, fmt.Sprintf("On id: %d saved key and returned key from log is not same", node+1))
+			assert.Equal(t, test.TestValues[idx-1], rl2.Value, fmt.Sprintf("On id: %d saved key and returned key from log is not same", node+1))
+		}
+	}
+}
+
 // Write key to leader, disconnect it from the network
 // write another kv pair to the new leader
 // check if all the nodes (except old leader) has both the kv pairs at the correct index in the raft log
-func TestRaftLeaderWriteSucceedsWithNewLeader(t *testing.T) {
+func TestRaftLeaderWriteSucceedsDisconnect(t *testing.T) {
 	th := newIcecaneKVTestHarness()
 	defer th.teardown()
 
@@ -345,9 +531,6 @@ func TestRaftLeaderWriteSucceedsWithNewLeader(t *testing.T) {
 	rl := th.kvServers[leaderId-1].RaftServer.GetLogAtIndex(1)
 	assert.Equal(t, test.TestKeys[0], rl.Key, "leader: saved key and returned key from log is not same")
 	assert.Equal(t, test.TestValues[0], rl.Value, "leader: saved key and returned key from log is not same")
-
-	// allow entry to be replicated on followers
-	time.Sleep(2 * time.Second)
 
 	// check on each node
 	for i := 0; i < 5; i++ {
@@ -372,9 +555,6 @@ func TestRaftLeaderWriteSucceedsWithNewLeader(t *testing.T) {
 	rl = th.kvServers[newLeaderID-1].RaftServer.GetLogAtIndex(2)
 	assert.Equal(t, test.TestKeys[1], rl.Key, "leader: saved key and returned key from log is not same")
 	assert.Equal(t, test.TestValues[1], rl.Value, "leader: saved key and returned key from log is not same")
-
-	// allow entry to be replicated on followers
-	time.Sleep(2 * time.Second)
 
 	// check on each node
 	for i := 0; i < 5; i++ {

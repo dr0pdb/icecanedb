@@ -162,7 +162,7 @@ func (s *Server) PeerSet(ctx context.Context, req *pb.PeerSetRequest) (*pb.PeerS
 	}
 
 	log.WithFields(log.Fields{"id": s.id}).Info(fmt.Sprintf("raft::server::PeerSet; successfully committed at %d", idx))
-
+	resp.Success = true
 	return resp, nil
 }
 
@@ -407,7 +407,7 @@ func (s *Server) sendPeerSetRequest(peerID uint64, key, value []byte, meta bool)
 		return false, nil
 	}
 	if !resp.Success {
-		return true, fmt.Errorf("unsuccessful write")
+		return true, fmt.Errorf("unsuccessful write at %d", peerID)
 	}
 
 	return true, err
