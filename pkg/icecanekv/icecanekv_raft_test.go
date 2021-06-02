@@ -284,6 +284,9 @@ func TestRaftMultipleWriteNonLeaderSucceeds(t *testing.T) {
 	for entry := 0; entry < 5; entry++ {
 		if id == leaderId {
 			id++
+			if id > 5 {
+				id = 1
+			}
 		}
 
 		err := th.kvServers[id-1].RaftServer.SetValue(test.TestKeys[entry], test.TestValues[entry], false)
