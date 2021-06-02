@@ -49,10 +49,6 @@ func (m *mvccTestHarness) init() error {
 	return m.raftServer.Init()
 }
 
-func (m *mvccTestHarness) setLeader(isLeader bool) {
-	m.raftServer.SetLeadership(isLeader)
-}
-
 func (m *mvccTestHarness) cleanup() {
 	m.raftServer.Close()
 }

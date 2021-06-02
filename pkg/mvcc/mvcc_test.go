@@ -31,6 +31,21 @@ var (
 	testDirectory = "/tmp/icecanetesting/"
 )
 
+func TestNextTxnId(t *testing.T) {
+	h := newMvccTestHarness(testDirectory, true)
+	err := h.init()
+	assert.Nil(t, err, "Unexpected error while initiating test harness")
+	defer h.cleanup()
+
+	id, err := h.mvcc.getNextTxnID()
+	assert.Nil(t, err, "Unexpected error while getting a txn id")
+	assert.Equal(t, uint64(1), id, "expected first txn id to be 1")
+
+	nxtID, err := h.mvcc.getNextTxnID()
+	assert.Nil(t, err, "Unexpected error while getting next txn id")
+	assert.Equal(t, uint64(2), nxtID, "expected next txn id to be 2")
+}
+
 func TestSingleTxnGetSet(t *testing.T) {
 	h := newMvccTestHarness(testDirectory, true)
 	err := h.init()
@@ -65,6 +80,47 @@ func TestSingleTxnGetSet(t *testing.T) {
 	assert.True(t, rresp.Found, "Error nil but found=false in get request")
 	assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 	assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
+}
+
+func TestSingleTxnScan(t *testing.T) {
+	h := newMvccTestHarness(testDirectory, true)
+	err := h.init()
+	assert.Nil(t, err, "Unexpected error while initiating test harness")
+	defer h.cleanup()
+
+	// begin txn
+	txn, err := h.mvcc.BeginTxn(context.Background(), &icecanedbpb.BeginTxnRequest{Mode: icecanedbpb.TxnMode_ReadWrite})
+	assert.Nil(t, err, "Unexpected error while beginning a txn")
+
+	// write
+	for i := 0; i < 5; i++ {
+		sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[i], Value: test.TestValues[i]})
+		assert.Nil(t, err, "Unexpected error during set request")
+		assert.True(t, sresp.Success, "Error nil but success=false in set request")
+		assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
+	}
+
+	// update key 0 to have updated value.
+	sresp, err := h.mvcc.Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: test.TestKeys[0], Value: test.TestUpdatedValues[0]})
+	assert.Nil(t, err, "Unexpected error during set request")
+	assert.True(t, sresp.Success, "Error nil but success=false in set request")
+	assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
+
+	// scan with the txn id - for key 0 we should see updated value and for the rest, it should be initial value
+	scanResp, err := h.mvcc.Scan(context.Background(), &icecanedbpb.ScanRequest{TxnId: txn.TxnId, StartKey: test.TestKeys[0], MaxReadings: 100})
+	assert.Nil(t, err, "Unexpected error during scan request")
+	assert.Equal(t, test.TestKeys[0], scanResp.Entries[0].Key, "get response key doesn't match with expected key")
+	assert.Equal(t, test.TestUpdatedValues[0], scanResp.Entries[0].Value, "get response value doesn't match with expected value")
+
+	for i := 1; i < 5; i++ {
+		assert.Equal(t, test.TestKeys[i], scanResp.Entries[i].Key, "get response key doesn't match with expected key")
+		assert.Equal(t, test.TestValues[i], scanResp.Entries[i].Value, "get response value doesn't match with expected value")
+	}
+
+	// scan without txn id. Entries should be empty
+	scanResp, err = h.mvcc.Scan(context.Background(), &icecanedbpb.ScanRequest{StartKey: test.TestKeys[0], MaxReadings: 100})
+	assert.Nil(t, err, "Unexpected error during scan request")
+	assert.Equal(t, 0, len(scanResp.Entries), "expected entries to be empty")
 }
 
 func TestCRUDImplicitTxns(t *testing.T) {

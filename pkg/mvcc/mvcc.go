@@ -40,7 +40,7 @@ import (
 
 	Each Key is appended by the txn id that created/modified it.
 
-	MVCC uses TxnKeyComparator in keys.go to order the keys written using MVCC in the kv storage.
+	MVCC uses TxnKeyComparator defined in keys.go to order the keys written using MVCC in the kv storage.
 	Rules for sorting:
 	1. Keys are first sorted according to the user key in increasing order
 	2. For the same user key, the keys are ordered in decreasing order of the transaction id that wrote it.
@@ -62,6 +62,12 @@ import (
 
 	As a result of the above format, meta storage keys are grouped by their transaction id
 	which helps in efficiently retrieving all the writes done by a single txn in case of rollback.
+*/
+
+/*
+	TODO: In many places in this file, we try to rollback the txn in case of a failure.
+	In case, the rollback also fails, then at the moment we just ignore it
+	It might make sense to crash the node in that case to avoid inconsistencies
 */
 
 // MVCC is the Multi Version Concurrency Control layer for transactions.
@@ -138,12 +144,14 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 
 	if inlinedTxn {
 		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Get; inlined txn. committing..")
-		m.commitTxn(req.TxnId)
+		err = m.commitTxn(req.TxnId)
+		if err != nil {
+			resp.Error = &pb.IcecaneError{
+				Retryable: false,
+			}
+		}
 	}
 
-	if err != nil {
-		resp.Error = &pb.IcecaneError{} // todo
-	}
 	return resp, nil
 }
 
@@ -172,7 +180,7 @@ func (m *MVCC) Scan(ctx context.Context, req *pb.ScanRequest) (*pb.ScanResponse,
 	results := make([]*pb.KeyValuePair, 0)
 
 	for {
-		if count > req.MaxReadings || !itr.Valid() {
+		if count >= req.MaxReadings || !itr.Valid() {
 			break
 		}
 
@@ -187,8 +195,6 @@ func (m *MVCC) Scan(ctx context.Context, req *pb.ScanRequest) (*pb.ScanResponse,
 			prevUk = k
 			count++
 		}
-
-		itr.Next()
 
 		for {
 			if !itr.Valid() || !bytes.Equal(TxnKey(itr.Key()).userKey(), prevUk) {
@@ -232,7 +238,10 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 
 	err = m.checkForConflictingWrites(txn, txnID, req.GetKey())
 	if err != nil {
-		// resp.Error = "Serialization error"
+		resp.Error = &pb.IcecaneError{
+			Retryable: true,
+			Message:   "serialization error",
+		}
 		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Warn("mvcc::mvcc::Set; found conflicting set")
 		return resp, nil
 	}
@@ -245,27 +254,24 @@ func (m *MVCC) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, er
 	tVal := newSetTxnValue(req.GetValue())
 	err = m.rs.SetValue(tKey, tVal, false)
 	if err != nil {
-		// log it
-
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId, "err": err.Error()}).Error("mvcc::mvcc::Set; error while setting value")
 		m.mu.Unlock()
 		return resp, err
 	}
 	upKey := getKey(req.TxnId, txnWrite, req.GetKey())
 	err = m.rs.SetValue(upKey, []byte("true"), true)
-	if err != nil {
-		// TODO: remove the previous write.
 
-		m.mu.Unlock()
-		return resp, err
-	}
+	m.mu.Unlock()
 
-	m.mu.Unlock() // commitTxn aquires the lock
-	if inlinedTxn {
+	if inlinedTxn && err == nil {
 		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; inlined txn. committing..")
-		err := m.commitTxn(req.TxnId)
-		if err != nil {
-			// TODO: handle
-		}
+		err = m.commitTxn(req.TxnId)
+	}
+	// in case of a failure rollback the inline txn
+	if inlinedTxn && err != nil {
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Set; error in inline txn, rolling it back")
+		m.rollbackTxn(req.TxnId)
+		return resp, err
 	}
 
 	resp.Success = true
@@ -292,38 +298,40 @@ func (m *MVCC) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteRes
 
 	err = m.checkForConflictingWrites(txn, txnID, req.GetKey())
 	if err != nil {
-		// resp.Error = "Serialization error"
+		resp.Error = &pb.IcecaneError{
+			Retryable: true,
+			Message:   "serialization error",
+		}
 		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Warn("mvcc::mvcc::Delete; found conflicting write")
 		return resp, nil
 	}
 
-	m.mu.Lock()
 	log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Delete; no conflicts. writing now")
+	m.mu.Lock()
 
 	// no conflicts. do the write now
 	tKey := newTxnKey(req.GetKey(), req.TxnId)
 	tVal := newDeleteTxnValue()
 	err = m.rs.SetValue(tKey, tVal, false)
 	if err != nil {
-		// log it
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId, "err": err.Error()}).Error("mvcc::mvcc::Delete; error while setting delete value")
 		m.mu.Unlock()
 		return resp, err
 	}
 	upKey := getKey(req.TxnId, txnWrite, req.GetKey())
 	err = m.rs.SetValue(upKey, []byte("true"), true)
-	if err != nil {
-		// TODO: remove the previous write.
-		m.mu.Unlock()
-		return resp, err
-	}
 
-	m.mu.Unlock() // commitTxn aquires the lock
-	if inlinedTxn {
+	m.mu.Unlock()
+
+	if inlinedTxn && err == nil {
 		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Delete; inlined txn. committing..")
-		err := m.commitTxn(req.TxnId)
-		if err != nil {
-			// TODO: handle
-		}
+		err = m.commitTxn(req.TxnId)
+	}
+	// in case of a failure rollback the inline txn
+	if inlinedTxn && err != nil {
+		log.WithFields(log.Fields{"id": m.id, "txnID": req.TxnId}).Info("mvcc::mvcc::Delete; error in inline txn, rolling it back")
+		m.rollbackTxn(req.TxnId)
+		return resp, err
 	}
 
 	resp.Success = true
@@ -339,7 +347,10 @@ func (m *MVCC) CommitTxn(ctx context.Context, req *pb.CommitTxnRequest) (*pb.Com
 
 	if err != nil {
 		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::CommitTxn; error in committing txn")
-		resp.Error = &pb.IcecaneError{} // todo: add error
+		resp.Error = &pb.IcecaneError{
+			Retryable: false,
+			Message:   err.Error(),
+		}
 		return resp, err
 	}
 	resp.Success = true
@@ -356,7 +367,10 @@ func (m *MVCC) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb
 	err := m.rollbackTxn(req.TxnId)
 	if err != nil {
 		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Error("mvcc::mvcc::RollbackTxn; error in rolling back txn")
-		resp.Error = &pb.IcecaneError{} // todo: add error details
+		resp.Error = &pb.IcecaneError{
+			Retryable: false,
+			Message:   err.Error(),
+		}
 		return resp, err
 	}
 	resp.Success = true
@@ -380,14 +394,6 @@ func (m *MVCC) begin(mode pb.TxnMode) (*Transaction, error) {
 	nxtIDUint64, err := m.getNextTxnID()
 	if err != nil {
 		log.Error(fmt.Sprintf("mvcc::mvcc::begin; error in getting next txnKey. err: %v", err.Error()))
-		return nil, err
-	}
-
-	// set next txn id
-	txnKey := []byte(getKey(notUsed, nxtTxnID, nil))
-	err = m.rs.SetValue(txnKey, common.U64ToByteSlice(nxtIDUint64+1), true)
-	if err != nil {
-		log.Error(fmt.Sprintf("mvcc::mvcc::begin; error in setting next txnKey. err: %v", err.Error()))
 		return nil, err
 	}
 
@@ -550,7 +556,7 @@ func (m *MVCC) commitTxn(id uint64) (err error) {
 }
 
 // rollbackTxn rolls back a txn with the given id
-// acquires an exclusive lock on mvcc
+// NOTE: acquires an exclusive lock on mvcc
 func (m *MVCC) rollbackTxn(txnID uint64) (err error) {
 	log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::rollbackTxn; start")
 
@@ -634,8 +640,8 @@ func (m *MVCC) getTxn(txnID uint64) (*Transaction, error) {
 	return nil, nil
 }
 
-// getNextTxnID returns the next available txn id.
-// IMP: Hold mu before calling this. Also update the nxt id after wards
+// getNextTxnID returns the next available txn id. It also updates the nxt id in storage
+// IMP: Hold mu before calling this.
 func (m *MVCC) getNextTxnID() (nxtIDUint64 uint64, err error) {
 	log.WithFields(log.Fields{"id": m.id}).Info("mvcc::mvcc::getNextTxnID; start")
 
@@ -651,6 +657,14 @@ func (m *MVCC) getNextTxnID() (nxtIDUint64 uint64, err error) {
 		}
 	} else {
 		nxtIDUint64 = common.ByteSliceToU64(nxtID)
+	}
+
+	// set next txn id
+	txnKey = []byte(getKey(notUsed, nxtTxnID, nil))
+	err = m.rs.SetValue(txnKey, common.U64ToByteSlice(nxtIDUint64+1), true)
+	if err != nil {
+		log.Error(fmt.Sprintf("mvcc::mvcc::getNextTxnID; error in setting next txnKey. err: %v", err.Error()))
+		return 0, err
 	}
 
 	log.WithFields(log.Fields{"id": m.id}).Info("mvcc::mvcc::getNextTxnID; done")

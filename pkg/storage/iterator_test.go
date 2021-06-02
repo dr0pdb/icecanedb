@@ -56,6 +56,26 @@ func TestKeyValueIterator(t *testing.T) {
 	assert.Equal(t, expectedCnt, cnt, fmt.Sprintf("Number of entries in iterator doesn't match. Expected: %d, actual %d", expectedCnt, cnt))
 }
 
+func TestKeyValueIteratorEmpty(t *testing.T) {
+	test.CreateTestDirectory(test.TestDirectory)
+	defer test.CleanupTestDirectory(test.TestDirectory)
+
+	options := &Options{
+		CreateIfNotExist: true,
+	}
+
+	s, err := NewStorage(test.TestDirectory, test.TestDbName, options)
+	assert.Nil(t, err)
+
+	err = s.Open()
+	defer s.Close()
+
+	assert.Nil(t, err)
+
+	itr := s.Scan(test.TestKeys[0])
+	assert.False(t, itr.Valid(), "expected iterator to be invalid when there are no entries")
+}
+
 func TestKeyValueIteratorWithSingleKey(t *testing.T) {
 	test.CreateTestDirectory(test.TestDirectory)
 	defer test.CleanupTestDirectory(test.TestDirectory)
