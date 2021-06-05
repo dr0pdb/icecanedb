@@ -2,6 +2,8 @@ package icecanekv
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -342,4 +344,81 @@ func TestMvccTxnRollbackWithLeaderChange(t *testing.T) {
 	rollbackTxnResp, err := th.kvServers[newLeaderID-1].RollbackTxn(context.Background(), rollbackTxnReq)
 	assert.Nil(t, err, "Unexpected error while rolling back a txn")
 	assert.True(t, rollbackTxnResp.Success, "Success false when rolling back a txn")
+}
+
+func TestConcurrentNonConflictingWrites(t *testing.T) {
+	th := newIcecaneKVTestHarness()
+	defer th.teardown()
+
+	leaderId, _ := th.checkSingleLeader(t)
+
+	n := 10
+	testKeys := make([][]byte, n)
+	for i := 0; i < n; i++ {
+		testKeys[i] = []byte(fmt.Sprintf("testkey%d", i))
+	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(n)
+
+	for i := 0; i < n; i++ {
+		go func(idx int) {
+			defer wg.Done()
+
+			// begin txn
+			txn, err := th.kvServers[leaderId-1].BeginTxn(context.Background(), &icecanedbpb.BeginTxnRequest{Mode: icecanedbpb.TxnMode_ReadWrite})
+			assert.Nil(t, err, "Unexpected error while beginning a txn")
+
+			// write
+			sresp, err := th.kvServers[leaderId-1].Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: testKeys[idx], Value: test.TestValues[0]})
+			assert.Nil(t, err, "Unexpected error during set request")
+			assert.True(t, sresp.Success, "Error nil but success=false in set request")
+			assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
+
+			// read
+			rresp, err := th.kvServers[leaderId-1].Get(context.Background(), &icecanedbpb.GetRequest{Key: testKeys[idx], TxnId: txn.TxnId})
+			assert.Nil(t, err, "Unexpected error during get request")
+			assert.True(t, rresp.Found, "Error nil but found=false in get request")
+			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
+			assert.Equal(t, test.TestValues[0], rresp.Kv.Value, "get response value doesn't match with expected value")
+
+			// update
+			sresp, err = th.kvServers[leaderId-1].Set(context.Background(), &icecanedbpb.SetRequest{TxnId: txn.TxnId, Key: testKeys[idx], Value: test.TestValues[1]})
+			assert.Nil(t, err, "Unexpected error during set request")
+			assert.True(t, sresp.Success, "Error nil but success=false in set request")
+			assert.Nil(t, sresp.Error, "Unexpected error resp during set request")
+
+			// read updated value
+			rresp, err = th.kvServers[leaderId-1].Get(context.Background(), &icecanedbpb.GetRequest{Key: testKeys[idx], TxnId: txn.TxnId})
+			assert.Nil(t, err, "Unexpected error during get request")
+			assert.True(t, rresp.Found, "Error nil but found=false in get request")
+			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
+			assert.Equal(t, test.TestValues[1], rresp.Kv.Value, "get response value doesn't match with expected value")
+
+			// delete
+			dresp, err := th.kvServers[leaderId-1].Delete(context.Background(), &icecanedbpb.DeleteRequest{TxnId: txn.TxnId, Key: testKeys[idx]})
+			assert.Nil(t, err, "Unexpected error during delete request")
+			assert.True(t, dresp.Success, "Error nil but success=false in delete request")
+			assert.Nil(t, dresp.Error, "Unexpected error resp during delete request")
+
+			// read after deleting value
+			rresp, err = th.kvServers[leaderId-1].Get(context.Background(), &icecanedbpb.GetRequest{Key: testKeys[idx], TxnId: txn.TxnId})
+			assert.Nil(t, err, "Unexpected error during get request")
+			assert.False(t, rresp.Found, "Error nil but found=true in get request. Expected value to not be found")
+			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
+
+			// commit
+			cresp, err := th.kvServers[leaderId-1].CommitTxn(context.Background(), &icecanedbpb.CommitTxnRequest{TxnId: txn.TxnId})
+			assert.Nil(t, err, "Unexpected error during commit request")
+			assert.True(t, cresp.Success, "Error nil but success=false in commit request")
+
+			// read after commit without passing txn id
+			rresp, err = th.kvServers[leaderId-1].Get(context.Background(), &icecanedbpb.GetRequest{Key: testKeys[idx]})
+			assert.Nil(t, err, "Unexpected error during get request")
+			assert.False(t, rresp.Found, "Error nil but found=true in get request. expected value to not be found")
+			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
+		}(i)
+	}
+
+	wg.Wait()
 }
