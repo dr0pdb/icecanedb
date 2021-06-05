@@ -364,8 +364,8 @@ func (m *MVCC) RollbackTxn(ctx context.Context, req *pb.RollbackTxnRequest) (*pb
 	log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Info("mvcc::mvcc::RollbackTxn; started")
 
 	resp := &pb.RollbackTxnResponse{}
-
 	err := m.rollbackTxn(req.TxnId)
+
 	if err != nil {
 		log.WithFields(log.Fields{"peeId": m.id, "txnId": req.TxnId}).Error("mvcc::mvcc::RollbackTxn; error in rolling back txn")
 		resp.Error = &pb.IcecaneError{
@@ -530,29 +530,28 @@ func (m *MVCC) checkForConflictingWrites(txn *Transaction, txnID uint64, key []b
 }
 
 // commitTxn commits a txn with the given id
-// aquires an exclusive lock on mvcc.
-func (m *MVCC) commitTxn(id uint64) (err error) {
-	log.WithFields(log.Fields{"id": m.id, "txnId": id}).Info("mvcc::mvcc::commitTxn; start")
+// aquires an exclusive lock on mvcc
+func (m *MVCC) commitTxn(txnID uint64) (err error) {
+	log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::commitTxn; start")
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	_, err = m.getTxn(txnID)
 
-	if _, ok := m.activeTxnsCache[id]; ok {
+	if err == nil {
 		// delete the key activeTxn from storage.
-		markKey := getKey(id, activeTxn, nil)
+		markKey := getKey(txnID, activeTxn, nil)
 		err = m.rs.DeleteValue([]byte(markKey), true)
 		if err != nil {
-			log.WithFields(log.Fields{"id": m.id, "txnId": id}).Error("mvcc::mvcc::commitTxn; error in deleting mark key for txn.")
+			log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Error("mvcc::mvcc::commitTxn; error in deleting mark key for txn.")
 			return err
 		}
 
-		delete(m.activeTxnsCache, id)
+		delete(m.activeTxnsCache, txnID)
 	} else {
-		log.WithFields(log.Fields{"id": m.id, "txnId": id}).Info("mvcc::mvcc::commitTxn; commit on inactive txn.")
+		log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::commitTxn; commit on inactive txn.")
 		return fmt.Errorf("commit on inactive txn")
 	}
 
-	log.WithFields(log.Fields{"id": m.id, "txnId": id}).Info("mvcc::mvcc::commitTxn; committed successfully.")
+	log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::commitTxn; committed successfully.")
 	return nil
 }
 
@@ -561,10 +560,12 @@ func (m *MVCC) commitTxn(id uint64) (err error) {
 func (m *MVCC) rollbackTxn(txnID uint64) (err error) {
 	log.WithFields(log.Fields{"id": m.id, "txnId": txnID}).Info("mvcc::mvcc::rollbackTxn; start")
 
+	_, err = m.getTxn(txnID)
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.activeTxnsCache[txnID]; ok {
+	if err == nil {
 		// delete the entries written by this txn.
 		// we can with key = "id" + nil. since nil is the smallest,
 		// all the keys with prefix "id" can be scanned with the iterator.

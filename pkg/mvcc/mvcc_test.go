@@ -621,8 +621,13 @@ func TestTxn100NonConflictingTxns(t *testing.T) {
 		testKeys[i] = []byte(fmt.Sprintf("testkey%d", i))
 	}
 
+	wg := &sync.WaitGroup{}
+	wg.Add(100)
+
 	for i := 0; i < 100; i++ {
 		go func(idx int) {
+			defer wg.Done()
+
 			// begin txn
 			txn, err := h.mvcc.BeginTxn(context.Background(), &icecanedbpb.BeginTxnRequest{Mode: icecanedbpb.TxnMode_ReadWrite})
 			assert.Nil(t, err, "Unexpected error while beginning a txn")
@@ -677,4 +682,6 @@ func TestTxn100NonConflictingTxns(t *testing.T) {
 			assert.Nil(t, rresp.Error, "Unexpected error resp during get request")
 		}(i)
 	}
+
+	wg.Wait()
 }
