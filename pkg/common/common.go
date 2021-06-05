@@ -188,8 +188,13 @@ func U64SliceToByteSlice(uslice []uint64) []byte {
 
 // ByteSliceToU64Slice converts a byte slice to a slice of uint64
 func ByteSliceToU64Slice(bslice []byte) []uint64 {
-	// TODO
-	return nil
+	res := make([]uint64, 0)
+
+	for i := 0; i < len(bslice); i += 8 {
+		res = append(res, ByteSliceToU64(bslice[i:i+8]))
+	}
+
+	return res
 }
 
 // BoolToByte converts a bool to byte

@@ -46,6 +46,35 @@ func TestNextTxnId(t *testing.T) {
 	assert.Equal(t, uint64(2), nxtID, "expected next txn id to be 2")
 }
 
+func TestGetTxn(t *testing.T) {
+	h := newMvccTestHarness(testDirectory, true)
+	err := h.init()
+	assert.Nil(t, err, "Unexpected error while initiating test harness")
+	defer h.cleanup()
+
+	// start conc transactions
+	for i := 0; i < 5; i++ {
+		resp, err := h.mvcc.BeginTxn(context.Background(), &icecanedbpb.BeginTxnRequest{Mode: icecanedbpb.TxnMode_ReadWrite})
+		assert.Nil(t, err, "Unexpected error while beginning a txn")
+		assert.True(t, resp.Success, "expected success while creating the txn")
+	}
+
+	resp, err := h.mvcc.BeginTxn(context.Background(), &icecanedbpb.BeginTxnRequest{Mode: icecanedbpb.TxnMode_ReadWrite})
+	assert.Nil(t, err, "Unexpected error while beginning a txn")
+	assert.True(t, resp.Success, "expected success while creating the txn")
+	assert.Equal(t, uint64(6), resp.TxnId, "expected txn id to be 6")
+
+	// delete from cache manually to force reload from storage
+	delete(h.mvcc.activeTxnsCache, uint64(6))
+
+	txn, err := h.mvcc.getTxn(resp.TxnId)
+	assert.Nil(t, err, "Unexpected error while getting a txn")
+	assert.Equal(t, uint64(6), txn.id, "expected txn id to be 1")
+	for i := uint64(1); i <= 5; i++ {
+		assert.True(t, txn.concTxns[i], fmt.Sprintf("incorrect concTxns map. Expected %d to be present in concTxn", i))
+	}
+}
+
 func TestSingleTxnGetSet(t *testing.T) {
 	h := newMvccTestHarness(testDirectory, true)
 	err := h.init()

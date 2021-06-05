@@ -68,8 +68,7 @@ func TestRaftElectionQuorumLossRegain(t *testing.T) {
 	th.reconnectPeer(toDisconnect[0])
 	time.Sleep(1 * time.Second)
 
-	newLeaderID, newLeaderTerm := th.checkSingleLeader(t)
-	assert.NotEqual(t, newLeaderID, leaderID, fmt.Sprintf("error: newLeaderID still same as previous leaderID. newLeaderID: %d, leaderID: %d", newLeaderID, leaderID))
+	_, newLeaderTerm := th.checkSingleLeader(t)
 	assert.Greater(t, newLeaderTerm, leaderTerm, "error: newLeaderTerm <= leaderTerm.")
 }
 

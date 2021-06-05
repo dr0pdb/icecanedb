@@ -78,6 +78,7 @@ type MVCC struct {
 	mu *sync.RWMutex
 
 	// cache of active transactions
+	// todo: investigate if having this txn can lead to errors when leaders change and txn commits
 	activeTxnsCache map[uint64]*Transaction
 
 	// the underlying raft node
@@ -635,9 +636,30 @@ func (m *MVCC) getTxn(txnID uint64) (*Transaction, error) {
 	}
 	m.mu.RUnlock()
 
-	// todo: fetch from disk
+	// fetch from data stores
+	markKey := getKey(txnID, activeTxn, nil)
+	_, err := m.rs.MetaGetValue(markKey)
+	if err != nil {
+		log.WithFields(log.Fields{"id": m.id, "txnID": txnID}).Error(fmt.Sprintf("mvcc::mvcc::getTxn; transaction not found. err: %v", err.Error()))
+		return nil, err
+	}
+	snapkey := getKey(txnID, txnSnapshot, nil)
+	snap, err := m.rs.MetaGetValue(snapkey)
+	if err != nil {
+		log.WithFields(log.Fields{"id": m.id, "txnID": txnID}).Error(fmt.Sprintf("mvcc::mvcc::getTxn; transaction snapshot not found. err: %v", err.Error()))
+		return nil, err
+	}
+	concTxns := common.ByteSliceToU64Slice(snap)
+	concTxnsMap := make(map[uint64]bool)
+	for i := range concTxns {
+		concTxnsMap[concTxns[i]] = true
+	}
 
-	return nil, nil
+	res := &Transaction{
+		id:       txnID,
+		concTxns: concTxnsMap,
+	}
+	return res, nil
 }
 
 // getNextTxnID returns the next available txn id. It also updates the nxt id in storage
