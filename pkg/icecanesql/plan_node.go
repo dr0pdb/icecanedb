@@ -7,8 +7,20 @@ import "github.com/dr0pdb/icecanedb/pkg/frontend"
 type PlanNode interface{}
 
 var _ PlanNode = (*CreateTablePlanNode)(nil)
+var _ PlanNode = (*DropTablePlanNode)(nil)
+var _ PlanNode = (*TruncateTablePlanNode)(nil)
 
 // CreateTablePlanNode is the planner node for the create table query
 type CreateTablePlanNode struct {
 	Schema *frontend.TableSpec
+}
+
+// DropTablePlanNode is the planner node for the drop table query
+type DropTablePlanNode struct {
+	TableName string
+}
+
+// TruncateTablePlanNode is the planner node for the truncate table query
+type TruncateTablePlanNode struct {
+	TableName string
 }

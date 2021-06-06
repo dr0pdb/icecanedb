@@ -71,7 +71,7 @@ func (p *Parser) parseStatement() (Statement, error) {
 		keyword := keywords[strings.ToUpper(it.val)]
 
 		switch keyword {
-		case keywordCreate, keywordDrop:
+		case keywordCreate, keywordDrop, keywordTruncate:
 			return p.parseDDL()
 
 		case keywordBegin, keywordCommit, keywordRollback:
@@ -99,7 +99,7 @@ func (p *Parser) parseStatement() (Statement, error) {
 }
 
 // parseDDL parses a data definition langauge query.
-// It assumes that the first token is a CREATE/DROP keyword
+// It assumes that the first token is a CREATE/DROP/TRUNCATE keyword
 func (p *Parser) parseDDL() (Statement, error) {
 	if p.err != nil {
 		return nil, p.err
@@ -109,7 +109,7 @@ func (p *Parser) parseDDL() (Statement, error) {
 	table := p.nextToken()
 
 	if !isKeyword(table, keywordTable) {
-		return nil, fmt.Errorf("icecanesql::parser::parseDDL: expected keyword \"TABLE\"") // throw error
+		return nil, fmt.Errorf("icecanesql::parser::parseDDL: expected keyword \"TABLE\"")
 	}
 
 	tableName, err := p.nextTokenIdentifier()
@@ -153,9 +153,12 @@ func (p *Parser) parseDDL() (Statement, error) {
 			Spec: spec,
 		}
 		return stmt, nil
+	} else if isKeyword(action, keywordDrop) {
+		stmt := &DropTableStatement{TableName: tableName.val}
+		return stmt, nil
 	}
 
-	stmt := &DropTableStatement{TableName: tableName.val}
+	stmt := &TruncateTableStatement{TableName: tableName.val}
 	return stmt, nil
 }
 

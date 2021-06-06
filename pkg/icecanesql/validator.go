@@ -24,12 +24,18 @@ type validator interface {
 }
 
 var _ validator = (*createTableValidator)(nil)
+var _ validator = (*dropTableValidator)(nil)
+var _ validator = (*truncateTableValidator)(nil)
 
 // newValidator creates a new validator for the parsed statement
 func newValidator(ast frontend.Statement) validator {
 	switch st := ast.(type) {
 	case *frontend.CreateTableStatement:
 		return &createTableValidator{ast: st}
+	case *frontend.DropTableStatement:
+		return &dropTableValidator{ast: st}
+	case *frontend.TruncateTableStatement:
+		return &truncateTableValidator{ast: st}
 	}
 
 	panic("")
@@ -41,5 +47,23 @@ type createTableValidator struct {
 }
 
 func (ctv *createTableValidator) validate() error {
+	return nil
+}
+
+// dropTableValidator validates a delete table statement
+type dropTableValidator struct {
+	ast *frontend.DropTableStatement
+}
+
+func (ctv *dropTableValidator) validate() error {
+	return nil
+}
+
+// truncateTableValidator validates a truncate table statement
+type truncateTableValidator struct {
+	ast *frontend.TruncateTableStatement
+}
+
+func (ctv *truncateTableValidator) validate() error {
 	return nil
 }

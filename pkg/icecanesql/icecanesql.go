@@ -62,6 +62,14 @@ func (c *Client) getExecutor(pn PlanNode) Executor {
 	case *CreateTablePlanNode:
 		ex := &CreateTableExecutor{rpc: c.rpc, Table: n.Schema}
 		return ex
+
+	case *DropTablePlanNode:
+		ex := &DropTableExecutor{rpc: c.rpc, TableName: n.TableName}
+		return ex
+
+	case *TruncateTablePlanNode:
+		ex := &TruncateTableExecutor{rpc: c.rpc, TableName: n.TableName}
+		return ex
 	}
 
 	return nil

@@ -102,3 +102,55 @@ func TestCreateTable2(t *testing.T) {
 		assert.NotNil(t, err, "Unexpected success in parsing create table DDL")
 	}
 }
+
+func TestDropTableCorrect(t *testing.T) {
+	cmd := "DROP TABLE Students;"
+
+	p := NewParser("testParser", cmd)
+	stmt, err := p.Parse()
+	assert.Nil(t, err, "Unexpected error in parsing create table DDL")
+
+	assert.IsType(t, &DropTableStatement{}, stmt, "Unexpected type of statement. Expected a &DropTableStatement")
+	dtStmt := stmt.(*DropTableStatement)
+
+	assert.Equal(t, "Students", dtStmt.TableName, fmt.Sprintf("Wrong table name. Expected Students, Found %s", dtStmt.TableName))
+}
+
+func TestDropTableIncorrect(t *testing.T) {
+	cmds := []string{
+		"DROP RANDOM Students;",
+		"DROP TABLE Students",
+	}
+
+	for i := 0; i < len(cmds); i++ {
+		p := NewParser("testParser", cmds[i])
+		_, err := p.Parse()
+		assert.NotNil(t, err, "Unexpected success in parsing drop table DDL")
+	}
+}
+
+func TestTruncateTableCorrect(t *testing.T) {
+	cmd := "TRUNCATE TABLE Students;"
+
+	p := NewParser("testParser", cmd)
+	stmt, err := p.Parse()
+	assert.Nil(t, err, "Unexpected error in parsing create table DDL")
+
+	assert.IsType(t, &TruncateTableStatement{}, stmt, "Unexpected type of statement. Expected a &DropTableStatement")
+	dtStmt := stmt.(*TruncateTableStatement)
+
+	assert.Equal(t, "Students", dtStmt.TableName, fmt.Sprintf("Wrong table name. Expected Students, Found %s", dtStmt.TableName))
+}
+
+func TestTruncateTableIncorrect(t *testing.T) {
+	cmds := []string{
+		"TRUNCATE RANDOM Students;",
+		"TRUNCATE TABLE Students",
+	}
+
+	for i := 0; i < len(cmds); i++ {
+		p := NewParser("testParser", cmds[i])
+		_, err := p.Parse()
+		assert.NotNil(t, err, "Unexpected success in truncating drop table DDL")
+	}
+}

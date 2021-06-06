@@ -17,6 +17,16 @@ func (p *planner) plan() *planner {
 		p.res = &CreateTablePlanNode{
 			Schema: st.Spec,
 		}
+
+	case *frontend.DropTableStatement:
+		p.res = &DropTablePlanNode{
+			TableName: st.TableName,
+		}
+
+	case *frontend.TruncateTableStatement:
+		p.res = &TruncateTablePlanNode{
+			TableName: st.TableName,
+		}
 	}
 
 	return p

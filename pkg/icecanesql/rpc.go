@@ -19,6 +19,7 @@ package icecanesql
 import (
 	"context"
 	"fmt"
+	"math/rand"
 
 	"github.com/dr0pdb/icecanedb/pkg/common"
 	pb "github.com/dr0pdb/icecanedb/pkg/protogen/icecanedbpb"
@@ -28,51 +29,77 @@ import (
 
 // rpcRepository is responsible for communicating with the kv service
 type rpcRepository struct {
-	leaderID     uint64
-	leaderConn   *grpc.ClientConn
-	leaderConnId uint64 // id of the leader whose connection is cached
-	conf         *common.ClientConfig
+	kvConn *grpc.ClientConn
+	conf   *common.ClientConfig
 }
 
 // newRpcRepository creates a new rpc repository layer
 func newRpcRepository(conf *common.ClientConfig) *rpcRepository {
 	return &rpcRepository{
-		leaderID:     1,
-		conf:         conf,
-		leaderConn:   nil,
-		leaderConnId: 0,
+		conf:   conf,
+		kvConn: nil,
 	}
 }
 
 // createAndStoreConn creates and caches the grpc connection to the leader
 func (r *rpcRepository) createAndStoreConn() error {
-	if r.leaderID != r.leaderConnId || r.leaderConn == nil || r.leaderConn.GetState().String() != "READY" {
+	if r.kvConn == nil || r.kvConn.GetState().String() != "READY" {
+		sid := rand.Intn(len(r.conf.Servers)) + 1
+
 		var opts []grpc.DialOption
 		opts = append(opts, grpc.WithInsecure())
 		opts = append(opts, grpc.WithBlock())
-		conn, err := grpc.Dial(fmt.Sprintf("%s:%s", r.conf.Servers[r.leaderID-1].Address, r.conf.Servers[r.leaderID-1].Port), opts...)
+		conn, err := grpc.Dial(fmt.Sprintf("%s:%s", r.conf.Servers[sid-1].Address, r.conf.Servers[sid-1].Port), opts...)
 		if err != nil {
 			return err
 		}
 
-		r.leaderConn = conn
-		r.leaderConnId = r.leaderID
+		r.kvConn = conn
 	}
 
 	return nil
 }
 
+// get makes a Get RPC call to the kv store
+func (r *rpcRepository) get(key []byte, txnID uint64) (k, v []byte, err error) {
+	err = r.createAndStoreConn()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client := pb.NewIcecaneKVClient(r.kvConn)
+	req := &pb.GetRequest{
+		Key:   key,
+		TxnId: txnID,
+	}
+
+	resp, err := client.Get(context.Background(), req)
+	if err != nil {
+		log.Error(fmt.Sprintf("icecanesql::rpc::get; error in grpc request: %v", err))
+		return nil, nil, err
+	} else if resp.Error != nil {
+		log.Error(fmt.Sprintf("icecanesql::rpc::get; error response from the kv server: %v", resp.Error))
+		return nil, nil, fmt.Errorf(resp.Error.Message)
+	}
+
+	k = resp.Kv.Key
+	v = resp.Kv.Value
+
+	return k, v, nil
+}
+
 // set makes a Set RPC call to the kv store
-func (r *rpcRepository) set(key, value []byte) (bool, error) {
+func (r *rpcRepository) set(key, value []byte, txnID uint64) (bool, error) {
 	err := r.createAndStoreConn()
 	if err != nil {
 		return false, err
 	}
 
-	client := pb.NewIcecaneKVClient(r.leaderConn)
+	client := pb.NewIcecaneKVClient(r.kvConn)
 	req := &pb.SetRequest{
 		Key:   key,
 		Value: value,
+		TxnId: txnID,
 	}
 
 	resp, err := client.Set(context.Background(), req)

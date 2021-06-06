@@ -22,6 +22,7 @@ type Statement interface {
 
 var _ Statement = (*CreateTableStatement)(nil)
 var _ Statement = (*DropTableStatement)(nil)
+var _ Statement = (*TruncateTableStatement)(nil)
 var _ Statement = (*BeginTxnStatement)(nil)
 var _ Statement = (*FinishTxnStatement)(nil)
 
@@ -32,6 +33,10 @@ type CreateTableStatement struct {
 }
 
 type DropTableStatement struct {
+	TableName string
+}
+
+type TruncateTableStatement struct {
 	TableName string
 }
 
