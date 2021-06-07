@@ -5,10 +5,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	NoTxn uint64 = 0
-)
-
 // CreateTableExecutor is the executor for the create table query
 type CreateTableExecutor struct {
 	rpc   *rpcRepository
@@ -18,23 +14,41 @@ type CreateTableExecutor struct {
 var _ Executor = (*CreateTableExecutor)(nil)
 
 // Execute executes the create table request
-func (ex *CreateTableExecutor) Execute() Result {
+func (ex *CreateTableExecutor) Execute(txnID uint64) Result {
 	log.Info("icecanesql::ddl_executor::CreateTableExecutor.Execute; start;")
 	res := &CreateTableResult{}
+	inlineTxn := false
 
-	// begin a txn
+	if txnID == NoTxn {
+		startedTxnID, err := ex.rpc.beginTxn(false)
+		if err != nil {
+			res.err = err
+			return res
+		}
 
-	// todo: get a unique table id for the table
+		txnID = startedTxnID
+		inlineTxn = true
+	}
 
-	k, v, err := encodeTableSchema(ex.Table, 1)
+	tableID := getNextTableID(txnID)
+	k, v, err := encodeTableSchema(ex.Table, tableID)
 	if err != nil {
 		res.err = err
 		return res
 	}
 
-	res.success, res.err = ex.rpc.set(k, v, NoTxn)
+	res.success, res.err = ex.rpc.set(k, v, txnID)
 
 	// todo: create index for primary key and others if specified
+
+	// commit the inline txn
+	if inlineTxn {
+		err = ex.rpc.commitTxn(txnID)
+		if err != nil {
+			res.err = err
+			ex.rpc.rollbackTxn(txnID) // todo: what if this also fails? retry?
+		}
+	}
 
 	return res
 }
@@ -47,7 +61,7 @@ type DropTableExecutor struct {
 var _ Executor = (*DropTableExecutor)(nil)
 
 // Execute executes the drop table request
-func (ex *DropTableExecutor) Execute() Result {
+func (ex *DropTableExecutor) Execute(txnID uint64) Result {
 	log.Info("icecanesql::ddl_executor::DropTableExecutor.Execute; start;")
 	res := &DropTableResult{}
 
@@ -62,11 +76,16 @@ type TruncateTableExecutor struct {
 var _ Executor = (*TruncateTableExecutor)(nil)
 
 // Execute executes the drop table request
-func (ex *TruncateTableExecutor) Execute() Result {
+func (ex *TruncateTableExecutor) Execute(txnID uint64) Result {
 	log.Info("icecanesql::ddl_executor::TruncateTableExecutor.Execute; start;")
 	res := &TruncateTableResult{}
 
 	return res
+}
+
+// getNextTableID returns the next unique table id from kv store
+func getNextTableID(txnID uint64) uint64 {
+	panic("todo")
 }
 
 // CreateTableResult is the result of the create table operation

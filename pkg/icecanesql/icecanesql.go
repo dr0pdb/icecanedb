@@ -22,15 +22,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	NoTxn uint64 = 0
+)
+
 type Client struct {
 	name string
 	rpc  *rpcRepository
 	conf *common.ClientConfig
 }
 
-// Execute executes a sql command obtained from the REPL.
-// TODO: decide return types
-func (c *Client) Execute(cmd string) error {
+// Execute executes a sql command obtained from the grpc service.
+// TODO: decide return types and also take txn id as argument
+func (c *Client) Execute(cmd string, txnID uint64) error {
 	log.WithFields(log.Fields{"name": c.name, "cmd": cmd}).Info("icecanesql::icecanesql::Execute; starting execution of command;")
 	p := frontend.NewParser(c.name, cmd)
 	stmt, err := p.Parse()
@@ -51,7 +55,8 @@ func (c *Client) Execute(cmd string) error {
 	}
 
 	// execute the plan node
-	_ = c.getExecutor(pn).Execute()
+	// TODO: pass the real txn id
+	_ = c.getExecutor(pn).Execute(txnID)
 	return nil
 }
 

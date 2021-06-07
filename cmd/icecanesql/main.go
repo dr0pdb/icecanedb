@@ -67,6 +67,6 @@ func main() {
 
 		// execute and print result
 		c := icecanesql.NewClient("random", conf)
-		c.Execute(cmd)
+		c.Execute(cmd, icecanesql.NoTxn)
 	}
 }
