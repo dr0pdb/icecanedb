@@ -39,7 +39,11 @@ var testName = "testLexer"
 	a.
 
 	TCL - Transaction Control Language
-	a.
+	a. BEGIN
+	b. BEGIN READ ONLY
+	c. BEGIN READ WRITE
+	d. COMMIT
+	e. ROLLBACK
 */
 
 //
@@ -104,7 +108,7 @@ func TestDDLLexer2(t *testing.T) {
 	}
 }
 
-func TestDDLLexer5(t *testing.T) {
+func TestDDLLexer3(t *testing.T) {
 	cmd := "TRUNCATE TABLE Students;"
 
 	expectedResult := []item{
@@ -125,6 +129,54 @@ func TestDDLLexer5(t *testing.T) {
 		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
 		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
 		idx++
+	}
+}
+
+//
+// TQL tests
+//
+
+func TestTQLBeginValid(t *testing.T) {
+	cmds := []string{
+		"BEGIN;",
+		"BEGIN READ ONLY;",
+		"BEGIN READ WRITE;",
+	}
+
+	expectedResult := [][]item{
+		{
+			{typ: itemKeyword, val: "BEGIN"},
+			{typ: itemSemicolon, val: ";"},
+			{typ: itemEOF, val: ""},
+		},
+		{
+			{typ: itemKeyword, val: "BEGIN"},
+			{typ: itemKeyword, val: "READ"},
+			{typ: itemKeyword, val: "ONLY"},
+			{typ: itemSemicolon, val: ";"},
+			{typ: itemEOF, val: ""},
+		},
+		{
+			{typ: itemKeyword, val: "BEGIN"},
+			{typ: itemKeyword, val: "READ"},
+			{typ: itemKeyword, val: "WRITE"},
+			{typ: itemSemicolon, val: ";"},
+			{typ: itemEOF, val: ""},
+		},
+	}
+
+	for i := range cmds {
+		_, items := newLexer(testName, cmds[i])
+		idx := 0
+		for it := range items {
+			if it.typ == itemWhitespace {
+				continue
+			}
+
+			assert.Equal(t, expectedResult[i][idx].typ, it.typ, "Unexpected typ")
+			assert.Equal(t, expectedResult[i][idx].val, it.val, "Unexpected val")
+			idx++
+		}
 	}
 }
 
