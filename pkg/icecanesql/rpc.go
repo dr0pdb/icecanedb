@@ -61,14 +61,14 @@ func (r *rpcRepository) createAndStoreConn() error {
 }
 
 // beginTxn makes a BeginTxn RPC to init a txn
-func (r *rpcRepository) beginTxn(readOnly bool) (nxtId uint64, err error) {
+func (r *rpcRepository) beginTxn(readOnly bool) (txnID uint64, err error) {
 	log.Info("icecanesql::rpc::beginTxn; start;")
 
-	nxtId = 0
+	txnID = 0
 
 	err = r.createAndStoreConn()
 	if err != nil {
-		return nxtId, err
+		return txnID, err
 	}
 
 	client := pb.NewIcecaneKVClient(r.kvConn)
@@ -83,14 +83,14 @@ func (r *rpcRepository) beginTxn(readOnly bool) (nxtId uint64, err error) {
 	resp, err := client.BeginTxn(context.Background(), req)
 	if err != nil {
 		log.Error(fmt.Sprintf("icecanesql::rpc::beginTxn; error in grpc request: %v", err))
-		return nxtId, err
+		return txnID, err
 	} else if resp.Error != nil {
 		log.Error(fmt.Sprintf("icecanesql::rpc::beginTxn; error response from the kv server: %v", resp.Error))
-		return nxtId, fmt.Errorf(resp.Error.Message)
+		return txnID, fmt.Errorf(resp.Error.Message)
 	}
 
-	nxtId = resp.TxnId
-	return nxtId, nil
+	txnID = resp.TxnId
+	return txnID, nil
 }
 
 // commitTxn makes a CommitTxn RPC to init a txn

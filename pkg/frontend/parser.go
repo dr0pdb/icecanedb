@@ -247,12 +247,54 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 	return cs, nil
 }
 
+// parseTransaction parses a transaction statement
 func (p *Parser) parseTransaction() (Statement, error) {
 	if p.err != nil {
 		return nil, p.err
 	}
 
-	panic("")
+	colType, err := p.nextTokenKeyword()
+	if err != nil {
+		return nil, err
+	}
+
+	var st Statement
+	switch keywords[strings.ToUpper(colType.val)] {
+	case keywordBegin:
+		btst := &BeginTxnStatement{}
+		st = btst
+
+		kwd, err := p.nextTokenKeyword()
+		if err != nil {
+			break
+		}
+
+		switch keywords[strings.ToUpper(kwd.val)] {
+		case keywordRead: // [ READ ONLY | READ WRITE ]
+			kwd2, err := p.nextTokenKeyword()
+			if err != nil || (kwd2 != nil && keywords[strings.ToUpper(kwd2.val)] != keywordWrite && keywords[strings.ToUpper(kwd2.val)] != keywordOnly) {
+				return nil, fmt.Errorf("expected keyword WRITE/ONLY after READ in transaction spec")
+			}
+
+			if keywords[strings.ToUpper(kwd2.val)] == keywordWrite {
+				btst.ReadOnly = true
+			}
+
+		default:
+			return nil, fmt.Errorf("unknown keyword %s in the transaction specification", kwd.val)
+		}
+
+		st = btst
+
+	case keywordCommit:
+		st = &FinishTxnStatement{IsCommit: true}
+
+	case keywordRollback:
+		st = &FinishTxnStatement{IsCommit: false}
+
+	}
+
+	return st, nil
 }
 
 func (p *Parser) parseSelect() (Statement, error) {

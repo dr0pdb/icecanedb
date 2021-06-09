@@ -27,6 +27,12 @@ func (p *planner) plan() *planner {
 		p.res = &TruncateTablePlanNode{
 			TableName: st.TableName,
 		}
+
+	case *frontend.BeginTxnStatement:
+		p.res = &BeginTxnPlanNode{ReadOnly: st.ReadOnly}
+
+	case *frontend.FinishTxnStatement:
+		p.res = &FinishTxnPlanNode{IsCommit: st.IsCommit}
 	}
 
 	return p

@@ -23,6 +23,7 @@ type validator interface {
 	validate() error
 }
 
+var _ validator = (*emptyValidator)(nil)
 var _ validator = (*createTableValidator)(nil)
 var _ validator = (*dropTableValidator)(nil)
 var _ validator = (*truncateTableValidator)(nil)
@@ -36,9 +37,18 @@ func newValidator(ast frontend.Statement) validator {
 		return &dropTableValidator{ast: st}
 	case *frontend.TruncateTableStatement:
 		return &truncateTableValidator{ast: st}
+	default:
+		return &emptyValidator{ast: ast}
 	}
+}
 
-	panic("")
+// emptyValidator is a trivial validator that doesn't validate anything
+type emptyValidator struct {
+	ast frontend.Statement
+}
+
+func (ev *emptyValidator) validate() error {
+	return nil
 }
 
 // createTableValidator validates a create table statement
@@ -46,7 +56,10 @@ type createTableValidator struct {
 	ast *frontend.CreateTableStatement
 }
 
+// validates the create table statement
 func (ctv *createTableValidator) validate() error {
+	// validate that exactly one column contains primary key and is unique and non nullable
+
 	return nil
 }
 

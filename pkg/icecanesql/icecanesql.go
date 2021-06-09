@@ -75,9 +75,17 @@ func (c *Client) getExecutor(pn PlanNode) Executor {
 	case *TruncateTablePlanNode:
 		ex := &TruncateTableExecutor{rpc: c.rpc, TableName: n.TableName}
 		return ex
+
+	case *BeginTxnPlanNode:
+		ex := &BeginTxnExecutor{rpc: c.rpc, readOnly: n.ReadOnly}
+		return ex
+
+	case *FinishTxnPlanNode:
+		ex := &FinishTxnExecutor{rpc: c.rpc, isCommit: n.IsCommit}
+		return ex
 	}
 
-	return nil
+	panic("programming error: No executor found for the plan node")
 }
 
 // NewClient creates a new client for running sql queries.

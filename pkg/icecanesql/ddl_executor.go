@@ -22,7 +22,7 @@ func (ex *CreateTableExecutor) Execute(txnID uint64) Result {
 	if txnID == NoTxn {
 		startedTxnID, err := ex.rpc.beginTxn(false)
 		if err != nil {
-			res.err = err
+			res.Err = err
 			return res
 		}
 
@@ -30,22 +30,26 @@ func (ex *CreateTableExecutor) Execute(txnID uint64) Result {
 		inlineTxn = true
 	}
 
-	tableID := getNextTableID(txnID)
+	tableID, err := getNextTableID(ex.rpc, txnID)
+	if err != nil {
+		res.Err = err
+		return res
+	}
 	k, v, err := encodeTableSchema(ex.Table, tableID)
 	if err != nil {
-		res.err = err
+		res.Err = err
 		return res
 	}
 
-	res.success, res.err = ex.rpc.set(k, v, txnID)
+	res.Success, res.Err = ex.rpc.set(k, v, txnID)
 
-	// todo: create index for primary key and others if specified
+	// todo: create index for others columns if specified
 
 	// commit the inline txn
 	if inlineTxn {
 		err = ex.rpc.commitTxn(txnID)
 		if err != nil {
-			res.err = err
+			res.Err = err
 			ex.rpc.rollbackTxn(txnID) // todo: what if this also fails? retry?
 		}
 	}
@@ -84,42 +88,42 @@ func (ex *TruncateTableExecutor) Execute(txnID uint64) Result {
 }
 
 // getNextTableID returns the next unique table id from kv store
-func getNextTableID(txnID uint64) uint64 {
-	panic("todo")
+func getNextTableID(rpc *rpcRepository, txnID uint64) (uint64, error) {
+	return incrementKeyAtomic(rpc, NextTableIDKey)
 }
 
 // CreateTableResult is the result of the create table operation
 type CreateTableResult struct {
-	success bool
-	err     error
+	Success bool
+	Err     error
 }
 
-func (ctr *CreateTableResult) getError() error {
-	return ctr.err
+func (ctr *CreateTableResult) GetError() error {
+	return ctr.Err
 }
 
 var _ Result = (*CreateTableResult)(nil)
 
 // DropTableResult is the result of the drop table operation
 type DropTableResult struct {
-	success bool
-	err     error
+	Success bool
+	Err     error
 }
 
-func (ctr *DropTableResult) getError() error {
-	return ctr.err
+func (ctr *DropTableResult) GetError() error {
+	return ctr.Err
 }
 
 var _ Result = (*DropTableResult)(nil)
 
 // TruncateTableResult is the result of the truncate table operation
 type TruncateTableResult struct {
-	success bool
-	err     error
+	Success bool
+	Err     error
 }
 
-func (ctr *TruncateTableResult) getError() error {
-	return ctr.err
+func (ctr *TruncateTableResult) GetError() error {
+	return ctr.Err
 }
 
 var _ Result = (*TruncateTableResult)(nil)

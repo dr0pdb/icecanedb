@@ -9,6 +9,8 @@ type PlanNode interface{}
 var _ PlanNode = (*CreateTablePlanNode)(nil)
 var _ PlanNode = (*DropTablePlanNode)(nil)
 var _ PlanNode = (*TruncateTablePlanNode)(nil)
+var _ PlanNode = (*BeginTxnPlanNode)(nil)
+var _ PlanNode = (*FinishTxnPlanNode)(nil)
 
 // CreateTablePlanNode is the planner node for the create table query
 type CreateTablePlanNode struct {
@@ -23,4 +25,12 @@ type DropTablePlanNode struct {
 // TruncateTablePlanNode is the planner node for the truncate table query
 type TruncateTablePlanNode struct {
 	TableName string
+}
+
+type BeginTxnPlanNode struct {
+	ReadOnly bool
+}
+
+type FinishTxnPlanNode struct {
+	IsCommit bool
 }

@@ -40,7 +40,9 @@ type TruncateTableStatement struct {
 	TableName string
 }
 
-type BeginTxnStatement struct{}
+type BeginTxnStatement struct {
+	ReadOnly bool
+}
 
 // FinishTxnStatement denotes a COMMIT/ROLLBACK statement
 type FinishTxnStatement struct {
