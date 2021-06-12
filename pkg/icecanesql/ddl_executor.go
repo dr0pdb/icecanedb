@@ -68,6 +68,42 @@ var _ Executor = (*DropTableExecutor)(nil)
 func (ex *DropTableExecutor) Execute(txnID uint64) Result {
 	log.Info("icecanesql::ddl_executor::DropTableExecutor.Execute; start;")
 	res := &DropTableResult{}
+	inlineTxn := false
+
+	if txnID == NoTxn {
+		startedTxnID, err := ex.rpc.beginTxn(false)
+		if err != nil {
+			res.Err = err
+			return res
+		}
+
+		txnID = startedTxnID
+		inlineTxn = true
+	}
+
+	tableID, err := getTableID(ex.rpc, ex.TableName, txnID)
+	if err != nil {
+		res.Err = err
+		return res
+	}
+
+	tSpec := &frontend.TableSpec{TableId: tableID, Columns: []*frontend.ColumnSpec{}}
+	k, _, err := encodeTableSchema(tSpec, tableID)
+	if err != nil {
+		res.Err = err
+		return res
+	}
+
+	res.Success, res.Err = ex.rpc.delete(k, txnID)
+
+	// commit the inline txn
+	if inlineTxn {
+		err = ex.rpc.commitTxn(txnID)
+		if err != nil {
+			res.Err = err
+			ex.rpc.rollbackTxn(txnID) // todo: what if this also fails? retry?
+		}
+	}
 
 	return res
 }
@@ -84,7 +120,14 @@ func (ex *TruncateTableExecutor) Execute(txnID uint64) Result {
 	log.Info("icecanesql::ddl_executor::TruncateTableExecutor.Execute; start;")
 	res := &TruncateTableResult{}
 
+	// todo: after implementing inserts
+
 	return res
+}
+
+// getTableID gets the id of the table with the given name
+func getTableID(rpc *rpcRepository, name string, txnID uint64) (uint64, error) {
+	panic("")
 }
 
 // getNextTableID returns the next unique table id from kv store
