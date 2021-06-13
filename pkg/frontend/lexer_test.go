@@ -180,6 +180,40 @@ func TestTQLBeginValid(t *testing.T) {
 	}
 }
 
+func TestTQLFinishValid(t *testing.T) {
+	cmds := []string{
+		"COMMIT;",
+		"ROLLBACK;",
+	}
+
+	expectedResult := [][]item{
+		{
+			{typ: itemKeyword, val: "COMMIT"},
+			{typ: itemSemicolon, val: ";"},
+			{typ: itemEOF, val: ""},
+		},
+		{
+			{typ: itemKeyword, val: "ROLLBACK"},
+			{typ: itemSemicolon, val: ";"},
+			{typ: itemEOF, val: ""},
+		},
+	}
+
+	for i := range cmds {
+		_, items := newLexer(testName, cmds[i])
+		idx := 0
+		for it := range items {
+			if it.typ == itemWhitespace {
+				continue
+			}
+
+			assert.Equal(t, expectedResult[i][idx].typ, it.typ, "Unexpected typ")
+			assert.Equal(t, expectedResult[i][idx].val, it.val, "Unexpected val")
+			idx++
+		}
+	}
+}
+
 //
 // DQL tests
 //

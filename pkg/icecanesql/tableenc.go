@@ -157,7 +157,7 @@ func decodeColumnSpec(b []byte) (cs *frontend.ColumnSpec, idx uint64, err error)
 
 	// type
 	_ = common.ByteSliceToU64(b[idx : idx+8])
-	cs.Type = frontend.ColumnType(common.ByteSliceToU64(b[idx+8 : idx+16]))
+	cs.Type = frontend.FieldType(common.ByteSliceToU64(b[idx+8 : idx+16]))
 	idx += 16
 
 	// nullable

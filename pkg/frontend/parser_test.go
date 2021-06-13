@@ -28,7 +28,7 @@ func TestCreateTable1(t *testing.T) {
 	expectedSpecs := []*ColumnSpec{
 		{
 			Name:       "ROLL_NO",
-			Type:       ColumnTypeInteger,
+			Type:       FieldTypeInteger,
 			Nullable:   true,
 			PrimaryKey: true,
 			Unique:     true,
@@ -37,7 +37,7 @@ func TestCreateTable1(t *testing.T) {
 		},
 		{
 			Name:       "NAME",
-			Type:       ColumnTypeString,
+			Type:       FieldTypeString,
 			Nullable:   true,
 			PrimaryKey: false,
 			Unique:     false,
@@ -46,7 +46,7 @@ func TestCreateTable1(t *testing.T) {
 		},
 		{
 			Name:       "SUBJECT",
-			Type:       ColumnTypeString,
+			Type:       FieldTypeString,
 			Nullable:   true,
 			PrimaryKey: false,
 			Unique:     false,
@@ -55,7 +55,7 @@ func TestCreateTable1(t *testing.T) {
 		},
 		{
 			Name:       "AGE",
-			Type:       ColumnTypeFloat,
+			Type:       FieldTypeFloat,
 			Nullable:   true,
 			PrimaryKey: false,
 			Unique:     false,
@@ -64,7 +64,7 @@ func TestCreateTable1(t *testing.T) {
 		},
 		{
 			Name:       "RICH",
-			Type:       ColumnTypeBoolean,
+			Type:       FieldTypeBoolean,
 			Nullable:   true,
 			PrimaryKey: false,
 			Unique:     false,

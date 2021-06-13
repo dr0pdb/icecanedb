@@ -455,7 +455,7 @@ func (s *Server) sendPeerDeleteRequest(peerID uint64, key []byte, meta bool) (bo
 		return false, nil
 	}
 	if !resp.Success {
-		return true, fmt.Errorf("unsuccessful write")
+		return true, fmt.Errorf("unsuccessful write at %d", peerID)
 	}
 
 	return true, err

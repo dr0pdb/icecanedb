@@ -148,7 +148,9 @@ func (m *MVCC) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, er
 		err = m.commitTxn(req.TxnId)
 		if err != nil {
 			resp.Error = &pb.IcecaneError{
+				Type:      pb.IcecaneErrorType_InternalError,
 				Retryable: false,
+				Message:   err.Error(),
 			}
 		}
 	}

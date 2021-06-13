@@ -29,7 +29,7 @@ func TestEncodeTableSchema(t *testing.T) {
 		Columns: []*frontend.ColumnSpec{
 			{
 				Name:       "col1",
-				Type:       frontend.ColumnTypeInteger,
+				Type:       frontend.FieldTypeInteger,
 				PrimaryKey: true,
 				Nullable:   false,
 				Unique:     true,
@@ -37,7 +37,7 @@ func TestEncodeTableSchema(t *testing.T) {
 			},
 			{
 				Name:       "col2",
-				Type:       frontend.ColumnTypeBoolean,
+				Type:       frontend.FieldTypeBoolean,
 				PrimaryKey: false,
 				Nullable:   true,
 				Unique:     false,
@@ -45,7 +45,7 @@ func TestEncodeTableSchema(t *testing.T) {
 			},
 			{
 				Name:       "col3",
-				Type:       frontend.ColumnTypeFloat,
+				Type:       frontend.FieldTypeFloat,
 				PrimaryKey: false,
 				Nullable:   true,
 				Unique:     false,
@@ -53,7 +53,7 @@ func TestEncodeTableSchema(t *testing.T) {
 			},
 			{
 				Name:       "col4",
-				Type:       frontend.ColumnTypeString,
+				Type:       frontend.FieldTypeString,
 				PrimaryKey: false,
 				Nullable:   true,
 				Unique:     false,

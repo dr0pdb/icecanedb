@@ -177,19 +177,19 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 		return nil, err
 	}
 
-	var typ ColumnType
+	var typ FieldType
 	switch keywords[strings.ToUpper(colType.val)] {
 	case keywordBool, keywordBoolean:
-		typ = ColumnTypeBoolean
+		typ = FieldTypeBoolean
 
 	case keywordInt, keywordInteger:
-		typ = ColumnTypeInteger
+		typ = FieldTypeInteger
 
 	case keywordFloat, keywordDouble:
-		typ = ColumnTypeFloat
+		typ = FieldTypeFloat
 
 	case keywordString, keywordText, keywordVarchar, keywordChar:
-		typ = ColumnTypeString
+		typ = FieldTypeString
 
 	default:
 		return nil, fmt.Errorf("expected data type for the column")

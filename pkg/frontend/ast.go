@@ -16,64 +16,31 @@
 
 package frontend
 
+var (
+	_ Statement = (*CreateTableStatement)(nil)
+	_ Statement = (*DropTableStatement)(nil)
+	_ Statement = (*TruncateTableStatement)(nil)
+	_ Statement = (*BeginTxnStatement)(nil)
+	_ Statement = (*FinishTxnStatement)(nil)
+)
+
+// A single node on the syntax tree
+type Node interface {
+	Accept(v Visitor) (node Node, ok bool)
+}
+
 // Statement denotes a parsed SQL statement
 type Statement interface {
+	Node
+	statement()
 }
 
-var _ Statement = (*CreateTableStatement)(nil)
-var _ Statement = (*DropTableStatement)(nil)
-var _ Statement = (*TruncateTableStatement)(nil)
-var _ Statement = (*BeginTxnStatement)(nil)
-var _ Statement = (*FinishTxnStatement)(nil)
-
-// DDLStatement is a data definition query.
-// It could be Create/Drop of tables
-type CreateTableStatement struct {
-	Spec *TableSpec
+// Expression denotes an expression which can be evaluated
+type Expression interface {
+	Node
+	expression()
 }
 
-type DropTableStatement struct {
-	TableName string
+type Visitor interface {
+	Visit(n Node) (node Node, skipChildren bool)
 }
-
-type TruncateTableStatement struct {
-	TableName string
-}
-
-type BeginTxnStatement struct {
-	ReadOnly bool
-}
-
-// FinishTxnStatement denotes a COMMIT/ROLLBACK statement
-type FinishTxnStatement struct {
-	IsCommit bool
-}
-
-// TableSpec defines the specification of a table
-// TODO: add methods for getting column, primary key etc.
-type TableSpec struct {
-	TableId   uint64 // internal id of the table. unique
-	TableName string
-	Columns   []*ColumnSpec
-}
-
-// ColumnSpec defines a single column of a table
-// TODO: consider supporting defaults after supporting values
-type ColumnSpec struct {
-	Name       string
-	Type       ColumnType
-	Nullable   bool
-	PrimaryKey bool
-	Unique     bool
-	Index      bool
-	References string // the foreign key reference
-}
-
-type ColumnType uint64
-
-const (
-	ColumnTypeBoolean ColumnType = iota
-	ColumnTypeInteger
-	ColumnTypeString
-	ColumnTypeFloat
-)

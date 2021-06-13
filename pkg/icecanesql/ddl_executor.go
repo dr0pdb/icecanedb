@@ -96,6 +96,8 @@ func (ex *DropTableExecutor) Execute(txnID uint64) Result {
 
 	res.Success, res.Err = ex.rpc.delete(k, txnID)
 
+	// todo: delete the rows
+
 	// commit the inline txn
 	if inlineTxn {
 		err = ex.rpc.commitTxn(txnID)
