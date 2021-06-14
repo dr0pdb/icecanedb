@@ -1,30 +1,48 @@
 package frontend
 
 var (
-	_ Expression = (*ExpressionNode)(nil)
+	_ Expression = (*expressionNode)(nil)
 )
 
-// ExpressionNode implements the Expression interface
-type ExpressionNode struct {
-	Type FieldType
+// expressionNode implements the Expression interface
+type expressionNode struct {
+	typ FieldType
 }
 
-func (e *ExpressionNode) Accept(v Visitor) (node Node, ok bool) {
+func (e *expressionNode) Accept(v Visitor) (node Node, ok bool) {
 	panic("")
 }
 
-func (e *ExpressionNode) expression() {}
+func (e *expressionNode) expression() {}
 
-// ValueExpression represents a simple value
-type ValueExpression struct {
-	ExpressionNode
+type BetweenExpression struct {
+	expressionNode
 
-	Val *Value
+	Expr expressionNode
+
+	Min, Max expressionNode
 }
 
 // BinaryOpExpression represents a binary operation
 type BinaryOpExpression struct {
-	ExpressionNode
+	expressionNode
 
-	L, R ExpressionNode
+	Op Operator
+
+	L, R expressionNode
+}
+
+type UnaryOpExpression struct {
+	expressionNode
+
+	Op Operator
+
+	Exp expressionNode
+}
+
+// ValueExpression represents a simple value
+type ValueExpression struct {
+	expressionNode
+
+	Val *Value
 }

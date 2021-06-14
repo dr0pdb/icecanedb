@@ -63,9 +63,11 @@ const (
 
 	// literals
 	itemIdentifier // field name, table name
-	itemNumber
-	itemString  // "hello"
-	itemKeyword // SELECT, INSERT, ..
+	itemTrue       // true
+	itemFalse      // false
+	itemNumber     // 1, 1.2
+	itemString     // "hello"
+	itemKeyword    // SELECT, INSERT, ..
 
 	// symbols
 	itemPeriod     // '.'
@@ -89,9 +91,19 @@ const (
 	itemNotEqual           // "!="
 	itemLessThanEqualTo    // "<="
 	itemGreaterThanEqualTo // ">="
+	itemAndAnd             // "&&"
+	itemOrOr               // "||"
 )
 
 const eof = -1
+
+// boolean values
+var bools = map[string]itemType{
+	"TRUE":  itemTrue,
+	"true":  itemTrue,
+	"FALSE": itemFalse,
+	"false": itemFalse,
+}
 
 // set of keywords
 var keywords = map[string]keywordType{
@@ -464,6 +476,18 @@ func lexWhitespace(l *lexer) stateFn {
 		l.emit(itemLessThanEqualTo)
 		return lexWhitespace
 
+	case tNext == "&&":
+		l.next()
+		l.next()
+		l.emit(itemAndAnd)
+		return lexWhitespace
+
+	case tNext == "||":
+		l.next()
+		l.next()
+		l.emit(itemOrOr)
+		return lexWhitespace
+
 	case next == '(':
 		l.next()
 		l.emit(itemLeftParen)
@@ -602,7 +626,9 @@ func lexIdentifierOrKeyword(l *lexer) stateFn {
 			l.acceptWhile(isAlphaNumeric)
 
 			val := strings.ToUpper(l.input[l.start:l.pos])
-			if _, ok := keywords[val]; ok {
+			if it, ok := bools[val]; ok {
+				l.emit(it)
+			} else if _, ok := keywords[val]; ok {
 				l.emit(itemKeyword)
 			} else {
 				l.emit(itemIdentifier)

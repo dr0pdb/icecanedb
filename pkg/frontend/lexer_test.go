@@ -50,7 +50,7 @@ var testName = "testLexer"
 // DDL tests
 //
 
-func TestDDLLexer1(t *testing.T) {
+func TestDDLCreateTableLexer(t *testing.T) {
 	cmd := "CREATE TABLE Students(ROLL_NO int, NAME varchar, SUBJECT varchar);"
 
 	expectedResult := []item{
@@ -84,7 +84,95 @@ func TestDDLLexer1(t *testing.T) {
 	}
 }
 
-func TestDDLLexer2(t *testing.T) {
+func TestDDLCreateTableWithDefaultsLexer(t *testing.T) {
+	cmd := "CREATE TABLE Students(ROLL_NO int DEFAULT 1, NAME varchar DEFAULT \"John Doe\", SUBJECT varchar, GAMER bool DEFAULT false);"
+
+	expectedResult := []item{
+		{typ: itemKeyword, val: "CREATE"},
+		{typ: itemKeyword, val: "TABLE"},
+		{typ: itemIdentifier, val: "Students"},
+		{typ: itemLeftParen, val: "("},
+		{typ: itemIdentifier, val: "ROLL_NO"},
+		{typ: itemKeyword, val: "int"},
+		{typ: itemKeyword, val: "DEFAULT"},
+		{typ: itemNumber, val: "1"},
+		{typ: itemComma, val: ","},
+		{typ: itemIdentifier, val: "NAME"},
+		{typ: itemKeyword, val: "varchar"},
+		{typ: itemKeyword, val: "DEFAULT"},
+		{typ: itemString, val: "\"John Doe\""},
+		{typ: itemComma, val: ","},
+		{typ: itemIdentifier, val: "SUBJECT"},
+		{typ: itemKeyword, val: "varchar"},
+		{typ: itemComma, val: ","},
+		{typ: itemIdentifier, val: "GAMER"},
+		{typ: itemKeyword, val: "bool"},
+		{typ: itemKeyword, val: "DEFAULT"},
+		{typ: itemFalse, val: "false"},
+		{typ: itemRightParen, val: ")"},
+		{typ: itemSemicolon, val: ";"},
+		{typ: itemEOF, val: ""},
+	}
+
+	_, items := newLexer(testName, cmd)
+	idx := 0
+	for it := range items {
+		if it.typ == itemWhitespace {
+			continue
+		}
+
+		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
+		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
+		idx++
+	}
+}
+
+func TestDDLCreateTableWithExpressionsLexer(t *testing.T) {
+	cmd := "CREATE TABLE Students(ROLL_NO int DEFAULT 1 + 10, AGE int DEFAULT -10, GAMER bool DEFAULT false || true);"
+
+	expectedResult := []item{
+		{typ: itemKeyword, val: "CREATE"},
+		{typ: itemKeyword, val: "TABLE"},
+		{typ: itemIdentifier, val: "Students"},
+		{typ: itemLeftParen, val: "("},
+		{typ: itemIdentifier, val: "ROLL_NO"},
+		{typ: itemKeyword, val: "int"},
+		{typ: itemKeyword, val: "DEFAULT"},
+		{typ: itemNumber, val: "1"},
+		{typ: itemPlus, val: "+"},
+		{typ: itemNumber, val: "10"},
+		{typ: itemComma, val: ","},
+		{typ: itemIdentifier, val: "AGE"},
+		{typ: itemKeyword, val: "int"},
+		{typ: itemKeyword, val: "DEFAULT"},
+		{typ: itemMinus, val: "-"},
+		{typ: itemNumber, val: "10"},
+		{typ: itemComma, val: ","},
+		{typ: itemIdentifier, val: "GAMER"},
+		{typ: itemKeyword, val: "bool"},
+		{typ: itemKeyword, val: "DEFAULT"},
+		{typ: itemFalse, val: "false"},
+		{typ: itemOrOr, val: "||"},
+		{typ: itemTrue, val: "true"},
+		{typ: itemRightParen, val: ")"},
+		{typ: itemSemicolon, val: ";"},
+		{typ: itemEOF, val: ""},
+	}
+
+	_, items := newLexer(testName, cmd)
+	idx := 0
+	for it := range items {
+		if it.typ == itemWhitespace {
+			continue
+		}
+
+		assert.Equal(t, expectedResult[idx].typ, it.typ, "Unexpected typ")
+		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
+		idx++
+	}
+}
+
+func TestDDLDropTableLexer(t *testing.T) {
 	cmd := "DROP TABLE Students;"
 
 	expectedResult := []item{
@@ -108,7 +196,7 @@ func TestDDLLexer2(t *testing.T) {
 	}
 }
 
-func TestDDLLexer3(t *testing.T) {
+func TestDDLTruncateTableLexer(t *testing.T) {
 	cmd := "TRUNCATE TABLE Students;"
 
 	expectedResult := []item{
