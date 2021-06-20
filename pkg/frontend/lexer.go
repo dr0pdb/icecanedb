@@ -34,24 +34,6 @@ type item struct {
 	val string
 }
 
-func (i item) String() string {
-	switch i.typ {
-	case itemError:
-		return i.val
-	case itemEOF:
-		return "EOF"
-	case itemWhitespace:
-		return "WHITESPACE"
-	}
-
-	// limit to 10 characters if it's too long
-	if len(i.val) > 10 {
-		return fmt.Sprintf("%.10q...", i.val)
-	}
-
-	return fmt.Sprintf("%q", i.val)
-}
-
 // itemType is a SQL token type
 type itemType int
 
@@ -65,7 +47,8 @@ const (
 	itemIdentifier // field name, table name
 	itemTrue       // true
 	itemFalse      // false
-	itemNumber     // 1, 1.2
+	itemInteger    // 1
+	itemFloat      // 1.2
 	itemString     // "hello"
 	itemKeyword    // SELECT, INSERT, ..
 
@@ -603,10 +586,12 @@ func lexString(l *lexer) stateFn {
 func lexNumber(l *lexer) stateFn {
 	count := 0
 	count += l.acceptWhile(unicode.IsDigit)
+	dec := false
 
 	// floating point
 	if l.accept(".") {
 		count += 1 + l.acceptWhile(unicode.IsDigit)
+		dec = true
 	}
 
 	if isAlphaNumeric(l.peek()) {
@@ -614,7 +599,11 @@ func lexNumber(l *lexer) stateFn {
 		return lexIdentifierOrKeyword
 	}
 
-	l.emit(itemNumber)
+	if dec {
+		l.emit(itemFloat)
+	} else {
+		l.emit(itemInteger)
+	}
 	return lexWhitespace
 }
 

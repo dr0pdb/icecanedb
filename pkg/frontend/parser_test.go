@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCreateTable1(t *testing.T) {
+func TestCreateTableBasic(t *testing.T) {
 	cmd := "CREATE TABLE Students(ROLL_NO int PRIMARY KEY UNIQUE, NAME varchar INDEX, SUBJECT varchar, AGE double, RICH bool);"
 	expectedSpecs := []*ColumnSpec{
 		{
@@ -88,8 +88,57 @@ func TestCreateTable1(t *testing.T) {
 	}
 }
 
+func TestCreateTableBasicWithValueDefaults(t *testing.T) {
+	cmd := "CREATE TABLE Students(ROLL_NO int PRIMARY KEY UNIQUE, AGE double DEFAULT 10.1, RICH bool DEFAULT false);"
+	expectedSpecs := []*ColumnSpec{
+		{
+			Name:       "ROLL_NO",
+			Type:       FieldTypeInteger,
+			Nullable:   true,
+			PrimaryKey: true,
+			Unique:     true,
+			Index:      false,
+			References: "",
+		},
+		{
+			Name:       "AGE",
+			Type:       FieldTypeFloat,
+			Nullable:   true,
+			PrimaryKey: false,
+			Unique:     false,
+			Index:      false,
+			References: "",
+			Default:    &ValueExpression{Val: &Value{Typ: FieldTypeFloat, Val: "10.1"}},
+		},
+		{
+			Name:       "RICH",
+			Type:       FieldTypeBoolean,
+			Nullable:   true,
+			PrimaryKey: false,
+			Unique:     false,
+			Index:      false,
+			References: "",
+			Default:    &ValueExpression{Val: &Value{Typ: FieldTypeBoolean, Val: "false"}},
+		},
+	}
+
+	p := NewParser("testParser", cmd)
+	stmt, err := p.Parse()
+	assert.Nil(t, err, "Unexpected error in parsing create table DDL")
+
+	assert.IsType(t, &CreateTableStatement{}, stmt, "Unexpected type of statement. Expected a &CreateTableStatement")
+	ctStmt := stmt.(*CreateTableStatement)
+
+	assert.Equal(t, "Students", ctStmt.Spec.TableName, fmt.Sprintf("Wrong table name. Expected Students, Found %s", ctStmt.Spec.TableName))
+	assert.Equal(t, len(expectedSpecs), len(ctStmt.Spec.Columns), fmt.Sprintf("Unexpected length of columns. Expected 3, found %d", len(ctStmt.Spec.Columns)))
+
+	for i := 0; i < len(expectedSpecs); i++ {
+		assert.Equal(t, expectedSpecs[i], ctStmt.Spec.Columns[i], "Wrong column spec")
+	}
+}
+
 // Incorrect statements
-func TestCreateTable2(t *testing.T) {
+func TestCreateTableIncorrect(t *testing.T) {
 	cmds := []string{
 		"CREATE TABLE Students(ROLL_NO int PRIMARY Random KEY UNIQUE, NAME bool, SUBJECT varchar);",
 		"CREATE TABLE Students ROLL_NO int PRIMARY Random KEY UNIQUE, NAME bool, SUBJECT varchar);",

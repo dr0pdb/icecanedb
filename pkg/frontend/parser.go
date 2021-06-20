@@ -239,12 +239,210 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 			}
 			cs.References = table.val
 
+		case keywordDefault:
+			exp, err := p.parseExpression()
+			if err != nil {
+				return nil, fmt.Errorf("expected expression after keyword DEFAULT. Found err: %V", err)
+			}
+			cs.Default = exp
+
 		default:
 			return nil, fmt.Errorf("unknown keyword %s in the column specification", kwd.val)
 		}
 	}
 
 	return cs, nil
+}
+
+// parseExpression parses an expression
+// Grammar is based on: http://www.craftinginterpreters.com/parsing-expressions.html#recursive-descent-parsing
+func (p *Parser) parseExpression() (Expression, error) {
+	return p.parseEquality()
+}
+
+func (p *Parser) parseEquality() (Expression, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
+	ex, err := p.parseComparison()
+
+	for {
+		if p.err != nil {
+			return nil, p.err
+		}
+
+		op := p.nextTokenIf(func(i *item) bool {
+			return i.typ == itemNotEqual || i.typ == itemEqual
+		})
+		if op == nil {
+			break
+		}
+
+		right, err := p.parseComparison()
+		if err != nil {
+			return nil, err
+		}
+
+		ex = &BinaryOpExpression{Op: itemTypeToOperator[op.typ], L: ex, R: right}
+	}
+
+	return ex, err
+}
+
+func (p *Parser) parseComparison() (Expression, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
+	ex, err := p.parseTerm()
+
+	for {
+		if p.err != nil {
+			return nil, p.err
+		}
+
+		op := p.nextTokenIf(func(i *item) bool {
+			return i.typ == itemGreaterThan || i.typ == itemGreaterThanEqualTo || i.typ == itemLessThan || i.typ == itemLessThanEqualTo
+		})
+		if op == nil {
+			break
+		}
+
+		right, err := p.parseTerm()
+		if err != nil {
+			return nil, err
+		}
+
+		ex = &BinaryOpExpression{Op: itemTypeToOperator[op.typ], L: ex, R: right}
+	}
+
+	return ex, err
+}
+
+func (p *Parser) parseTerm() (Expression, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
+	ex, err := p.parseFactor()
+
+	for {
+		if p.err != nil {
+			return nil, p.err
+		}
+
+		op := p.nextTokenIf(func(i *item) bool {
+			return i.typ == itemMinus || i.typ == itemPlus
+		})
+		if op == nil {
+			break
+		}
+
+		right, err := p.parseFactor()
+		if err != nil {
+			return nil, err
+		}
+
+		ex = &BinaryOpExpression{Op: itemTypeToOperator[op.typ], L: ex, R: right}
+	}
+
+	return ex, err
+}
+
+func (p *Parser) parseFactor() (Expression, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
+	ex, err := p.parseUnary()
+
+	for {
+		if p.err != nil {
+			return nil, p.err
+		}
+
+		op := p.nextTokenIf(func(i *item) bool {
+			return i.typ == itemAsterisk || i.typ == itemSlash
+		})
+		if op == nil {
+			break
+		}
+
+		right, err := p.parseUnary()
+		if err != nil {
+			return nil, err
+		}
+
+		ex = &BinaryOpExpression{Op: itemTypeToOperator[op.typ], L: ex, R: right}
+	}
+
+	return ex, err
+}
+
+func (p *Parser) parseUnary() (Expression, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
+	// ! or -
+	op := p.nextTokenIf(func(i *item) bool {
+		return i.typ == itemExclamation || i.typ == itemMinus
+	})
+	if op != nil {
+		ex, err := p.parseUnary()
+		if err != nil {
+			return nil, err
+		}
+
+		return &UnaryOpExpression{Op: itemTypeToOperator[op.typ], Exp: ex}, nil
+	}
+
+	return p.parsePrimary()
+}
+
+func (p *Parser) parsePrimary() (Expression, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
+	op := p.nextTokenIf(func(i *item) bool {
+		return i.typ == itemFalse || i.typ == itemTrue || i.typ == itemInteger || i.typ == itemFloat || i.typ == itemString || i.typ == itemLeftParen
+	})
+	if op != nil {
+		if op.typ == itemLeftParen {
+			in, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			_, err = p.nextTokenExpect(itemRightParen)
+			if err != nil {
+				return nil, err
+			}
+
+			return &GroupingExpression{InExp: in}, nil
+		} else {
+			exp := &ValueExpression{Val: &Value{Val: op.val}}
+
+			switch op.typ {
+			case itemFalse, itemTrue:
+				exp.Val.Typ = FieldTypeBoolean
+
+			case itemInteger:
+				exp.Val.Typ = FieldTypeInteger
+			case itemFloat:
+				exp.Val.Typ = FieldTypeFloat
+
+			case itemString:
+				exp.Val.Typ = FieldTypeString
+
+			}
+
+			return exp, nil
+		}
+	}
+
+	return nil, fmt.Errorf("expected a primary expression")
 }
 
 // parseTransaction parses a transaction statement
@@ -384,6 +582,7 @@ func (p *Parser) peek() *item {
 }
 
 // nextTokenIf returns the next token if it satisfies the given predicate
+// if the given predicate is satisfied, the parser is advanced otherwise not
 func (p *Parser) nextTokenIf(pred func(*item) bool) *item {
 	if p.err != nil {
 		return nil
@@ -414,7 +613,7 @@ func (p *Parser) nextTokenExpect(expected itemType) (*item, error) {
 	return nil, fmt.Errorf("icecanesql::parser::nextTokenExpect: Expected token %v, Found token %v", expected, it.typ)
 }
 
-// nextTokenKeyword returns the next token if it's a keyword.
+// nextTokenKeyword peeks and returns the next token if it's a keyword.
 // it returns an error otherwise
 func (p *Parser) nextTokenKeyword() (*item, error) {
 	if p.err != nil {

@@ -10,4 +10,7 @@ const (
 	FieldTypeNull
 )
 
-type Value struct{}
+type Value struct {
+	Typ FieldType
+	Val interface{}
+}
