@@ -203,3 +203,35 @@ func TestTruncateTableIncorrect(t *testing.T) {
 		assert.NotNil(t, err, "Unexpected success in truncating drop table DDL")
 	}
 }
+
+//
+// DQL tests
+//
+
+func TestInsertStatement(t *testing.T) {
+	cmd := "INSERT INTO Students VALUES (1, 'John Doe', 'Economics', 1 + 1011);"
+	expectedVals := []Expression{
+		&ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1"}},
+		&ValueExpression{Val: &Value{Typ: FieldTypeString, Val: "'John Doe'"}},
+		&ValueExpression{Val: &Value{Typ: FieldTypeString, Val: "'Economics'"}},
+		&BinaryOpExpression{
+			Op: OperatorPlus,
+			L:  &ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1"}},
+			R:  &ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1011"}},
+		},
+	}
+
+	p := NewParser("testParser", cmd)
+	stmt, err := p.Parse()
+	assert.Nil(t, err, "Unexpected error in parsing create table DDL")
+
+	assert.IsType(t, &InsertStatement{}, stmt, "Unexpected type of statement. Expected a &InsertStatement")
+	iStmt := stmt.(*InsertStatement)
+
+	assert.Equal(t, "Students", iStmt.TableName, fmt.Sprintf("Wrong table name. Expected Students, Found %s", iStmt.TableName))
+	assert.Equal(t, len(expectedVals), len(iStmt.Values), "Unexpected length of values")
+
+	for i := 0; i < len(expectedVals); i++ {
+		assert.Equal(t, expectedVals[i], iStmt.Values[i], "Wrong values")
+	}
+}

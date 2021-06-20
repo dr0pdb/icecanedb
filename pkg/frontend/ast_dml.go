@@ -16,17 +16,13 @@
 
 package frontend
 
-type FieldType uint64
-
-const (
-	FieldTypeBoolean FieldType = iota
-	FieldTypeInteger
-	FieldTypeString
-	FieldTypeFloat
-	FieldTypeNull
-)
-
-type Value struct {
-	Typ FieldType
-	Val interface{}
+type InsertStatement struct {
+	TableName string
+	Values    []Expression
 }
+
+func (cts *InsertStatement) Accept(v Visitor) (node Node, ok bool) {
+	panic("")
+}
+
+func (cts *InsertStatement) statement() {}

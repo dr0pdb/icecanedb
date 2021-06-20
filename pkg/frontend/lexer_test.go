@@ -33,7 +33,7 @@ var testName = "testLexer"
     c. TRUNCATE TABLE Students;
 
 	DML - Data Manipulation Language
-	a.
+	a. INSERT INTO Students VALUES (1, 'John Doe', 'Economics');
 
 	DQL - Data Query Language
 	a.
@@ -221,7 +221,43 @@ func TestDDLTruncateTableLexer(t *testing.T) {
 }
 
 //
-// TQL tests
+// DML tests
+//
+
+func TestDMLInsertLexer(t *testing.T) {
+	cmd := "INSERT INTO Students VALUES (1, 'John Doe', 'Economics');"
+
+	expectedResult := []item{
+		{typ: itemKeyword, val: "INSERT"},
+		{typ: itemKeyword, val: "INTO"},
+		{typ: itemIdentifier, val: "Students"},
+		{typ: itemKeyword, val: "VALUES"},
+		{typ: itemLeftParen, val: "("},
+		{typ: itemInteger, val: "1"},
+		{typ: itemComma, val: ","},
+		{typ: itemString, val: "'John Doe'"},
+		{typ: itemComma, val: ","},
+		{typ: itemString, val: "'Economics'"},
+		{typ: itemRightParen, val: ")"},
+		{typ: itemSemicolon, val: ";"},
+		{typ: itemEOF, val: ""},
+	}
+
+	_, items := newLexer(testName, cmd)
+	idx := 0
+	for it := range items {
+		if it.typ == itemWhitespace {
+			continue
+		}
+
+		assert.Equal(t, expectedResult[idx].typ.String(), it.typ.String(), "Unexpected typ")
+		assert.Equal(t, expectedResult[idx].val, it.val, "Unexpected val")
+		idx++
+	}
+}
+
+//
+// TCL tests
 //
 
 func TestTQLBeginValid(t *testing.T) {

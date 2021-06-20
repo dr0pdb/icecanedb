@@ -508,7 +508,52 @@ func (p *Parser) parseInsert() (Statement, error) {
 		return nil, p.err
 	}
 
-	panic("")
+	_ = p.nextToken() // has to be INSERT
+	into := p.nextToken()
+
+	if !isKeyword(into, keywordInto) {
+		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected keyword \"INTO\" after \"INSERT\"")
+		return nil, p.err
+	}
+
+	tableName, err := p.nextTokenIdentifier()
+	if err != nil {
+		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected table name")
+		return nil, p.err
+	}
+
+	values := p.nextToken()
+	if !isKeyword(values, keywordValues) {
+		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected keyword \"VALUES\" after table name")
+		return nil, p.err
+	}
+
+	_, err = p.nextTokenExpect(itemLeftParen)
+	if err != nil {
+		return nil, err
+	}
+
+	stmt := &InsertStatement{TableName: tableName.val}
+
+	// values for each column
+	var vals []Expression
+	for {
+		exp, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		vals = append(vals, exp)
+
+		comma := p.nextTokenIf(func(it *item) bool {
+			return it.typ == itemComma
+		})
+		if comma == nil { // last value
+			break
+		}
+	}
+	_, err = p.nextTokenExpect(itemRightParen)
+	stmt.Values = vals
+	return stmt, err
 }
 
 func (p *Parser) parseUpdate() (Statement, error) {
@@ -610,7 +655,8 @@ func (p *Parser) nextTokenExpect(expected itemType) (*item, error) {
 		return it, nil
 	}
 
-	return nil, fmt.Errorf("icecanesql::parser::nextTokenExpect: Expected token %v, Found token %v", expected, it.typ)
+	p.err = fmt.Errorf("icecanesql::parser::nextTokenExpect: Expected token %v, Found token %v", expected, it.typ)
+	return nil, p.err
 }
 
 // nextTokenKeyword peeks and returns the next token if it's a keyword.
@@ -626,7 +672,8 @@ func (p *Parser) nextTokenKeyword() (*item, error) {
 		return it, nil
 	}
 
-	return nil, fmt.Errorf("icecanesql::parser::nextTokenKeyword: Expected keyword token, Found item %v", it)
+	p.err = fmt.Errorf("icecanesql::parser::nextTokenKeyword: Expected keyword token, Found item %v", it)
+	return nil, p.err
 }
 
 func (p *Parser) nextTokenIdentifier() (*item, error) {
@@ -640,5 +687,6 @@ func (p *Parser) nextTokenIdentifier() (*item, error) {
 		return it, nil
 	}
 
-	return nil, fmt.Errorf("icecanesql::parser::nextTokenIdentifier: Expected identifier token, Found item %v", it)
+	p.err = fmt.Errorf("icecanesql::parser::nextTokenIdentifier: Expected identifier token, Found item %v", it)
+	return nil, p.err
 }

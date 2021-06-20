@@ -102,6 +102,8 @@ var keywords = map[string]keywordType{
 	"ORDER":    keywordOrder,
 	"BY":       keywordBy,
 	"FROM":     keywordFrom,
+	"VALUES":   keywordValues,
+	"INTO":     keywordInto,
 
 	// txns
 	"BEGIN":    keywordBegin,
@@ -157,6 +159,8 @@ var keywordStringRep = map[keywordType]string{
 	keywordOrder:    "ORDER",
 	keywordBy:       "BY",
 	keywordFrom:     "FROM",
+	keywordInto:     "INTO",
+	keywordValues:   "VALUES",
 
 	keywordBegin:    "BEGIN",
 	keywordCommit:   "COMMIT",
@@ -207,6 +211,8 @@ const (
 	keywordOrder
 	keywordBy
 	keywordFrom
+	keywordInto
+	keywordValues
 
 	keywordBegin
 	keywordCommit
@@ -499,7 +505,7 @@ func lexWhitespace(l *lexer) stateFn {
 	case isOperator(next):
 		return lexOperator
 
-	case next == '"':
+	case next == '"' || next == '\'':
 		return lexString
 
 	case isDigit(next):
@@ -564,7 +570,7 @@ func lexOperator(l *lexer) stateFn {
 }
 
 func lexString(l *lexer) stateFn {
-	l.next() // opening quote
+	quote := l.next() // opening quote
 
 	// hard to check for unterminated string using below method
 	// l.acceptUntil(func(r rune) bool { return r == '"' }) // till you find the closing quote
@@ -574,7 +580,7 @@ func lexString(l *lexer) stateFn {
 
 		if r == eof {
 			return l.errorf("unclosed string. expected an end quote")
-		} else if r == '"' {
+		} else if r == quote {
 			// found matching quote
 			l.emit(itemString)
 			return lexWhitespace
