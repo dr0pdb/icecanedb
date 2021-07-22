@@ -205,7 +205,7 @@ func TestTruncateTableIncorrect(t *testing.T) {
 }
 
 //
-// DQL tests
+// DML tests
 //
 
 func TestInsertStatement(t *testing.T) {
@@ -228,10 +228,113 @@ func TestInsertStatement(t *testing.T) {
 	assert.IsType(t, &InsertStatement{}, stmt, "Unexpected type of statement. Expected a &InsertStatement")
 	iStmt := stmt.(*InsertStatement)
 
-	assert.Equal(t, "Students", iStmt.TableName, fmt.Sprintf("Wrong table name. Expected Students, Found %s", iStmt.TableName))
+	assert.Equal(t, "Students", iStmt.Table.Name, "Wrong table name")
 	assert.Equal(t, len(expectedVals), len(iStmt.Values), "Unexpected length of values")
 
 	for i := 0; i < len(expectedVals); i++ {
 		assert.Equal(t, expectedVals[i], iStmt.Values[i], "Wrong values")
 	}
+}
+
+func TestUpdateStatement(t *testing.T) {
+	cmd := "UPDATE Students SET NAME = \"updated_name\" WHERE ROLL_NO = 1;"
+	expectedWhere := &BinaryOpExpression{
+		Op: OperatorEqual,
+		L: &IdentifierExpression{
+			Identifier: "ROLL_NO",
+		},
+		R: &ValueExpression{Val: &Value{Val: "1", Typ: FieldTypeInteger}},
+	}
+	expectedVals := []Expression{
+		&BinaryOpExpression{
+			Op: OperatorEqual,
+			L: &IdentifierExpression{
+				Identifier: "NAME",
+			},
+			R: &ValueExpression{Val: &Value{Val: "\"updated_name\"", Typ: FieldTypeString}},
+		},
+	}
+
+	p := NewParser("testParser", cmd)
+	stmt, err := p.Parse()
+	assert.Nil(t, err, "Unexpected error in parsing create table DDL")
+
+	assert.IsType(t, &UpdateStatement{}, stmt, "Unexpected type of statement. Expected an &UpdateStatement")
+	uStmt := stmt.(*UpdateStatement)
+
+	assert.Equal(t, "Students", uStmt.Table.Name, "Wrong table name")
+	assert.Equal(t, expectedWhere, uStmt.Predicate, "unexpected predicate")
+	assert.Equal(t, expectedVals, uStmt.Values, "unexpected values")
+}
+
+func TestDeleteStatement(t *testing.T) {
+	cmd := "DELETE FROM Students WHERE ROLL_NO = 1 AND NAME = 'John Doe';"
+	expectedWhere := &BinaryOpExpression{
+		Op: OperatorAndAnd,
+		L: &BinaryOpExpression{
+			Op: OperatorEqual,
+			L: &IdentifierExpression{
+				Identifier: "ROLL_NO",
+			},
+			R: &ValueExpression{Val: &Value{Val: "1", Typ: FieldTypeInteger}},
+		},
+		R: &BinaryOpExpression{
+			Op: OperatorEqual,
+			L: &IdentifierExpression{
+				Identifier: "NAME",
+			},
+			R: &ValueExpression{Val: &Value{Val: "'John Doe'", Typ: FieldTypeString}},
+		},
+	}
+
+	p := NewParser("testParser", cmd)
+	stmt, err := p.Parse()
+	assert.Nil(t, err, "Unexpected error in parsing create table DDL")
+
+	assert.IsType(t, &DeleteStatement{}, stmt, "Unexpected type of statement. Expected an &DeleteStatement")
+	dStmt := stmt.(*DeleteStatement)
+
+	assert.Equal(t, "Students", dStmt.Table.Name, "Wrong table name")
+	assert.Equal(t, expectedWhere, dStmt.Predicate, "unexpected predicate")
+}
+
+//
+// DQL tests
+//
+
+func TestSelectStatement(t *testing.T) {
+	cmd := "SELECT * FROM Students WHERE ROLL_NO = 1 AND NAME = 'John Doe';"
+	expectedWhere := &BinaryOpExpression{
+		Op: OperatorAndAnd,
+		L: &BinaryOpExpression{
+			Op: OperatorEqual,
+			L: &IdentifierExpression{
+				Identifier: "ROLL_NO",
+			},
+			R: &ValueExpression{Val: &Value{Val: "1", Typ: FieldTypeInteger}},
+		},
+		R: &BinaryOpExpression{
+			Op: OperatorEqual,
+			L: &IdentifierExpression{
+				Identifier: "NAME",
+			},
+			R: &ValueExpression{Val: &Value{Val: "'John Doe'", Typ: FieldTypeString}},
+		},
+	}
+	expectedSelections := &SelectionItem{Expr: &SelectAllExpression{}}
+
+	p := NewParser("testParser", cmd)
+	stmt, err := p.Parse()
+	assert.Nil(t, err, "Unexpected error in parsing create table DDL")
+
+	assert.IsType(t, &SelectStatement{}, stmt, "Unexpected type of statement. Expected a &SelectStatement")
+	selectStmt := stmt.(*SelectStatement)
+	assert.IsType(t, &Table{}, selectStmt.From, "Unexpected type of from item. Expected a &Table")
+	table := selectStmt.From.(*Table)
+
+	assert.Equal(t, "Students", table.Name, "Wrong table name")
+	assert.False(t, selectStmt.Distinct, "unexpected value for distinct")
+	assert.Nil(t, selectStmt.Limit, "unexpected value for limit")
+	assert.Equal(t, expectedWhere, selectStmt.Where, "unexpected value for where clause")
+	assert.Equal(t, expectedSelections, selectStmt.Selections[0], "unexpected value for selection item")
 }

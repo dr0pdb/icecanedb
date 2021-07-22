@@ -36,7 +36,7 @@ var testName = "testLexer"
 	a. INSERT INTO Students VALUES (1, 'John Doe', 'Economics');
 
 	DQL - Data Query Language
-	a.
+	a. SELECT * FROM Students WHERE ROLL_NO = 1 AND NAME = 'John Doe';
 
 	TCL - Transaction Control Language
 	a. BEGIN
@@ -342,18 +342,22 @@ func TestTQLFinishValid(t *testing.T) {
 // DQL tests
 //
 
-func TestDQLLexer1(t *testing.T) {
-	cmd := "SELECT * FROM tablename WHERE x = 2;"
+func TestDQLLexer(t *testing.T) {
+	cmd := "SELECT * FROM Students WHERE ROLL_NO = 1 AND NAME = 'John Doe';"
 
 	expectedResult := []item{
 		{typ: itemKeyword, val: "SELECT"},
 		{typ: itemAsterisk, val: "*"},
 		{typ: itemKeyword, val: "FROM"},
-		{typ: itemIdentifier, val: "tablename"},
+		{typ: itemIdentifier, val: "Students"},
 		{typ: itemKeyword, val: "WHERE"},
-		{typ: itemIdentifier, val: "x"},
+		{typ: itemIdentifier, val: "ROLL_NO"},
 		{typ: itemEqual, val: "="},
-		{typ: itemInteger, val: "2"},
+		{typ: itemInteger, val: "1"},
+		{typ: itemKeyword, val: "AND"},
+		{typ: itemIdentifier, val: "NAME"},
+		{typ: itemEqual, val: "="},
+		{typ: itemString, val: "'John Doe'"},
 		{typ: itemSemicolon, val: ";"},
 		{typ: itemEOF, val: ""},
 	}

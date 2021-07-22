@@ -16,9 +16,16 @@
 
 package frontend
 
+var (
+	_ Statement = (*InsertStatement)(nil)
+	_ Statement = (*UpdateStatement)(nil)
+)
+
+// InsertStatement is for the INSERT statement.
+// TODO: Support naming columns
 type InsertStatement struct {
-	TableName string
-	Values    []Expression
+	Table  *Table
+	Values []Expression
 }
 
 func (cts *InsertStatement) Accept(v Visitor) (node Node, ok bool) {
@@ -26,3 +33,28 @@ func (cts *InsertStatement) Accept(v Visitor) (node Node, ok bool) {
 }
 
 func (cts *InsertStatement) statement() {}
+
+// UpdateStatement is for the UPDATE statement.
+type UpdateStatement struct {
+	Table     *Table
+	Predicate Expression   // must evaluate to a boolean
+	Values    []Expression // list of column_name = expression
+}
+
+func (cts *UpdateStatement) Accept(v Visitor) (node Node, ok bool) {
+	panic("")
+}
+
+func (cts *UpdateStatement) statement() {}
+
+// DeleteStatement is for the DELETE statement.
+type DeleteStatement struct {
+	Table     *Table
+	Predicate Expression // must evaluate to a boolean
+}
+
+func (ds *DeleteStatement) Accept(v Visitor) (node Node, ok bool) {
+	panic("")
+}
+
+func (ds *DeleteStatement) statement() {}

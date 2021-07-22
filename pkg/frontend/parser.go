@@ -257,7 +257,54 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 // parseExpression parses an expression
 // Grammar is based on: http://www.craftinginterpreters.com/parsing-expressions.html#recursive-descent-parsing
 func (p *Parser) parseExpression() (Expression, error) {
-	return p.parseEquality()
+	return p.parseBitOperations()
+}
+
+// AND, OR, &&, ||
+func (p *Parser) parseBitOperations() (Expression, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
+	ex, err := p.parseEquality()
+
+	for {
+		if p.err != nil {
+			return nil, p.err
+		}
+
+		op := p.nextTokenIf(func(i *item) bool {
+			if i.typ == itemOrOr || i.typ == itemAndAnd {
+				return true
+			}
+
+			return isKeyword(i, keywordAnd) || isKeyword(i, keywordOr)
+		})
+		if op == nil {
+			break
+		}
+
+		right, err := p.parseEquality()
+		if err != nil {
+			return nil, err
+		}
+
+		if op.typ == itemKeyword {
+			k := keywords[op.val]
+
+			if k == keywordAnd {
+				ex = &BinaryOpExpression{Op: OperatorAndAnd, L: ex, R: right}
+			} else if k == keywordOr {
+				ex = &BinaryOpExpression{Op: OperatorOrOr, L: ex, R: right}
+			} else {
+				p.err = fmt.Errorf("unknown keyword %s found. expected an operator", op.val)
+			}
+		} else {
+			ex = &BinaryOpExpression{Op: itemTypeToOperator[op.typ], L: ex, R: right}
+		}
+	}
+
+	return ex, err
 }
 
 func (p *Parser) parseEquality() (Expression, error) {
@@ -407,7 +454,7 @@ func (p *Parser) parsePrimary() (Expression, error) {
 	}
 
 	op := p.nextTokenIf(func(i *item) bool {
-		return i.typ == itemFalse || i.typ == itemTrue || i.typ == itemInteger || i.typ == itemFloat || i.typ == itemString || i.typ == itemLeftParen
+		return i.typ == itemFalse || i.typ == itemTrue || i.typ == itemInteger || i.typ == itemFloat || i.typ == itemString || i.typ == itemLeftParen || i.typ == itemIdentifier || i.typ == itemAsterisk
 	})
 	if op != nil {
 		if op.typ == itemLeftParen {
@@ -421,6 +468,13 @@ func (p *Parser) parsePrimary() (Expression, error) {
 			}
 
 			return &GroupingExpression{InExp: in}, nil
+		} else if op.typ == itemIdentifier {
+			exp := &IdentifierExpression{
+				Identifier: op.val,
+			}
+			return exp, nil
+		} else if op.typ == itemAsterisk {
+			return &SelectAllExpression{}, nil
 		} else {
 			exp := &ValueExpression{Val: &Value{Val: op.val}}
 
@@ -500,7 +554,66 @@ func (p *Parser) parseSelect() (Statement, error) {
 		return nil, p.err
 	}
 
-	panic("")
+	expr := &SelectStatement{}
+	_ = p.nextToken() // SELECT
+
+	// get selections - list of (expr * [AS output_name])
+	var selections []*SelectionItem
+	for {
+		exp, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+
+		selections = append(selections, &SelectionItem{Expr: exp})
+
+		comma := p.nextTokenIf(func(it *item) bool {
+			return it.typ == itemComma
+		})
+		if comma == nil { // last value
+			break
+		}
+	}
+	expr.Selections = selections
+
+	from := p.nextToken()
+	if !isKeyword(from, keywordFrom) {
+		return nil, fmt.Errorf("icecanesql::parser::parseDDL: expected keyword \"FROM\"")
+	}
+	fromItem := &Table{}
+	tableName, err := p.nextTokenExpect(itemIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	fromItem.Name = tableName.val
+	asToken := p.nextTokenIf(func(it *item) bool {
+		return isKeyword(it, keywordAs)
+	})
+	if asToken != nil {
+		outputName, err := p.nextTokenExpect(itemIdentifier)
+		if err != nil {
+			return nil, err
+		}
+		fromItem.Alias = outputName.val
+	}
+	expr.From = fromItem
+	// TODO: support JOIN
+
+	// WHERE clause
+	whereToken := p.nextTokenIf(func(it *item) bool {
+		return isKeyword(it, keywordWhere)
+	})
+	if whereToken != nil {
+		whereExpr, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		expr.Where = whereExpr
+	}
+
+	// TODO: support LIMIT
+
+	return expr, p.err
 }
 
 func (p *Parser) parseInsert() (Statement, error) {
@@ -510,7 +623,6 @@ func (p *Parser) parseInsert() (Statement, error) {
 
 	_ = p.nextToken() // has to be INSERT
 	into := p.nextToken()
-
 	if !isKeyword(into, keywordInto) {
 		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected keyword \"INTO\" after \"INSERT\"")
 		return nil, p.err
@@ -533,7 +645,7 @@ func (p *Parser) parseInsert() (Statement, error) {
 		return nil, err
 	}
 
-	stmt := &InsertStatement{TableName: tableName.val}
+	stmt := &InsertStatement{Table: &Table{Name: tableName.val}}
 
 	// values for each column
 	var vals []Expression
@@ -561,7 +673,52 @@ func (p *Parser) parseUpdate() (Statement, error) {
 		return nil, p.err
 	}
 
-	panic("")
+	_ = p.nextToken() // has to be UPDATE
+	expr := &UpdateStatement{}
+
+	tableName, err := p.nextTokenIdentifier()
+	if err != nil {
+		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected table name")
+		return nil, p.err
+	}
+	expr.Table = &Table{Name: tableName.val}
+
+	set := p.nextToken()
+	if !isKeyword(set, keywordSet) {
+		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected keyword \"SET\" after table name")
+		return nil, p.err
+	}
+
+	var vals []Expression
+	for {
+		exp, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		vals = append(vals, exp)
+
+		comma := p.nextTokenIf(func(it *item) bool {
+			return it.typ == itemComma
+		})
+		if comma == nil { // last value
+			break
+		}
+	}
+	expr.Values = vals
+
+	// predicate - WHERE
+	whereToken := p.nextTokenIf(func(it *item) bool {
+		return isKeyword(it, keywordWhere)
+	})
+	if whereToken != nil {
+		whereExpr, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		expr.Predicate = whereExpr
+	}
+
+	return expr, nil
 }
 
 func (p *Parser) parseDelete() (Statement, error) {
@@ -569,7 +726,35 @@ func (p *Parser) parseDelete() (Statement, error) {
 		return nil, p.err
 	}
 
-	panic("")
+	_ = p.nextToken() // has to be DELETE
+	expr := &DeleteStatement{}
+
+	set := p.nextToken()
+	if !isKeyword(set, keywordFrom) {
+		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected keyword \"FROM\" after DELETE")
+		return nil, p.err
+	}
+
+	tableName, err := p.nextTokenIdentifier()
+	if err != nil {
+		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected table name")
+		return nil, p.err
+	}
+	expr.Table = &Table{Name: tableName.val}
+
+	// predicate - WHERE
+	whereToken := p.nextTokenIf(func(it *item) bool {
+		return isKeyword(it, keywordWhere)
+	})
+	if whereToken != nil {
+		whereExpr, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		expr.Predicate = whereExpr
+	}
+
+	return expr, nil
 }
 
 func (p *Parser) parseExplain() (Statement, error) {
@@ -577,7 +762,12 @@ func (p *Parser) parseExplain() (Statement, error) {
 		return nil, p.err
 	}
 
-	panic("")
+	_ = p.nextToken() // has to be EXPLAIN
+	expr := &ExplainStatement{}
+
+	inner, err := p.parseStatement()
+	expr.InnerStatement = inner
+	return expr, err
 }
 
 // isKeyword checks if the given item is the given keyword or not

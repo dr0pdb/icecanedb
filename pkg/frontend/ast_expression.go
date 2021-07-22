@@ -67,6 +67,7 @@ func (ge *GroupingExpression) Accept(v Visitor) (node Node, ok bool) {
 	panic("")
 }
 
+// UnaryOpExpression represents a unary operation
 type UnaryOpExpression struct {
 	ExpressionNode
 
@@ -87,5 +88,25 @@ type ValueExpression struct {
 }
 
 func (ve *ValueExpression) Accept(v Visitor) (node Node, ok bool) {
+	panic("")
+}
+
+// IdentifierExpression represents a simple identifier
+type IdentifierExpression struct {
+	ExpressionNode
+
+	Identifier string
+}
+
+func (ie *IdentifierExpression) Accept(v Visitor) (node Node, ok bool) {
+	panic("")
+}
+
+// SelectAllExpression represents selection of all of the columns in the query
+type SelectAllExpression struct {
+	ExpressionNode
+}
+
+func (ie *SelectAllExpression) Accept(v Visitor) (node Node, ok bool) {
 	panic("")
 }

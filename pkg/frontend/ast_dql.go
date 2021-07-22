@@ -16,24 +16,20 @@
 
 package frontend
 
-// BeginTxnStatement denotes a BEGIN statement
-type BeginTxnStatement struct {
-	ReadOnly bool
+var (
+	_ Statement = (*SelectStatement)(nil)
+)
+
+type SelectStatement struct {
+	Selections []*SelectionItem
+	Distinct   bool
+	From       FromItem
+	Where      Expression // must evaluate to a boolean
+	Limit      Expression // must evaluate to an integer
 }
 
-func (bts *BeginTxnStatement) Accept(v Visitor) (node Node, ok bool) {
+func (cts *SelectStatement) Accept(v Visitor) (node Node, ok bool) {
 	panic("")
 }
 
-func (bts *BeginTxnStatement) statement() {}
-
-// FinishTxnStatement denotes a COMMIT/ROLLBACK statement
-type FinishTxnStatement struct {
-	IsCommit bool
-}
-
-func (fts *FinishTxnStatement) Accept(v Visitor) (node Node, ok bool) {
-	panic("")
-}
-
-func (fts *FinishTxnStatement) statement() {}
+func (cts *SelectStatement) statement() {}

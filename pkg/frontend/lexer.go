@@ -104,6 +104,8 @@ var keywords = map[string]keywordType{
 	"FROM":     keywordFrom,
 	"VALUES":   keywordValues,
 	"INTO":     keywordInto,
+	"AS":       keywordAs,
+	"SET":      keywordSet,
 
 	// txns
 	"BEGIN":    keywordBegin,
@@ -142,6 +144,8 @@ var keywords = map[string]keywordType{
 	"READ":    keywordRead,
 	"WRITE":   keywordWrite,
 	"ONLY":    keywordOnly,
+	"AND":     keywordAnd,
+	"OR":      keywordOr,
 }
 
 // mapping from keyword type to it's string.
@@ -161,6 +165,8 @@ var keywordStringRep = map[keywordType]string{
 	keywordFrom:     "FROM",
 	keywordInto:     "INTO",
 	keywordValues:   "VALUES",
+	keywordAs:       "AS",
+	keywordSet:      "SET",
 
 	keywordBegin:    "BEGIN",
 	keywordCommit:   "COMMIT",
@@ -194,6 +200,8 @@ var keywordStringRep = map[keywordType]string{
 	keywordRead:    "READ",
 	keywordWrite:   "WRITE",
 	keywordOnly:    "ONLY",
+	keywordAnd:     "AND",
+	keywordOr:      "OR",
 }
 
 type keywordType int
@@ -213,6 +221,8 @@ const (
 	keywordFrom
 	keywordInto
 	keywordValues
+	keywordAs
+	keywordSet
 
 	keywordBegin
 	keywordCommit
@@ -246,6 +256,8 @@ const (
 	keywordRead
 	keywordWrite
 	keywordOnly
+	keywordAnd
+	keywordOr
 )
 
 // lexer is the sql lexer state machine responsible for tokenizing the input.
