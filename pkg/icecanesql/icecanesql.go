@@ -55,7 +55,6 @@ func (c *Client) Execute(cmd string, txnID uint64) error {
 	}
 
 	// execute the plan node
-	// TODO: pass the real txn id
 	_ = c.getExecutor(pn).Execute(txnID)
 	return nil
 }

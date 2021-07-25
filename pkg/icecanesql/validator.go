@@ -27,6 +27,9 @@ var _ validator = (*emptyValidator)(nil)
 var _ validator = (*createTableValidator)(nil)
 var _ validator = (*dropTableValidator)(nil)
 var _ validator = (*truncateTableValidator)(nil)
+var _ validator = (*insertStatementValidator)(nil)
+var _ validator = (*deleteStatementValidator)(nil)
+var _ validator = (*updateStatementValidator)(nil)
 
 // newValidator creates a new validator for the parsed statement
 func newValidator(ast frontend.Statement) validator {
@@ -37,12 +40,19 @@ func newValidator(ast frontend.Statement) validator {
 		return &dropTableValidator{ast: st}
 	case *frontend.TruncateTableStatement:
 		return &truncateTableValidator{ast: st}
+	case *frontend.InsertStatement:
+		return &insertStatementValidator{ast: st}
+	case *frontend.DeleteStatement:
+		return &deleteStatementValidator{ast: st}
+	case *frontend.UpdateStatement:
+		return &updateStatementValidator{ast: st}
 	default:
 		return &emptyValidator{ast: ast}
 	}
 }
 
 // emptyValidator is a trivial validator that doesn't validate anything
+// useful for statements such as begin, commit and rollback transactions.
 type emptyValidator struct {
 	ast frontend.Statement
 }
@@ -78,5 +88,32 @@ type truncateTableValidator struct {
 }
 
 func (ctv *truncateTableValidator) validate() error {
+	return nil
+}
+
+// insertStatementValidator validates a insert statement
+type insertStatementValidator struct {
+	ast *frontend.InsertStatement
+}
+
+func (isv *insertStatementValidator) validate() error {
+	return nil
+}
+
+// updateStatementValidator validates a update statement
+type updateStatementValidator struct {
+	ast *frontend.UpdateStatement
+}
+
+func (isv *updateStatementValidator) validate() error {
+	return nil
+}
+
+// deleteStatementValidator validates a delete statement
+type deleteStatementValidator struct {
+	ast *frontend.DeleteStatement
+}
+
+func (isv *deleteStatementValidator) validate() error {
 	return nil
 }

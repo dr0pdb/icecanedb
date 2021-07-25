@@ -203,8 +203,10 @@ func (p *Parser) parseSingleColumnSpec() (*ColumnSpec, error) {
 
 	// column constraints such as nullable, unique..
 	for {
-		kwd, err := p.nextTokenKeyword()
-		if err != nil {
+		kwd := p.nextTokenIf(func(i *item) bool {
+			return i.typ == itemKeyword
+		})
+		if kwd == nil {
 			break
 		}
 
