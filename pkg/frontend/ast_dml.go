@@ -22,10 +22,11 @@ var (
 )
 
 // InsertStatement is for the INSERT statement.
-// TODO: Support naming columns
+// TODO: support multiple set of values
 type InsertStatement struct {
-	Table  *Table
-	Values []Expression
+	Table   *Table
+	Columns []string
+	Values  []Expression
 }
 
 func (cts *InsertStatement) Accept(v Visitor) (node Node, ok bool) {

@@ -636,6 +636,33 @@ func (p *Parser) parseInsert() (Statement, error) {
 		return nil, p.err
 	}
 
+	// column names
+	leftParen := p.nextTokenIf(func(it *item) bool {
+		return it.typ == itemLeftParen
+	})
+	var columns []string
+	if leftParen != nil {
+		for {
+			colName, err := p.nextTokenIdentifier()
+			if err != nil {
+				return nil, err
+			}
+			columns = append(columns, colName.val)
+
+			comma := p.nextTokenIf(func(it *item) bool {
+				return it.typ == itemComma
+			})
+			if comma == nil { // last value
+				break
+			}
+		}
+
+		_, err = p.nextTokenExpect(itemRightParen)
+		if err != nil {
+			return nil, p.err
+		}
+	}
+
 	values := p.nextToken()
 	if !isKeyword(values, keywordValues) {
 		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected keyword \"VALUES\" after table name")
@@ -647,7 +674,7 @@ func (p *Parser) parseInsert() (Statement, error) {
 		return nil, err
 	}
 
-	stmt := &InsertStatement{Table: &Table{Name: tableName.val}}
+	stmt := &InsertStatement{Table: &Table{Name: tableName.val}, Columns: columns}
 
 	// values for each column
 	var vals []Expression

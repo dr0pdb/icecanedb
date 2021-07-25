@@ -209,7 +209,7 @@ func TestTruncateTableIncorrect(t *testing.T) {
 //
 
 func TestInsertStatement(t *testing.T) {
-	cmd := "INSERT INTO Students VALUES (1, 'John Doe', 'Economics', 1 + 1011);"
+	cmd := "INSERT INTO Students (ROLL_NO, NAME, SUBJECT, AGE) VALUES (1, 'John Doe', 'Economics', 1 + 1011);"
 	expectedVals := []Expression{
 		&ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1"}},
 		&ValueExpression{Val: &Value{Typ: FieldTypeString, Val: "'John Doe'"}},
@@ -219,6 +219,12 @@ func TestInsertStatement(t *testing.T) {
 			L:  &ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1"}},
 			R:  &ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1011"}},
 		},
+	}
+	expectedCols := []string{
+		"ROLL_NO",
+		"NAME",
+		"SUBJECT",
+		"AGE",
 	}
 
 	p := NewParser("testParser", cmd)
@@ -234,6 +240,7 @@ func TestInsertStatement(t *testing.T) {
 	for i := 0; i < len(expectedVals); i++ {
 		assert.Equal(t, expectedVals[i], iStmt.Values[i], "Wrong values")
 	}
+	assert.Equal(t, expectedCols, iStmt.Columns, "unexpected columns")
 }
 
 func TestUpdateStatement(t *testing.T) {

@@ -23,11 +23,6 @@ type Executor interface {
 	Execute(txnID uint64) Result
 }
 
-// Result denotes the result of the execution of a query plan
-type Result interface {
-	GetError() error
-}
-
 //
 // Utility functions for all executors
 //

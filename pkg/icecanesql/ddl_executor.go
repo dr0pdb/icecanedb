@@ -152,39 +152,3 @@ func getTableID(rpc *rpcRepository, name string, txnID uint64) (uint64, error) {
 func getNextTableID(rpc *rpcRepository, txnID uint64) (uint64, error) {
 	return incrementKeyAtomic(rpc, NextTableIDKey)
 }
-
-// CreateTableResult is the result of the create table operation
-type CreateTableResult struct {
-	Success bool
-	Err     error
-}
-
-func (ctr *CreateTableResult) GetError() error {
-	return ctr.Err
-}
-
-var _ Result = (*CreateTableResult)(nil)
-
-// DropTableResult is the result of the drop table operation
-type DropTableResult struct {
-	Success bool
-	Err     error
-}
-
-func (ctr *DropTableResult) GetError() error {
-	return ctr.Err
-}
-
-var _ Result = (*DropTableResult)(nil)
-
-// TruncateTableResult is the result of the truncate table operation
-type TruncateTableResult struct {
-	Success bool
-	Err     error
-}
-
-func (ctr *TruncateTableResult) GetError() error {
-	return ctr.Err
-}
-
-var _ Result = (*TruncateTableResult)(nil)

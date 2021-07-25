@@ -27,6 +27,7 @@ var _ PlanNode = (*DropTablePlanNode)(nil)
 var _ PlanNode = (*TruncateTablePlanNode)(nil)
 var _ PlanNode = (*BeginTxnPlanNode)(nil)
 var _ PlanNode = (*FinishTxnPlanNode)(nil)
+var _ PlanNode = (*InsertPlanNode)(nil)
 
 // CreateTablePlanNode is the planner node for the create table query
 type CreateTablePlanNode struct {
@@ -49,4 +50,11 @@ type BeginTxnPlanNode struct {
 
 type FinishTxnPlanNode struct {
 	IsCommit bool
+}
+
+// InsertPlanNode is the planner node for the insert table query
+type InsertPlanNode struct {
+	TableName string
+	Columns   []string
+	Values    []frontend.Expression
 }

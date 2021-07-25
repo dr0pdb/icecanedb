@@ -33,6 +33,13 @@ func (p *planner) plan() *planner {
 
 	case *frontend.FinishTxnStatement:
 		p.res = &FinishTxnPlanNode{IsCommit: st.IsCommit}
+
+	case *frontend.InsertStatement:
+		p.res = &InsertPlanNode{
+			TableName: st.Table.Name,
+			Columns:   st.Columns,
+			Values:    st.Values,
+		}
 	}
 
 	return p
