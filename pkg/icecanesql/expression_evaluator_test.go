@@ -15,24 +15,3 @@
  */
 
 package icecanesql
-
-import (
-	log "github.com/sirupsen/logrus"
-)
-
-// InsertExecutor is the executor for the insert query
-type InsertExecutor struct {
-	rpc  *rpcRepository
-	plan *InsertPlanNode
-}
-
-var _ Executor = (*InsertExecutor)(nil)
-
-// Execute executes the insert statement
-func (ex *InsertExecutor) Execute(txnID uint64) Result {
-	log.Info("icecanesql::dml_executor::InsertExecutor.Execute; start;")
-
-	// fetch table spec
-
-	return nil
-}

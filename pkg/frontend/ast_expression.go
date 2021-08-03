@@ -21,6 +21,9 @@ var (
 	_ Expression = (*BinaryOpExpression)(nil)
 	_ Expression = (*GroupingExpression)(nil)
 	_ Expression = (*ValueExpression)(nil)
+	_ Expression = (*UnaryOpExpression)(nil)
+	_ Expression = (*IdentifierExpression)(nil)
+	_ Expression = (*SelectAllExpression)(nil)
 )
 
 // ExpressionNode implements the Expression interface

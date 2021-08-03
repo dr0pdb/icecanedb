@@ -26,7 +26,36 @@ const (
 	FieldTypeNull
 )
 
+func (f FieldType) String() string {
+	switch f {
+	case FieldTypeBoolean:
+		return "boolean"
+
+	case FieldTypeInteger:
+		return "integer"
+
+	case FieldTypeString:
+		return "string"
+
+	case FieldTypeFloat:
+		return "float"
+
+	case FieldTypeNull:
+		return "null"
+	}
+
+	panic("programming error: unexpected field type in String() of FieldType")
+}
+
 type Value struct {
 	Typ FieldType
 	Val interface{}
+}
+
+func (v *Value) GetBoolean() bool {
+	if v.Typ != FieldTypeBoolean {
+		panic("programming error: expected type to be boolean")
+	}
+
+	return v.Val.(string) == "'true'" || v.Val.(string) == "'TRUE'"
 }

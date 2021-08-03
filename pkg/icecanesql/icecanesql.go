@@ -26,10 +26,13 @@ const (
 	NoTxn uint64 = 0
 )
 
+// Client handles query parsing, planning and execution.
+// TODO: Does it need a mutex?
 type Client struct {
-	name string
-	rpc  *rpcRepository
-	conf *common.ClientConfig
+	name    string
+	rpc     *rpcRepository
+	conf    *common.ClientConfig
+	catalog *catalog
 }
 
 // Execute executes a sql command obtained from the grpc service.
@@ -43,7 +46,7 @@ func (c *Client) Execute(cmd string, txnID uint64) error {
 	}
 
 	// validate the parsed statement
-	err = newValidator(stmt).validate()
+	err = newValidator(stmt, c.catalog).validate(txnID)
 	if err != nil {
 		return err
 	}
@@ -82,6 +85,10 @@ func (c *Client) getExecutor(pn PlanNode) Executor {
 	case *FinishTxnPlanNode:
 		ex := &FinishTxnExecutor{rpc: c.rpc, isCommit: n.IsCommit}
 		return ex
+
+	case *InsertPlanNode:
+		ex := &InsertExecutor{rpc: c.rpc, plan: n}
+		return ex
 	}
 
 	panic("programming error: No executor found for the plan node")
@@ -89,9 +96,12 @@ func (c *Client) getExecutor(pn PlanNode) Executor {
 
 // NewClient creates a new client for running sql queries.
 func NewClient(name string, conf *common.ClientConfig) *Client {
+	rpc := newRpcRepository(conf)
+
 	return &Client{
-		name: name,
-		rpc:  newRpcRepository(conf),
-		conf: conf,
+		name:    name,
+		rpc:     rpc,
+		conf:    conf,
+		catalog: newCatalog(rpc),
 	}
 }

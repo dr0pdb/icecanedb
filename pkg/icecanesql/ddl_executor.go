@@ -21,6 +21,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+/*
+	We store table schema in the kv-store.
+
+	The format:
+	Key: table name
+	Value: id (64 bits) | number of columns (64 bits) | col_1 | col_2 | ...
+
+	Apart from creating the table, we also create a set of indices.
+	The primary index is implicit because we store table rows with key = tablePrefix_tableID_rowPrefix_rowID
+
+	For other indices, the index id = id of the column on which it is based.
+*/
+
 // CreateTableExecutor is the executor for the create table query
 type CreateTableExecutor struct {
 	rpc   *rpcRepository
@@ -58,8 +71,6 @@ func (ex *CreateTableExecutor) Execute(txnID uint64) Result {
 	}
 
 	res.Success, res.Err = ex.rpc.set(k, v, txnID)
-
-	// todo: create index for others columns if specified
 
 	// commit the inline txn
 	if inlineTxn {
@@ -103,7 +114,7 @@ func (ex *DropTableExecutor) Execute(txnID uint64) Result {
 		return res
 	}
 
-	tSpec := &frontend.TableSpec{TableId: tableID, Columns: []*frontend.ColumnSpec{}}
+	tSpec := &frontend.TableSpec{TableID: tableID, Columns: []*frontend.ColumnSpec{}}
 	k, _, err := encodeTableSchema(tSpec, tableID)
 	if err != nil {
 		res.Err = err

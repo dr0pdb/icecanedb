@@ -23,6 +23,28 @@ import (
 	"github.com/dr0pdb/icecanedb/pkg/frontend"
 )
 
+var (
+	tablePrefix = []byte("tp")
+	rowPrefix   = []byte("rp")
+)
+
+// return the key that can be used to store a row of data for the given table
+//
+// The format:
+// Key: tablePrefix_tableID_rowPrefix_rowID
+func encodeTableRowKey(table *frontend.TableSpec, rowID uint64) []byte {
+	res := tablePrefix
+	res = append(res, common.U64ToByteSlice(table.TableID)...)
+	res = append(res, rowPrefix...)
+	res = append(res, common.U64ToByteSlice(rowID)...)
+	return res
+}
+
+// returns the key that can be used to query the kv for info about the table spec
+func getTableKeyForQuery(tableName string) []byte {
+	return encodeString(tableName)
+}
+
 // encodeTableSchema returns the key-value pair to store in the kv service
 // to store a table schema.
 //
@@ -53,7 +75,7 @@ func decodeTableSchema(key, value []byte) (table *frontend.TableSpec, err error)
 	}
 
 	// id
-	table.TableId = common.ByteSliceToU64(value[:8])
+	table.TableID = common.ByteSliceToU64(value[:8])
 
 	// columns
 	len := common.ByteSliceToU64(value[8:16])

@@ -35,10 +35,15 @@ func (p *planner) plan() *planner {
 		p.res = &FinishTxnPlanNode{IsCommit: st.IsCommit}
 
 	case *frontend.InsertStatement:
+		vals := make([]*frontend.ValueExpression, len(st.Values))
+		for i := range st.Values {
+			vals[i] = st.Values[i].(*frontend.ValueExpression)
+		}
+
 		p.res = &InsertPlanNode{
 			TableName: st.Table.Name,
 			Columns:   st.Columns,
-			Values:    st.Values,
+			Values:    vals,
 		}
 	}
 

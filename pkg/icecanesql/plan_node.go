@@ -55,6 +55,6 @@ type FinishTxnPlanNode struct {
 // InsertPlanNode is the planner node for the insert table query
 type InsertPlanNode struct {
 	TableName string
-	Columns   []string
-	Values    []frontend.Expression
+	Columns   []string // could be empty. uses default ordering of columns in that case.
+	Values    []*frontend.ValueExpression
 }

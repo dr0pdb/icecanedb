@@ -70,7 +70,7 @@ func TestEncodeTableSchema(t *testing.T) {
 	assert.Nil(t, err, "unexpected error in decoding table schema")
 
 	assert.Equal(t, table.TableName, decodedTable.TableName, "Unexpected value for table name")
-	assert.Equal(t, tableId, decodedTable.TableId, "Unexpected value for table id")
+	assert.Equal(t, tableId, decodedTable.TableID, "Unexpected value for table id")
 	assert.Equal(t, len(table.Columns), len(decodedTable.Columns), "Unexpected length for columns list")
 
 	for i := 0; i < len(table.Columns); i++ {

@@ -19,6 +19,7 @@ package frontend
 var (
 	_ Statement = (*InsertStatement)(nil)
 	_ Statement = (*UpdateStatement)(nil)
+	_ Statement = (*DeleteStatement)(nil)
 )
 
 // InsertStatement is for the INSERT statement.
