@@ -23,7 +23,6 @@ var (
 	_ Expression = (*ValueExpression)(nil)
 	_ Expression = (*UnaryOpExpression)(nil)
 	_ Expression = (*IdentifierExpression)(nil)
-	_ Expression = (*SelectAllExpression)(nil)
 )
 
 // ExpressionNode implements the Expression interface
@@ -102,14 +101,5 @@ type IdentifierExpression struct {
 }
 
 func (ie *IdentifierExpression) Accept(v Visitor) (node Node, ok bool) {
-	panic("")
-}
-
-// SelectAllExpression represents selection of all of the columns in the query
-type SelectAllExpression struct {
-	ExpressionNode
-}
-
-func (ie *SelectAllExpression) Accept(v Visitor) (node Node, ok bool) {
 	panic("")
 }

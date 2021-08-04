@@ -52,10 +52,42 @@ type Value struct {
 	Val interface{}
 }
 
-func (v *Value) GetBoolean() bool {
+func (v *Value) GetAsBoolean() bool {
 	if v.Typ != FieldTypeBoolean {
 		panic("programming error: expected type to be boolean")
 	}
 
-	return v.Val.(string) == "'true'" || v.Val.(string) == "'TRUE'"
+	return v.Val.(bool)
 }
+
+func (v *Value) GetAsInt() int64 {
+	if v.Typ != FieldTypeInteger {
+		panic("programming error: expected type to be integer")
+	}
+
+	return v.Val.(int64)
+}
+
+func (v *Value) GetAsFloat() float64 {
+	if v.Typ != FieldTypeFloat {
+		panic("programming error: expected type to be float")
+	}
+
+	return v.Val.(float64)
+}
+
+func (v *Value) GetAsString() string {
+	if v.Typ != FieldTypeString {
+		panic("programming error: expected type to be string")
+	}
+
+	return v.Val.(string)
+}
+
+var (
+	// Types which can be operands of the '+' operator
+	OperatorPlusOperandTypes = map[FieldType]bool{FieldTypeInteger: true, FieldTypeFloat: true, FieldTypeString: true}
+
+	// Types which can be operands of the '*' operator
+	OperatorAsteriskOperandTypes = map[FieldType]bool{FieldTypeInteger: true, FieldTypeFloat: true}
+)

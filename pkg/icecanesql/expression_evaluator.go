@@ -63,9 +63,7 @@ func (ee *valueExpressionEvaluator) evaluateAndValidateExpression(expr frontend.
 	case *frontend.UnaryOpExpression:
 		return ee.evaluateAndValidateUnaryOpExpression(e)
 	case *frontend.IdentifierExpression:
-		return nil, fmt.Errorf("invalid expression type: identifier expression doesn't emit a value")
-	case *frontend.SelectAllExpression:
-		return nil, fmt.Errorf("invalid expression type: Select All expression doesn't emit a value")
+		return nil, fmt.Errorf("invalid expression type: Identifier expression doesn't emit a value")
 	case *frontend.ValueExpression:
 		return e, nil
 	}
@@ -109,38 +107,117 @@ func (e *valueExpressionEvaluator) evaluateAndValidateBinaryOpExpression(expr *f
 		return nil, e.err
 	}
 
+	lv := expr.L.(*frontend.ValueExpression)
+	rv := expr.R.(*frontend.ValueExpression)
+
 	switch expr.Op {
 	case frontend.OperatorEqual:
-
-	case frontend.OperatorAndAnd:
-		lv := expr.L.(*frontend.ValueExpression)
-		rv := expr.R.(*frontend.ValueExpression)
-
-		e.err = assertTypeEquality(lv, rv, frontend.FieldTypeBoolean)
+		e.err = assertTypeEquality(lv, rv)
 		if e.err == nil {
 			res := &frontend.ValueExpression{
 				Val: &frontend.Value{
 					Typ: frontend.FieldTypeBoolean,
-					Val: lv.Val.GetBoolean() && rv.Val.GetBoolean(),
+					Val: lv.Val.Val == rv.Val.Val,
+				},
+			}
+
+			return res, nil
+		}
+
+	case frontend.OperatorAndAnd:
+		e.err = assertTypeEqualityWithGivenType(lv, rv, frontend.FieldTypeBoolean)
+		if e.err == nil {
+			res := &frontend.ValueExpression{
+				Val: &frontend.Value{
+					Typ: frontend.FieldTypeBoolean,
+					Val: lv.Val.GetAsBoolean() && rv.Val.GetAsBoolean(),
 				},
 			}
 			return res, nil
 		}
 
 	case frontend.OperatorOrOr:
-		lv := expr.L.(*frontend.ValueExpression)
-		rv := expr.R.(*frontend.ValueExpression)
-
-		e.err = assertTypeEquality(lv, rv, frontend.FieldTypeBoolean)
+		e.err = assertTypeEqualityWithGivenType(lv, rv, frontend.FieldTypeBoolean)
 		if e.err == nil {
 			res := &frontend.ValueExpression{
 				Val: &frontend.Value{
 					Typ: frontend.FieldTypeBoolean,
-					Val: lv.Val.GetBoolean() || rv.Val.GetBoolean(),
+					Val: lv.Val.GetAsBoolean() || rv.Val.GetAsBoolean(),
 				},
 			}
 			return res, nil
 		}
+
+	case frontend.OperatorPlus:
+		expectedType := lv.Val.Typ
+
+		if _, ok := frontend.OperatorPlusOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '+' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if expectedType == frontend.FieldTypeFloat {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeFloat,
+							Val: lv.Val.GetAsFloat() + rv.Val.GetAsFloat(),
+						},
+					}
+				} else if expectedType == frontend.FieldTypeInteger {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeInteger,
+							Val: lv.Val.GetAsInt() + rv.Val.GetAsInt(),
+						},
+					}
+				} else {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeString,
+							Val: lv.Val.GetAsString() + rv.Val.GetAsString(),
+						},
+					}
+				}
+				return res, nil
+			}
+		}
+
+	case frontend.OperatorAsterisk:
+		expectedType := lv.Val.Typ
+
+		if _, ok := frontend.OperatorAsteriskOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '*' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if expectedType == frontend.FieldTypeFloat {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeFloat,
+							Val: lv.Val.GetAsFloat() * rv.Val.GetAsFloat(),
+						},
+					}
+				} else {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeInteger,
+							Val: lv.Val.GetAsInt() * rv.Val.GetAsInt(),
+						},
+					}
+				}
+				return res, nil
+			}
+		}
+
+	case frontend.OperatorGreaterThan:
+
+	case frontend.OperatorGreaterThanEqualTo:
+
+	case frontend.OperatorLessThan:
+
+	case frontend.OperatorLessThanEqualTo:
 
 	}
 
@@ -151,13 +228,21 @@ func (e *valueExpressionEvaluator) evaluateAndValidateBinaryOpExpression(expr *f
 // Utilities
 //
 
-func assertTypeEquality(l, r *frontend.ValueExpression, expectedType frontend.FieldType) error {
-	if l.Typ != expectedType {
-		return fmt.Errorf("type mismatch: expected %s found %s", expectedType, l.Typ)
+func assertTypeEquality(l, r *frontend.ValueExpression) error {
+	if l.Val.Typ != r.Val.Typ {
+		return fmt.Errorf("type mismatch: expected the types to be equal")
 	}
 
-	if r.Typ != expectedType {
-		return fmt.Errorf("type mismatch: expected %s found %s", expectedType, r.Typ)
+	return nil
+}
+
+func assertTypeEqualityWithGivenType(l, r *frontend.ValueExpression, expectedType frontend.FieldType) error {
+	if l.Val.Typ != expectedType {
+		return fmt.Errorf("type mismatch: expected %s found %s", expectedType, l.Val.Typ)
+	}
+
+	if r.Val.Typ != expectedType {
+		return fmt.Errorf("type mismatch: expected %s found %s", expectedType, r.Val.Typ)
 	}
 
 	return nil

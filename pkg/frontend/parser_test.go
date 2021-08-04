@@ -108,7 +108,7 @@ func TestCreateTableBasicWithValueDefaults(t *testing.T) {
 			Unique:     false,
 			Index:      false,
 			References: "",
-			Default:    &ValueExpression{Val: &Value{Typ: FieldTypeFloat, Val: "10.1"}},
+			Default:    &ValueExpression{Val: &Value{Typ: FieldTypeFloat, Val: 10.1}},
 		},
 		{
 			Name:       "RICH",
@@ -118,7 +118,7 @@ func TestCreateTableBasicWithValueDefaults(t *testing.T) {
 			Unique:     false,
 			Index:      false,
 			References: "",
-			Default:    &ValueExpression{Val: &Value{Typ: FieldTypeBoolean, Val: "false"}},
+			Default:    &ValueExpression{Val: &Value{Typ: FieldTypeBoolean, Val: false}},
 		},
 	}
 
@@ -211,13 +211,13 @@ func TestTruncateTableIncorrect(t *testing.T) {
 func TestInsertStatement(t *testing.T) {
 	cmd := "INSERT INTO Students (ROLL_NO, NAME, SUBJECT, AGE) VALUES (1, 'John Doe', 'Economics', 1 + 1011);"
 	expectedVals := []Expression{
-		&ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1"}},
+		&ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: int64(1)}},
 		&ValueExpression{Val: &Value{Typ: FieldTypeString, Val: "'John Doe'"}},
 		&ValueExpression{Val: &Value{Typ: FieldTypeString, Val: "'Economics'"}},
 		&BinaryOpExpression{
 			Op: OperatorPlus,
-			L:  &ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1"}},
-			R:  &ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: "1011"}},
+			L:  &ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: int64(1)}},
+			R:  &ValueExpression{Val: &Value{Typ: FieldTypeInteger, Val: int64(1011)}},
 		},
 	}
 	expectedCols := []string{
@@ -250,7 +250,7 @@ func TestUpdateStatement(t *testing.T) {
 		L: &IdentifierExpression{
 			Identifier: "ROLL_NO",
 		},
-		R: &ValueExpression{Val: &Value{Val: "1", Typ: FieldTypeInteger}},
+		R: &ValueExpression{Val: &Value{Val: int64(1), Typ: FieldTypeInteger}},
 	}
 	expectedVals := []Expression{
 		&BinaryOpExpression{
@@ -283,7 +283,7 @@ func TestDeleteStatement(t *testing.T) {
 			L: &IdentifierExpression{
 				Identifier: "ROLL_NO",
 			},
-			R: &ValueExpression{Val: &Value{Val: "1", Typ: FieldTypeInteger}},
+			R: &ValueExpression{Val: &Value{Val: int64(1), Typ: FieldTypeInteger}},
 		},
 		R: &BinaryOpExpression{
 			Op: OperatorEqual,
@@ -318,7 +318,7 @@ func TestSelectStatement(t *testing.T) {
 			L: &IdentifierExpression{
 				Identifier: "ROLL_NO",
 			},
-			R: &ValueExpression{Val: &Value{Val: "1", Typ: FieldTypeInteger}},
+			R: &ValueExpression{Val: &Value{Val: int64(1), Typ: FieldTypeInteger}},
 		},
 		R: &BinaryOpExpression{
 			Op: OperatorEqual,
@@ -328,7 +328,7 @@ func TestSelectStatement(t *testing.T) {
 			R: &ValueExpression{Val: &Value{Val: "'John Doe'", Typ: FieldTypeString}},
 		},
 	}
-	expectedSelections := &SelectionItem{Expr: &SelectAllExpression{}}
+	expectedSelections := &SelectionItem{Expr: &IdentifierExpression{Identifier: "*"}}
 
 	p := NewParser("testParser", cmd)
 	stmt, err := p.Parse()

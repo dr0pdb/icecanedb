@@ -18,6 +18,7 @@ package frontend
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -476,22 +477,44 @@ func (p *Parser) parsePrimary() (Expression, error) {
 			}
 			return exp, nil
 		} else if op.typ == itemAsterisk {
-			return &SelectAllExpression{}, nil
+			return &IdentifierExpression{
+				Identifier: "*",
+			}, nil
 		} else {
-			exp := &ValueExpression{Val: &Value{Val: op.val}}
+			exp := &ValueExpression{
+				Val: &Value{},
+			}
 
 			switch op.typ {
 			case itemFalse, itemTrue:
+				val, err := strconv.ParseBool(op.val)
+				if err != nil {
+					return nil, err
+				}
+
 				exp.Val.Typ = FieldTypeBoolean
+				exp.Val.Val = val
 
 			case itemInteger:
+				val, err := strconv.ParseInt(op.val, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+
 				exp.Val.Typ = FieldTypeInteger
+				exp.Val.Val = val
 			case itemFloat:
+				val, err := strconv.ParseFloat(op.val, 64)
+				if err != nil {
+					return nil, err
+				}
+
 				exp.Val.Typ = FieldTypeFloat
+				exp.Val.Val = val
 
 			case itemString:
 				exp.Val.Typ = FieldTypeString
-
+				exp.Val.Val = op.val
 			}
 
 			return exp, nil
@@ -567,20 +590,26 @@ func (p *Parser) parseSelect() (Statement, error) {
 			return nil, err
 		}
 
-		selections = append(selections, &SelectionItem{Expr: exp})
+		if iexp, ok := exp.(*IdentifierExpression); ok {
+			selections = append(selections, &SelectionItem{Expr: iexp})
 
-		comma := p.nextTokenIf(func(it *item) bool {
-			return it.typ == itemComma
-		})
-		if comma == nil { // last value
-			break
+			comma := p.nextTokenIf(func(it *item) bool {
+				return it.typ == itemComma
+			})
+			if comma == nil { // last value
+				break
+			}
+		} else {
+			p.err = fmt.Errorf("expected an identifier in selection item")
+			return nil, p.err
 		}
 	}
 	expr.Selections = selections
 
 	from := p.nextToken()
 	if !isKeyword(from, keywordFrom) {
-		return nil, fmt.Errorf("icecanesql::parser::parseDDL: expected keyword \"FROM\"")
+		p.err = fmt.Errorf("icecanesql::parser::parseDDL: expected keyword \"FROM\"")
+		return nil, p.err
 	}
 	fromItem := &Table{}
 	tableName, err := p.nextTokenExpect(itemIdentifier)

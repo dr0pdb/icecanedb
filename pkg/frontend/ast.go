@@ -85,7 +85,7 @@ type Join struct {
 // Can optionally have an Output name.
 type SelectionItem struct {
 	OutputName string
-	Expr       Expression
+	Expr       *IdentifierExpression
 }
 
 // ExplainStatement denotes an EXPLAIN query
