@@ -22,8 +22,9 @@ import (
 
 // InsertExecutor is the executor for the insert query
 type InsertExecutor struct {
-	rpc  *rpcRepository
-	plan *InsertPlanNode
+	rpc     *rpcRepository
+	plan    *InsertPlanNode
+	catalog *catalog
 }
 
 var _ Executor = (*InsertExecutor)(nil)
@@ -32,7 +33,26 @@ var _ Executor = (*InsertExecutor)(nil)
 func (ex *InsertExecutor) Execute(txnID uint64) Result {
 	log.Info("icecanesql::dml_executor::InsertExecutor.Execute; start;")
 
-	// fetch table spec
+	res := &InsertResult{}
 
-	return nil
+	spec, err := ex.catalog.getTableInfo(ex.plan.TableName, txnID)
+	if err != nil {
+		return nil
+	}
+
+	// validate uniqueness of columns which are supposed to be unique
+
+	var rowKey []byte
+	if spec.IsPrimaryKeyInteger() {
+		rowKey = encodeTableRowKeyWithU64(spec, uint64(ex.plan.Values[spec.PrimaryKeyColumnIdx].Val.GetAsInt()))
+	} else {
+		rowKey = encodeTableRowKeyWithString(spec, ex.plan.Values[spec.PrimaryKeyColumnIdx].Val.GetAsString())
+	}
+	rowValue := encodeTableRowValues(spec, ex.plan.Values)
+
+	_, res.Err = ex.rpc.set(rowKey, rowValue, txnID)
+
+	// TODO: update indices?
+
+	return res
 }

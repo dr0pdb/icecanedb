@@ -55,6 +55,32 @@ type FinishTxnPlanNode struct {
 // InsertPlanNode is the planner node for the insert table query
 type InsertPlanNode struct {
 	TableName string
-	Columns   []string // could be empty. uses default ordering of columns in that case.
-	Values    []*frontend.ValueExpression
+
+	// Value for each column id
+	Values map[int]*frontend.ValueExpression
+}
+
+// create an insert plan node. Assumes that validation is already done.
+func newInsertPlanNode(tableName string, spec *frontend.TableSpec, cols []string, value []*frontend.ValueExpression) *InsertPlanNode {
+	values := make(map[int]*frontend.ValueExpression)
+
+	if len(cols) != 0 {
+		nameToIdx := make(map[string]int)
+		for i := range spec.Columns {
+			nameToIdx[spec.Columns[i].Name] = i
+		}
+
+		for i := range value {
+			values[nameToIdx[cols[i]]] = value[i]
+		}
+	} else {
+		for i := range spec.Columns {
+			values[i] = value[i]
+		}
+	}
+
+	return &InsertPlanNode{
+		TableName: tableName,
+		Values:    values,
+	}
 }

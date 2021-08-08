@@ -17,6 +17,8 @@
 package icecanesql
 
 import (
+	"fmt"
+
 	"github.com/dr0pdb/icecanedb/pkg/common"
 	"github.com/dr0pdb/icecanedb/pkg/frontend"
 	log "github.com/sirupsen/logrus"
@@ -52,7 +54,7 @@ func (c *Client) Execute(cmd string, txnID uint64) error {
 	}
 
 	// derive the query plan
-	pn, err := newPlanner(stmt).plan().optimize().get()
+	pn, err := newPlanner(stmt, c.catalog, txnID).plan().optimize().get()
 	if err != nil {
 		return err
 	}
@@ -87,11 +89,11 @@ func (c *Client) getExecutor(pn PlanNode) Executor {
 		return ex
 
 	case *InsertPlanNode:
-		ex := &InsertExecutor{rpc: c.rpc, plan: n}
+		ex := &InsertExecutor{rpc: c.rpc, plan: n, catalog: c.catalog}
 		return ex
 	}
 
-	panic("programming error: No executor found for the plan node")
+	panic(fmt.Sprintf("programming error: No executor found for the plan node: %V", pn))
 }
 
 // NewClient creates a new client for running sql queries.

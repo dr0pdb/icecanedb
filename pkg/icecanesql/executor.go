@@ -28,9 +28,10 @@ type Executor interface {
 //
 
 // incrementKeyAtomic increments the value associated with the given key
-// and returns the updated value
-// NOTE: Assumes that the value associated with the key is a valid serialized uint64 using U64ToByteSlice
-// returns 0 if the key wasn't found
+// and returns the updated value.
+//
+// NOTE: Assumes that the value associated with the key is a valid serialized uint64 using U64ToByteSlice.
+// Returns 0 if the key wasn't found
 func incrementKeyAtomic(rpc *rpcRepository, key []byte) (uint64, error) {
 	txnID, err := rpc.beginTxn(false)
 	if err != nil {

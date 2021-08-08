@@ -93,7 +93,6 @@ func (isv *insertStatementValidator) validate(txnID uint64) error {
 		return fmt.Errorf("validation error: length of columns and values are unequal in insert statement")
 	}
 
-	// validate each column for existence, uniqueness, nullness and type safety.
 	for i, val := range isv.ast.Values {
 		ee := newValueExpressionEvaluator(val)
 		ne, err := ee.evaluate()
@@ -104,6 +103,11 @@ func (isv *insertStatementValidator) validate(txnID uint64) error {
 		// update the value to the evaluate value expression so that later steps can use it directly.
 		isv.ast.Values[i] = ne
 	}
+
+	// TODO: validate each column for existence, nullness.
+
+	// TODO: validate that we have exactly one primary key column which is non-nullable.
+	// Also, allow PK only on INTEGER and STRING type.
 
 	return nil
 }

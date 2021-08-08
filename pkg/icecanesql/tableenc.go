@@ -28,16 +28,44 @@ var (
 	rowPrefix   = []byte("rp")
 )
 
+type valueMarker uint64
+
+const (
+	valueMarkerBoolean valueMarker = iota
+	valueMarkerInteger
+	valueMarkerString
+	valueMarkerFloat
+	valueMarkerNull
+)
+
 // return the key that can be used to store a row of data for the given table
 //
 // The format:
 // Key: tablePrefix_tableID_rowPrefix_rowID
-func encodeTableRowKey(table *frontend.TableSpec, rowID uint64) []byte {
+func encodeTableRowKeyWithU64(table *frontend.TableSpec, rowID uint64) []byte {
 	res := tablePrefix
 	res = append(res, common.U64ToByteSlice(table.TableID)...)
 	res = append(res, rowPrefix...)
+	res = append(res, common.U64ToByteSlice(uint64(valueMarkerInteger))...)
 	res = append(res, common.U64ToByteSlice(rowID)...)
 	return res
+}
+
+// return the key that can be used to store a row of data for the given table
+//
+// The format:
+// Key: tablePrefix_tableID_rowPrefix_rowID
+func encodeTableRowKeyWithString(table *frontend.TableSpec, rowID string) []byte {
+	res := tablePrefix
+	res = append(res, common.U64ToByteSlice(table.TableID)...)
+	res = append(res, rowPrefix...)
+	res = append(res, common.U64ToByteSlice(uint64(valueMarkerString))...)
+	res = append(res, encodeString(rowID)...)
+	return res
+}
+
+func encodeTableRowValues(table *frontend.TableSpec, values map[int]*frontend.ValueExpression) []byte {
+	return []byte{}
 }
 
 // returns the key that can be used to query the kv for info about the table spec
@@ -66,32 +94,31 @@ func encodeTableSchema(table *frontend.TableSpec, id uint64) (key, value []byte,
 
 // decodeTableSchema decodes the table schema out of the key value pair stored in kv store
 func decodeTableSchema(key, value []byte) (table *frontend.TableSpec, err error) {
-	table = &frontend.TableSpec{}
-
 	// name
-	table.TableName, _, err = decodeString(key)
+	name, _, err := decodeString(key)
 	if err != nil {
 		return nil, err
 	}
 
 	// id
-	table.TableID = common.ByteSliceToU64(value[:8])
+	id := common.ByteSliceToU64(value[:8])
 
 	// columns
 	len := common.ByteSliceToU64(value[8:16])
-	table.Columns = make([]*frontend.ColumnSpec, len)
+	cols := make([]*frontend.ColumnSpec, len)
 	value = value[16:]
 	idx := uint64(0) // to be used inside the loop
 
 	// decode each column spec
 	for i := uint64(0); i < len; i++ {
-		table.Columns[i], idx, err = decodeColumnSpec(value)
+		cols[i], idx, err = decodeColumnSpec(value)
 		value = value[idx:]
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	table = frontend.NewTableSpec(id, name, cols)
 	return table, err
 }
 
@@ -159,6 +186,8 @@ func encodeColumnSpec(cs *frontend.ColumnSpec) []byte {
 	res = append(res, common.U64ToByteSlice(uint64(columnSpecFieldReferences))...)
 	res = append(res, encodeString(cs.References)...)
 
+	// TODO: encode default value
+
 	return res
 }
 
@@ -206,6 +235,8 @@ func decodeColumnSpec(b []byte) (cs *frontend.ColumnSpec, idx uint64, err error)
 	_ = common.ByteSliceToU64(b[idx : idx+8])
 	cs.References, delta, err = decodeString(b[idx+8:])
 	idx += 8 + delta
+
+	// TODO: decode default value
 
 	return cs, idx, err
 }

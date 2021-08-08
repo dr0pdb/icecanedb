@@ -76,6 +76,31 @@ func TestValidateBinaryOpExpressionsShouldSucceed(t *testing.T) {
 			L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "Hello"}},
 			R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "World"}},
 		},
+		{
+			Op: frontend.OperatorNotEqual,
+			L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "Hello"}},
+			R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "World"}},
+		},
+		{
+			Op: frontend.OperatorNotEqual,
+			L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "Hello"}},
+			R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "Hello"}},
+		},
+		{
+			Op: frontend.OperatorSlash,
+			L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(10110)}},
+			R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1011)}},
+		},
+		{
+			Op: frontend.OperatorSlash,
+			L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeFloat, Val: float64(10)}},
+			R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeFloat, Val: float64(0.25)}},
+		},
+		{
+			Op: frontend.OperatorPercent,
+			L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(10112)}},
+			R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1011)}},
+		},
 	}
 	expectedOut := []*frontend.ValueExpression{
 		{
@@ -136,6 +161,36 @@ func TestValidateBinaryOpExpressionsShouldSucceed(t *testing.T) {
 			Val: &frontend.Value{
 				Typ: frontend.FieldTypeBoolean,
 				Val: false,
+			},
+		},
+		{
+			Val: &frontend.Value{
+				Typ: frontend.FieldTypeBoolean,
+				Val: true,
+			},
+		},
+		{
+			Val: &frontend.Value{
+				Typ: frontend.FieldTypeBoolean,
+				Val: false,
+			},
+		},
+		{
+			Val: &frontend.Value{
+				Typ: frontend.FieldTypeInteger,
+				Val: int64(10),
+			},
+		},
+		{
+			Val: &frontend.Value{
+				Typ: frontend.FieldTypeFloat,
+				Val: float64(40), // todo: float comparisons aren't accurate. Compare with a threshold.
+			},
+		},
+		{
+			Val: &frontend.Value{
+				Typ: frontend.FieldTypeInteger,
+				Val: int64(2),
 			},
 		},
 	}

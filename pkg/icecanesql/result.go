@@ -18,13 +18,18 @@ package icecanesql
 
 // Result denotes the result of the execution of a query plan
 type Result interface {
+	HasError() bool
+
 	GetError() error
 }
 
 // CreateTableResult is the result of the create table operation
 type CreateTableResult struct {
-	Success bool
-	Err     error
+	Err error
+}
+
+func (ctr *CreateTableResult) HasError() bool {
+	return ctr.Err != nil
 }
 
 func (ctr *CreateTableResult) GetError() error {
@@ -35,8 +40,11 @@ var _ Result = (*CreateTableResult)(nil)
 
 // DropTableResult is the result of the drop table operation
 type DropTableResult struct {
-	Success bool
-	Err     error
+	Err error
+}
+
+func (ctr *DropTableResult) HasError() bool {
+	return ctr.Err != nil
 }
 
 func (ctr *DropTableResult) GetError() error {
@@ -47,8 +55,11 @@ var _ Result = (*DropTableResult)(nil)
 
 // TruncateTableResult is the result of the truncate table operation
 type TruncateTableResult struct {
-	Success bool
-	Err     error
+	Err error
+}
+
+func (ctr *TruncateTableResult) HasError() bool {
+	return ctr.Err != nil
 }
 
 func (ctr *TruncateTableResult) GetError() error {
@@ -56,3 +67,47 @@ func (ctr *TruncateTableResult) GetError() error {
 }
 
 var _ Result = (*TruncateTableResult)(nil)
+
+type BeginTxnResult struct {
+	TxnID uint64
+	Err   error
+}
+
+func (ctr *BeginTxnResult) HasError() bool {
+	return ctr.Err != nil
+}
+
+func (ctr *BeginTxnResult) GetError() error {
+	return ctr.Err
+}
+
+var _ Result = (*BeginTxnResult)(nil)
+
+type FinishTxnResult struct {
+	Err error
+}
+
+func (ctr *FinishTxnResult) HasError() bool {
+	return ctr.Err != nil
+}
+
+func (ctr *FinishTxnResult) GetError() error {
+	return ctr.Err
+}
+
+var _ Result = (*FinishTxnResult)(nil)
+
+// InsertResult is the result of the insert operation
+type InsertResult struct {
+	Err error
+}
+
+func (ctr *InsertResult) HasError() bool {
+	return ctr.Err != nil
+}
+
+func (ctr *InsertResult) GetError() error {
+	return ctr.Err
+}
+
+var _ Result = (*InsertResult)(nil)

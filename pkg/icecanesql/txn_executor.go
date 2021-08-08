@@ -60,24 +60,3 @@ func (ex *FinishTxnExecutor) Execute(txnID uint64) Result {
 	res.Err = err
 	return res
 }
-
-type BeginTxnResult struct {
-	TxnID uint64
-	Err   error
-}
-
-func (ctr *BeginTxnResult) GetError() error {
-	return ctr.Err
-}
-
-var _ Result = (*BeginTxnResult)(nil)
-
-type FinishTxnResult struct {
-	Err error
-}
-
-func (ctr *FinishTxnResult) GetError() error {
-	return ctr.Err
-}
-
-var _ Result = (*FinishTxnResult)(nil)

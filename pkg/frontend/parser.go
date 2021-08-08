@@ -119,10 +119,6 @@ func (p *Parser) parseDDL() (Statement, error) {
 	}
 
 	if isKeyword(action, keywordCreate) {
-		spec := &TableSpec{
-			TableName: tableName.val,
-		}
-
 		_, err = p.nextTokenExpect(itemLeftParen)
 		if err != nil {
 			return nil, err
@@ -149,7 +145,7 @@ func (p *Parser) parseDDL() (Statement, error) {
 			return nil, err
 		}
 
-		spec.Columns = cols
+		spec := NewTableSpec(0, tableName.val, cols)
 		stmt := &CreateTableStatement{
 			Spec: spec,
 		}

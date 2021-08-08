@@ -4,7 +4,9 @@ import "github.com/dr0pdb/icecanedb/pkg/frontend"
 
 // planner derives the execution plan of a sql query
 type planner struct {
-	stmt frontend.Statement
+	stmt    frontend.Statement
+	catalog *catalog
+	txnID   uint64
 
 	res PlanNode
 	err error // errors encountered during the process
@@ -40,11 +42,13 @@ func (p *planner) plan() *planner {
 			vals[i] = st.Values[i].(*frontend.ValueExpression)
 		}
 
-		p.res = &InsertPlanNode{
-			TableName: st.Table.Name,
-			Columns:   st.Columns,
-			Values:    vals,
+		var spec *frontend.TableSpec
+		spec, p.err = p.catalog.getTableInfo(st.Table.Name, p.txnID)
+		if p.err != nil {
+			return p
 		}
+
+		p.res = newInsertPlanNode(st.Table.Name, spec, st.Columns, vals)
 	}
 
 	return p
@@ -61,8 +65,10 @@ func (p *planner) get() (PlanNode, error) {
 }
 
 // newPlanner creates a new planner for the given statement
-func newPlanner(stmt frontend.Statement) *planner {
+func newPlanner(stmt frontend.Statement, catalog *catalog, txnID uint64) *planner {
 	return &planner{
-		stmt: stmt,
+		stmt:    stmt,
+		catalog: catalog,
+		txnID:   txnID,
 	}
 }

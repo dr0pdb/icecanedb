@@ -29,9 +29,14 @@ import (
 	Value: id (64 bits) | number of columns (64 bits) | col_1 | col_2 | ...
 
 	Apart from creating the table, we also create a set of indices.
+
 	The primary index is implicit because we store table rows with key = tablePrefix_tableID_rowPrefix_rowID
 
 	For other indices, the index id = id of the column on which it is based.
+	If the values in the index are unique:
+		index key = indexPrefix_indexID_valuePrefix_valueID
+	Else:
+		index key = TODO
 */
 
 // CreateTableExecutor is the executor for the create table query
@@ -46,18 +51,6 @@ var _ Executor = (*CreateTableExecutor)(nil)
 func (ex *CreateTableExecutor) Execute(txnID uint64) Result {
 	log.Info("icecanesql::ddl_executor::CreateTableExecutor.Execute; start;")
 	res := &CreateTableResult{}
-	inlineTxn := false
-
-	if txnID == NoTxn {
-		startedTxnID, err := ex.rpc.beginTxn(false)
-		if err != nil {
-			res.Err = err
-			return res
-		}
-
-		txnID = startedTxnID
-		inlineTxn = true
-	}
 
 	tableID, err := getNextTableID(ex.rpc, txnID)
 	if err != nil {
@@ -70,16 +63,9 @@ func (ex *CreateTableExecutor) Execute(txnID uint64) Result {
 		return res
 	}
 
-	res.Success, res.Err = ex.rpc.set(k, v, txnID)
+	_, res.Err = ex.rpc.set(k, v, txnID)
 
-	// commit the inline txn
-	if inlineTxn {
-		err = ex.rpc.commitTxn(txnID)
-		if err != nil {
-			res.Err = err
-			ex.rpc.rollbackTxn(txnID) // todo: what if this also fails? retry?
-		}
-	}
+	// TODO: handle foreign keys, referential integrity, indices
 
 	return res
 }
@@ -95,18 +81,6 @@ var _ Executor = (*DropTableExecutor)(nil)
 func (ex *DropTableExecutor) Execute(txnID uint64) Result {
 	log.Info("icecanesql::ddl_executor::DropTableExecutor.Execute; start;")
 	res := &DropTableResult{}
-	inlineTxn := false
-
-	if txnID == NoTxn {
-		startedTxnID, err := ex.rpc.beginTxn(false)
-		if err != nil {
-			res.Err = err
-			return res
-		}
-
-		txnID = startedTxnID
-		inlineTxn = true
-	}
 
 	tableID, err := getTableID(ex.rpc, ex.TableName, txnID)
 	if err != nil {
@@ -121,18 +95,9 @@ func (ex *DropTableExecutor) Execute(txnID uint64) Result {
 		return res
 	}
 
-	res.Success, res.Err = ex.rpc.delete(k, txnID)
+	_, res.Err = ex.rpc.delete(k, txnID)
 
 	// todo: delete the rows
-
-	// commit the inline txn
-	if inlineTxn {
-		err = ex.rpc.commitTxn(txnID)
-		if err != nil {
-			res.Err = err
-			ex.rpc.rollbackTxn(txnID) // todo: what if this also fails? retry?
-		}
-	}
 
 	return res
 }

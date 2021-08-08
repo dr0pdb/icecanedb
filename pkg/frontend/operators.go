@@ -20,19 +20,18 @@ type Operator uint64
 
 const (
 	OperatorEqual              Operator = iota // '='
+	OperatorNotEqual                           // "!="
 	OperatorGreaterThan                        // '>'
+	OperatorGreaterThanEqualTo                 // ">="
 	OperatorLessThan                           // '<'
+	OperatorLessThanEqualTo                    // "<="
 	OperatorPlus                               // '+'
-	OperatorMinus                              // '-'
+	OperatorMinus                              // '-' unary + binary
 	OperatorAsterisk                           // '*'
 	OperatorSlash                              // '/'
 	OperatorCaret                              // '^'
 	OperatorPercent                            // '%'
-	OperatorExclamation                        // '!'
-	OperatorQuestionMark                       // '?'
-	OperatorNotEqual                           // "!="
-	OperatorLessThanEqualTo                    // "<="
-	OperatorGreaterThanEqualTo                 // ">="
+	OperatorExclamation                        // '!' unary
 	OperatorAndAnd                             // "&&"
 	OperatorOrOr                               // "||"
 )
@@ -49,7 +48,6 @@ var (
 		itemCaret:              OperatorCaret,
 		itemPercent:            OperatorPercent,
 		itemExclamation:        OperatorExclamation,
-		itemQuestionMark:       OperatorQuestionMark,
 		itemNotEqual:           OperatorNotEqual,
 		itemLessThanEqualTo:    OperatorLessThanEqualTo,
 		itemGreaterThanEqualTo: OperatorGreaterThanEqualTo,

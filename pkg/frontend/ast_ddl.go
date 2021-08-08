@@ -54,6 +54,34 @@ type TableSpec struct {
 	TableID   uint64 // internal id of the table. unique
 	TableName string
 	Columns   []*ColumnSpec
+
+	// The primary key column - guaranteed to have a valid value after validation step
+	PrimaryKeyColumnIdx int
+}
+
+func NewTableSpec(id uint64, name string, cols []*ColumnSpec) *TableSpec {
+	pk := -1
+	for i := range cols {
+		if cols[i].PrimaryKey {
+			pk = i
+		}
+	}
+
+	return &TableSpec{
+		TableID:   id,
+		TableName: name,
+		Columns:   cols,
+
+		PrimaryKeyColumnIdx: pk,
+	}
+}
+
+func (s *TableSpec) IsPrimaryKeyInteger() bool {
+	if s.PrimaryKeyColumnIdx != -1 {
+		return s.Columns[s.PrimaryKeyColumnIdx].Type == FieldTypeInteger
+	}
+
+	panic("programming error: TODO")
 }
 
 // ColumnSpec defines a single column of a table

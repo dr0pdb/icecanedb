@@ -124,28 +124,157 @@ func (e *valueExpressionEvaluator) evaluateAndValidateBinaryOpExpression(expr *f
 			return res, nil
 		}
 
-	case frontend.OperatorAndAnd:
-		e.err = assertTypeEqualityWithGivenType(lv, rv, frontend.FieldTypeBoolean)
+	case frontend.OperatorNotEqual:
+		e.err = assertTypeEquality(lv, rv)
 		if e.err == nil {
 			res := &frontend.ValueExpression{
 				Val: &frontend.Value{
 					Typ: frontend.FieldTypeBoolean,
-					Val: lv.Val.GetAsBoolean() && rv.Val.GetAsBoolean(),
+					Val: lv.Val.Val != rv.Val.Val,
 				},
 			}
+
 			return res, nil
 		}
 
-	case frontend.OperatorOrOr:
-		e.err = assertTypeEqualityWithGivenType(lv, rv, frontend.FieldTypeBoolean)
-		if e.err == nil {
-			res := &frontend.ValueExpression{
-				Val: &frontend.Value{
-					Typ: frontend.FieldTypeBoolean,
-					Val: lv.Val.GetAsBoolean() || rv.Val.GetAsBoolean(),
-				},
+	case frontend.OperatorGreaterThan:
+		expectedType := lv.Val.Typ
+
+		if _, ok := frontend.OperatorComparisonOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '>' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if expectedType == frontend.FieldTypeFloat {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsFloat() > rv.Val.GetAsFloat(),
+						},
+					}
+				} else if expectedType == frontend.FieldTypeInteger {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsInt() > rv.Val.GetAsInt(),
+						},
+					}
+				} else {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsString() > rv.Val.GetAsString(),
+						},
+					}
+				}
+				return res, nil
 			}
-			return res, nil
+		}
+
+	case frontend.OperatorGreaterThanEqualTo:
+		expectedType := lv.Val.Typ
+
+		if _, ok := frontend.OperatorComparisonOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '>=' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if expectedType == frontend.FieldTypeFloat {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsFloat() >= rv.Val.GetAsFloat(),
+						},
+					}
+				} else if expectedType == frontend.FieldTypeInteger {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsInt() >= rv.Val.GetAsInt(),
+						},
+					}
+				} else {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsString() >= rv.Val.GetAsString(),
+						},
+					}
+				}
+				return res, nil
+			}
+		}
+
+	case frontend.OperatorLessThan:
+		expectedType := lv.Val.Typ
+
+		if _, ok := frontend.OperatorComparisonOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '<' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if expectedType == frontend.FieldTypeFloat {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsFloat() < rv.Val.GetAsFloat(),
+						},
+					}
+				} else if expectedType == frontend.FieldTypeInteger {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsInt() < rv.Val.GetAsInt(),
+						},
+					}
+				} else {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsString() < rv.Val.GetAsString(),
+						},
+					}
+				}
+				return res, nil
+			}
+		}
+
+	case frontend.OperatorLessThanEqualTo:
+		expectedType := lv.Val.Typ
+
+		if _, ok := frontend.OperatorComparisonOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '<=' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if expectedType == frontend.FieldTypeFloat {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsFloat() <= rv.Val.GetAsFloat(),
+						},
+					}
+				} else if expectedType == frontend.FieldTypeInteger {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsInt() <= rv.Val.GetAsInt(),
+						},
+					}
+				} else {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeBoolean,
+							Val: lv.Val.GetAsString() <= rv.Val.GetAsString(),
+						},
+					}
+				}
+				return res, nil
+			}
 		}
 
 	case frontend.OperatorPlus:
@@ -183,6 +312,34 @@ func (e *valueExpressionEvaluator) evaluateAndValidateBinaryOpExpression(expr *f
 			}
 		}
 
+	case frontend.OperatorMinus:
+		expectedType := lv.Val.Typ
+
+		if _, ok := frontend.OperatorMinusOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '-' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if expectedType == frontend.FieldTypeFloat {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeFloat,
+							Val: lv.Val.GetAsFloat() - rv.Val.GetAsFloat(),
+						},
+					}
+				} else {
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeInteger,
+							Val: lv.Val.GetAsInt() - rv.Val.GetAsInt(),
+						},
+					}
+				}
+				return res, nil
+			}
+		}
+
 	case frontend.OperatorAsterisk:
 		expectedType := lv.Val.Typ
 
@@ -211,13 +368,93 @@ func (e *valueExpressionEvaluator) evaluateAndValidateBinaryOpExpression(expr *f
 			}
 		}
 
-	case frontend.OperatorGreaterThan:
+	case frontend.OperatorSlash:
+		expectedType := lv.Val.Typ
 
-	case frontend.OperatorGreaterThanEqualTo:
+		if _, ok := frontend.OperatorSlashOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '/' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if expectedType == frontend.FieldTypeFloat {
+					if rv.Val.GetAsFloat() == 0 {
+						e.err = fmt.Errorf("invalid divisor in division operation: cannot divide by zero")
+						return nil, e.err
+					}
 
-	case frontend.OperatorLessThan:
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeFloat,
+							Val: lv.Val.GetAsFloat() / rv.Val.GetAsFloat(),
+						},
+					}
+				} else {
+					if rv.Val.GetAsInt() == 0 {
+						e.err = fmt.Errorf("invalid divisor in division operation: cannot divide by zero")
+						return nil, e.err
+					}
 
-	case frontend.OperatorLessThanEqualTo:
+					res = &frontend.ValueExpression{
+						Val: &frontend.Value{
+							Typ: frontend.FieldTypeInteger,
+							Val: lv.Val.GetAsInt() / rv.Val.GetAsInt(),
+						},
+					}
+				}
+				return res, nil
+			}
+		}
+
+	case frontend.OperatorCaret:
+
+	case frontend.OperatorPercent:
+		expectedType := lv.Val.Typ
+
+		if _, ok := frontend.OperatorPercentOperandTypes[expectedType]; !ok {
+			e.err = fmt.Errorf("invalid type: binary operator '%%' cannot be used with operand of type %s", expectedType)
+		} else {
+			e.err = assertTypeEqualityWithGivenType(lv, rv, expectedType)
+			if e.err == nil {
+				var res *frontend.ValueExpression
+				if rv.Val.GetAsInt() == 0 {
+					e.err = fmt.Errorf("invalid divisor in modulo operation: cannot modulo by zero")
+					return nil, e.err
+				}
+
+				res = &frontend.ValueExpression{
+					Val: &frontend.Value{
+						Typ: frontend.FieldTypeInteger,
+						Val: lv.Val.GetAsInt() % rv.Val.GetAsInt(),
+					},
+				}
+				return res, nil
+			}
+		}
+
+	case frontend.OperatorAndAnd:
+		e.err = assertTypeEqualityWithGivenType(lv, rv, frontend.FieldTypeBoolean)
+		if e.err == nil {
+			res := &frontend.ValueExpression{
+				Val: &frontend.Value{
+					Typ: frontend.FieldTypeBoolean,
+					Val: lv.Val.GetAsBoolean() && rv.Val.GetAsBoolean(),
+				},
+			}
+			return res, nil
+		}
+
+	case frontend.OperatorOrOr:
+		e.err = assertTypeEqualityWithGivenType(lv, rv, frontend.FieldTypeBoolean)
+		if e.err == nil {
+			res := &frontend.ValueExpression{
+				Val: &frontend.Value{
+					Typ: frontend.FieldTypeBoolean,
+					Val: lv.Val.GetAsBoolean() || rv.Val.GetAsBoolean(),
+				},
+			}
+			return res, nil
+		}
 
 	}
 

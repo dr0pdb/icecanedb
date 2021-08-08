@@ -25,15 +25,21 @@ import (
 // catalog contains useful metadata info which are used while
 // query planning and optimizations
 type catalog struct {
-	rpc         *rpcRepository
-	schemaCache sync.Map
+	mu  *sync.RWMutex
+	rpc *rpcRepository
+
+	schemaCache map[string]*frontend.TableSpec
 }
 
 // returns info of the table if the given name
 func (c *catalog) getTableInfo(tableName string, txnID uint64) (*frontend.TableSpec, error) {
-	if spec, ok := c.schemaCache.Load(tableName); ok {
-		return spec.(*frontend.TableSpec), nil
+	// aquire read lock since schema should be present most of the times
+	c.mu.RLock()
+	if spec, ok := c.schemaCache[tableName]; ok {
+		c.mu.RUnlock()
+		return spec, nil
 	}
+	c.mu.RUnlock()
 
 	k := getTableKeyForQuery(tableName)
 	qk, qv, err := c.rpc.get(k, txnID)
@@ -46,7 +52,10 @@ func (c *catalog) getTableInfo(tableName string, txnID uint64) (*frontend.TableS
 		return nil, err
 	}
 
-	c.schemaCache.Store(tableName, spec)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.schemaCache[tableName] = spec
 	return spec, err
 }
 

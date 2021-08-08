@@ -88,6 +88,18 @@ var (
 	// Types which can be operands of the '+' operator
 	OperatorPlusOperandTypes = map[FieldType]bool{FieldTypeInteger: true, FieldTypeFloat: true, FieldTypeString: true}
 
+	// Types which can be operands of the '-' operator
+	OperatorMinusOperandTypes = map[FieldType]bool{FieldTypeInteger: true, FieldTypeFloat: true}
+
 	// Types which can be operands of the '*' operator
 	OperatorAsteriskOperandTypes = map[FieldType]bool{FieldTypeInteger: true, FieldTypeFloat: true}
+
+	// Types which can be operands of the '/' operator
+	OperatorSlashOperandTypes = map[FieldType]bool{FieldTypeInteger: true, FieldTypeFloat: true}
+
+	// Types which can be operands of the '%' operator
+	OperatorPercentOperandTypes = map[FieldType]bool{FieldTypeInteger: true}
+
+	// Types which can be operands of the '>', '>=', '<' & '<=' operators
+	OperatorComparisonOperandTypes = map[FieldType]bool{FieldTypeInteger: true, FieldTypeFloat: true, FieldTypeString: true}
 )
