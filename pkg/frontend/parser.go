@@ -732,14 +732,14 @@ func (p *Parser) parseUpdate() (Statement, error) {
 
 	tableName, err := p.nextTokenIdentifier()
 	if err != nil {
-		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected table name")
+		p.err = fmt.Errorf("icecanesql::parser::parseUpdate: expected table name")
 		return nil, p.err
 	}
 	expr.Table = &Table{Name: tableName.val}
 
 	set := p.nextToken()
 	if !isKeyword(set, keywordSet) {
-		p.err = fmt.Errorf("icecanesql::parser::parseInsert: expected keyword \"SET\" after table name")
+		p.err = fmt.Errorf("icecanesql::parser::parseUpdate: expected keyword \"SET\" after table name")
 		return nil, p.err
 	}
 

@@ -92,6 +92,6 @@ type ColumnSpec struct {
 	PrimaryKey bool
 	Unique     bool
 	Index      bool
-	References string // the foreign key reference
-	Default    Expression
+	References string     // the foreign key reference
+	Default    Expression // must be *ValueExpression of type given in field Type
 }

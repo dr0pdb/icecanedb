@@ -61,6 +61,8 @@ func (c *catalog) getTableInfo(tableName string, txnID uint64) (*frontend.TableS
 
 func newCatalog(rpc *rpcRepository) *catalog {
 	return &catalog{
-		rpc: rpc,
+		rpc:         rpc,
+		mu:          new(sync.RWMutex),
+		schemaCache: make(map[string]*frontend.TableSpec),
 	}
 }
