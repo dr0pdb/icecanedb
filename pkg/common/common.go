@@ -17,6 +17,10 @@
 package common
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"math"
 	"sync"
 
 	"google.golang.org/grpc"
@@ -175,6 +179,39 @@ func ByteSliceToU64(b []byte) uint64 {
 	return res
 }
 
+// I64ToByteSlice converts a int64 to []byte
+func I64ToByteSlice(num int64) []byte {
+	res := make([]byte, 8)
+
+	// encode term in first 8 bytes
+	res[0] = uint8(num) // last 1 byte of term
+	res[1] = uint8(num >> 8)
+	res[2] = uint8(num >> 16)
+	res[3] = uint8(num >> 24)
+	res[4] = uint8(num >> 32)
+	res[5] = uint8(num >> 40)
+	res[6] = uint8(num >> 48)
+	res[7] = uint8(num >> 56)
+
+	return res
+}
+
+// ByteSliceToI64 converts a byte slice to int64. The byte should have been created using I64ToByte
+func ByteSliceToI64(b []byte) int64 {
+	res := int64(0)
+
+	res |= int64(b[0])
+	res |= int64(b[1]) << 8
+	res |= int64(b[2]) << 16
+	res |= int64(b[3]) << 24
+	res |= int64(b[4]) << 32
+	res |= int64(b[5]) << 40
+	res |= int64(b[6]) << 48
+	res |= int64(b[7]) << 56
+
+	return res
+}
+
 // U64SliceToByteSlice converts a uint64 slice to a byte slice
 func U64SliceToByteSlice(uslice []uint64) []byte {
 	var res []byte
@@ -210,4 +247,19 @@ func BoolToByte(b bool) byte {
 // ByteToBool converts a byte to bool
 func ByteToBool(b byte) bool {
 	return b > 0
+}
+
+func Float64ToByteSlice(f float64) []byte {
+	var buf bytes.Buffer
+	err := binary.Write(&buf, binary.LittleEndian, f)
+	if err != nil {
+		fmt.Println("binary.Write failed:", err)
+	}
+	return buf.Bytes()
+}
+
+func ByteSliceToFloat64(b []byte) float64 {
+	bits := binary.LittleEndian.Uint64(b)
+	float := math.Float64frombits(bits)
+	return float
 }

@@ -97,7 +97,7 @@ func (isv *insertStatementValidator) validate(txnID uint64) error {
 		ee := newValueExpressionEvaluator(val)
 		ne, err := ee.evaluate()
 		if err != nil {
-			return fmt.Errorf("error in column %d, err: %v", i, err)
+			return fmt.Errorf("error in column %s, err: %v", spec.Columns[i].Name, err)
 		}
 
 		// update the value to the evaluate value expression so that later steps can use it directly.
@@ -144,12 +144,12 @@ func (usv *updateStatementValidator) validate(txnID uint64) error {
 			ee := newValueExpressionEvaluator(v.R)
 			ne, err := ee.evaluate()
 			if err != nil {
-				return fmt.Errorf("error in column %d, err: %v", i, err)
+				return fmt.Errorf("error in column %s, err: %v", spec.Columns[i].Name, err)
 			}
 
 			// validate the type of the value matches the spec
 			if ne.Val.Typ != spec.Columns[i].Type {
-				return fmt.Errorf("type error in column %d, expected type %s, found type %s", i, spec.Columns[i].Type, ne.Val.Typ)
+				return fmt.Errorf("type error in column %s, expected type %s, found type %s", spec.Columns[i].Name, spec.Columns[i].Type, ne.Val.Typ)
 			}
 
 			// update the value to the evaluate value expression so that later steps can use it directly.
@@ -226,7 +226,7 @@ func validateColumns(spec *frontend.TableSpec, cols []string, valuesExpr []front
 
 		for i := range spec.Columns {
 			if vmap[nameToIdx[spec.Columns[i].Name]].Val.Typ != spec.Columns[i].Type {
-				return vmap, fmt.Errorf("type error in column %d, expected type %s, found type %s", i, spec.Columns[i].Type, values[i].Val.Typ)
+				return vmap, fmt.Errorf("type error in column %s, expected type %s, found type %s", spec.Columns[i].Name, spec.Columns[i].Type, values[i].Val.Typ)
 			}
 		}
 
@@ -239,7 +239,7 @@ func validateColumns(spec *frontend.TableSpec, cols []string, valuesExpr []front
 			vmap[i] = values[i]
 
 			if values[i].Val.Typ != spec.Columns[i].Type {
-				return vmap, fmt.Errorf("type error in column %d, expected type %s, found type %s", i, spec.Columns[i].Type, values[i].Val.Typ)
+				return vmap, fmt.Errorf("type error in column %s, expected type %s, found type %s", spec.Columns[i].Name, spec.Columns[i].Type, values[i].Val.Typ)
 			}
 		}
 	}

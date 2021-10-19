@@ -77,3 +77,55 @@ func TestEncodeTableSchema(t *testing.T) {
 		assert.Equal(t, table.Columns[i], decodedTable.Columns[i], "column spec doesn't  match")
 	}
 }
+
+func TestEncodeTableRowValues(t *testing.T) {
+	table := &frontend.TableSpec{
+		TableName: "TestTable",
+		Columns: []*frontend.ColumnSpec{
+			{
+				Name:       "col1",
+				Type:       frontend.FieldTypeInteger,
+				PrimaryKey: true,
+				Nullable:   false,
+				Unique:     true,
+				Index:      true,
+			},
+			{
+				Name:       "col2",
+				Type:       frontend.FieldTypeBoolean,
+				PrimaryKey: false,
+				Nullable:   true,
+				Unique:     false,
+				Index:      false,
+			},
+			{
+				Name:       "col3",
+				Type:       frontend.FieldTypeFloat,
+				PrimaryKey: false,
+				Nullable:   true,
+				Unique:     false,
+				Index:      false,
+			},
+			{
+				Name:       "col4",
+				Type:       frontend.FieldTypeString,
+				PrimaryKey: false,
+				Nullable:   true,
+				Unique:     false,
+				Index:      false,
+			},
+		},
+	}
+	values := map[int]*frontend.ValueExpression{
+		0: {Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}, ExpressionNode: frontend.ExpressionNode{Typ: frontend.FieldTypeInteger}},
+		1: {Val: &frontend.Value{Typ: frontend.FieldTypeBoolean, Val: true}, ExpressionNode: frontend.ExpressionNode{Typ: frontend.FieldTypeBoolean}},
+		2: {Val: &frontend.Value{Typ: frontend.FieldTypeFloat, Val: 1.98}, ExpressionNode: frontend.ExpressionNode{Typ: frontend.FieldTypeFloat}},
+		3: {Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "John Doe"}, ExpressionNode: frontend.ExpressionNode{Typ: frontend.FieldTypeString}},
+	}
+
+	enc := encodeTableRowValues(table, values)
+	decodedValues, err := decodeTableRowValues(table, enc)
+
+	assert.Nil(t, err, "unexpected error in decoding table row values")
+	assert.Equal(t, values, decodedValues, "values and decodedValues don't match")
+}

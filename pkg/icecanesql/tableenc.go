@@ -64,8 +64,28 @@ func encodeTableRowKeyWithString(table *frontend.TableSpec, rowID string) []byte
 	return res
 }
 
+// returns the serialized values that can be stored for a single row of the given table
 func encodeTableRowValues(table *frontend.TableSpec, values map[int]*frontend.ValueExpression) []byte {
-	return []byte{}
+	var res []byte
+
+	for i := range table.Columns {
+		res = append(res, encodeColumnValue(table.Columns[i], values[i])...)
+	}
+
+	return res
+}
+
+func decodeTableRowValues(table *frontend.TableSpec, encodedValues []byte) (map[int]*frontend.ValueExpression, error) {
+	res := make(map[int]*frontend.ValueExpression)
+	idx := int(0)
+
+	for i := range table.Columns {
+		val, nxtIdx := decodeColumnValue(table.Columns[i], encodedValues, idx)
+		res[i] = val
+		idx = nxtIdx
+	}
+
+	return res, nil
 }
 
 // returns the key that can be used to query the kv for info about the table spec
@@ -239,4 +259,91 @@ func decodeColumnSpec(b []byte) (cs *frontend.ColumnSpec, idx uint64, err error)
 	// TODO: decode default value
 
 	return cs, idx, err
+}
+
+func encodeColumnValue(col *frontend.ColumnSpec, value *frontend.ValueExpression) []byte {
+	var res []byte
+	res = append(res, common.U64ToByteSlice(uint64(encodeValueMarker(col.Type)))...)
+	res = append(res, getSerializedValue(value.Val)...)
+	return res
+}
+
+func decodeColumnValue(col *frontend.ColumnSpec, encodedValue []byte, idx int) (*frontend.ValueExpression, int) {
+	val := &frontend.ValueExpression{Val: &frontend.Value{}}
+
+	typ := decodeValueMarker(valueMarker(common.ByteSliceToU64(encodedValue[idx : idx+8])))
+	val.Typ = typ
+	val.Val.Typ = typ
+	idx += 8
+
+	switch typ {
+	case frontend.FieldTypeBoolean:
+		val.Val.Val = common.ByteToBool(encodedValue[idx])
+		idx += 1
+	case frontend.FieldTypeFloat:
+		val.Val.Val = common.ByteSliceToFloat64(encodedValue[idx : idx+8])
+		idx += 8
+	case frontend.FieldTypeInteger:
+		val.Val.Val = common.ByteSliceToI64(encodedValue[idx : idx+8])
+		idx += 8
+	case frontend.FieldTypeString:
+		str, nxtIdx, _ := decodeString(encodedValue[idx:])
+		val.Val.Val = str
+		idx = int(nxtIdx)
+	case frontend.FieldTypeNull:
+		break
+	}
+
+	return val, idx
+}
+
+func encodeValueMarker(typ frontend.FieldType) valueMarker {
+	switch typ {
+	case frontend.FieldTypeBoolean:
+		return valueMarkerBoolean
+	case frontend.FieldTypeFloat:
+		return valueMarkerFloat
+	case frontend.FieldTypeInteger:
+		return valueMarkerInteger
+	case frontend.FieldTypeString:
+		return valueMarkerString
+	case frontend.FieldTypeNull:
+		return valueMarkerNull
+	}
+
+	panic("Programming error: unreachable code")
+}
+
+func decodeValueMarker(marker valueMarker) frontend.FieldType {
+	switch marker {
+	case valueMarkerBoolean:
+		return frontend.FieldTypeBoolean
+	case valueMarkerFloat:
+		return frontend.FieldTypeFloat
+	case valueMarkerInteger:
+		return frontend.FieldTypeInteger
+	case valueMarkerString:
+		return frontend.FieldTypeString
+	case valueMarkerNull:
+		return frontend.FieldTypeNull
+	}
+
+	panic("Programming error: unreachable code")
+}
+
+func getSerializedValue(value *frontend.Value) []byte {
+	switch value.Typ {
+	case frontend.FieldTypeBoolean:
+		return []byte{common.BoolToByte(value.GetAsBoolean())}
+	case frontend.FieldTypeFloat:
+		return common.Float64ToByteSlice(value.GetAsFloat())
+	case frontend.FieldTypeInteger:
+		return common.I64ToByteSlice(value.GetAsInt())
+	case frontend.FieldTypeString:
+		return []byte(encodeString(value.GetAsString()))
+	case frontend.FieldTypeNull:
+		return []byte{}
+	}
+
+	panic("Programming error: unreachable code")
 }

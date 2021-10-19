@@ -61,11 +61,14 @@ func (v *Value) GetAsBoolean() bool {
 }
 
 func (v *Value) GetAsInt() int64 {
-	if v.Typ != FieldTypeInteger {
+	switch t := v.Val.(type) {
+	case int64:
+		return t
+	case int:
+		return int64(t)
+	default:
 		panic("programming error: expected type to be integer")
 	}
-
-	return v.Val.(int64)
 }
 
 func (v *Value) GetAsFloat() float64 {

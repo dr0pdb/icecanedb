@@ -40,3 +40,12 @@ func TestBoolByteConversion(t *testing.T) {
 	b = BoolToByte(false)
 	assert.False(t, ByteToBool(b), "unexpected value of decoded b. expected false, found true")
 }
+
+func TestFloat64ByteConversion(t *testing.T) {
+	f := float64(32.01)
+
+	b := Float64ToByteSlice(f)
+	df := ByteSliceToFloat64(b)
+
+	assert.Equal(t, f, df, "unexpected value of decoded float64")
+}

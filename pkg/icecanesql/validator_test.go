@@ -438,3 +438,90 @@ func TestInsertStatementValidatorNoErrorWithCorrectWithColumns(t *testing.T) {
 	err := validator.validate(0)
 	assert.Nil(t, err, "Unexpected error in validating insert statement")
 }
+
+func TestInsertStatementValidatorErrorWithNonMatchingOrderWithoutColumns(t *testing.T) {
+	catalog := setupCatalog()
+
+	// "INSERT INTO Students VALUES ('John Doe', 'Economics', 1 + 1011, 1, false 50.5);"
+	statement := &frontend.InsertStatement{
+		Table: &frontend.Table{Name: testTableName},
+		Values: []frontend.Expression{
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "'John Doe'"}},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "'Economics'"}},
+			&frontend.BinaryOpExpression{
+				Op: frontend.OperatorPlus,
+				L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}},
+				R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1011)}},
+			},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeBoolean, Val: false}},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeFloat, Val: 50.5}},
+		},
+	}
+
+	validator := &insertStatementValidator{
+		ast:     statement,
+		catalog: catalog,
+	}
+
+	err := validator.validate(0)
+	assert.NotNil(t, err, "Unexpected success in validating insert statement with non matching order without columns")
+}
+
+func TestInsertStatementValidatorErrorWithInvalidType(t *testing.T) {
+	catalog := setupCatalog()
+
+	// "INSERT INTO Students (NAME, SUBJECT, AGE, ROLL_NO, WEIGHT, RICH) VALUES (1, 1, 1 + 1011, 1, 50.5, false);"
+	statement := &frontend.InsertStatement{
+		Table: &frontend.Table{Name: testTableName},
+		Values: []frontend.Expression{
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}}, // Invalid type
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}},
+			&frontend.BinaryOpExpression{
+				Op: frontend.OperatorPlus,
+				L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}},
+				R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1011)}},
+			},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeBoolean, Val: false}},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeFloat, Val: 50.5}},
+		},
+	}
+
+	validator := &insertStatementValidator{
+		ast:     statement,
+		catalog: catalog,
+	}
+
+	err := validator.validate(0)
+	assert.NotNil(t, err, "Unexpected success in validating insert statement with invalid type")
+}
+
+func TestInsertStatementValidatorErrorWithInvalidType2(t *testing.T) {
+	catalog := setupCatalog()
+
+	// "INSERT INTO Students (NAME, SUBJECT, AGE, ROLL_NO, WEIGHT, RICH) VALUES (1, 1, 1 + "wrong type", 1, 50.5, false);"
+	statement := &frontend.InsertStatement{
+		Table: &frontend.Table{Name: testTableName},
+		Values: []frontend.Expression{
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "'John Doe'"}},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "'Economics'"}},
+			&frontend.BinaryOpExpression{
+				Op: frontend.OperatorPlus,
+				L:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}},
+				R:  &frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeString, Val: "wrong type"}}, // invalid type
+			},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeInteger, Val: int64(1)}},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeBoolean, Val: false}},
+			&frontend.ValueExpression{Val: &frontend.Value{Typ: frontend.FieldTypeFloat, Val: 50.5}},
+		},
+	}
+
+	validator := &insertStatementValidator{
+		ast:     statement,
+		catalog: catalog,
+	}
+
+	err := validator.validate(0)
+	assert.NotNil(t, err, "Unexpected success in validating insert statement with invalid type2")
+}
